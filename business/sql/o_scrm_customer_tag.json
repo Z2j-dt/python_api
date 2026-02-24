@@ -1,0 +1,92 @@
+{
+  "job": {
+    "content": [
+      {
+        "reader": {
+          "name": "mysqlreader",
+          "parameter": {
+            "username": "dtproduser@SCRM#dtzq_observer",
+            "password": "dtproduser@2025&",
+            "connection": [
+              {
+                "jdbcUrl": [
+                  "jdbc:mysql://10.10.21.205:12888/enterprise_weixin"
+                ],
+                "querySql": [
+                  "select * from customer_tag"
+                ]
+              }
+            ],
+            "splitPk": ""
+          }
+        },
+        "writer": {
+          "name": "hdfswriter",
+          "parameter": {
+            "defaultFS": "hdfs://hadoop101:8020",
+            "fileType": "orc",
+            "path": "/user/hive/warehouse/ods.db/o_scrm_customer_tag/day=@_@",
+            "fileName": "o_scrm_customer_tag",
+            "column": [
+              {
+                "name": "tag_id",
+                "type": "string"
+              },
+              {
+                "name": "customer_id",
+                "type": "string"
+              },
+              {
+                "name": "user_id",
+                "type": "string"
+              },
+              {
+                "name": "external_id",
+                "type": "string"
+              },
+              {
+                "name": "tag_name",
+                "type": "string"
+              },
+              {
+                "name": "user_table_id",
+                "type": "string"
+              },
+              {
+                "name": "tag_type",
+                "type": "string"
+              },
+              {
+                "name": "id",
+                "type": "string"
+              },
+              {
+                "name": "expire_time",
+                "type": "string"
+              },
+              {
+                "name": "update_time",
+                "type": "string"
+              },
+              {
+                "name": "create_time",
+                "type": "string"
+              },
+              {
+                "name": "channel_id",
+                "type": "string"
+              }
+            ],
+            "fieldDelimiter": "\t",
+            "writeMode": "append"
+          }
+        }
+      }
+    ],
+    "setting": {
+      "speed": {
+        "channel": 3
+      }
+    }
+  }
+}

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 · 数据中台门户</title>
+    <link rel="icon" href="{{ url_for('static', filename='img/大同.png') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        :root {
+            --bg0: #0b1220;
+            --bg1: #0f1b33;
+            --card: rgba(255, 255, 255, 0.06);
+            --card-border: rgba(148, 163, 184, 0.18);
+            --text: #e2e8f0;
+            --muted: #94a3b8;
+            --muted2: #64748b;
+            --primary: #3b82f6;
+            --primary2: #2563eb;
+            --danger: #f87171;
+        }
+
+        body { background: radial-gradient(1200px 600px at 20% 20%, rgba(59,130,246,0.22), transparent 55%), radial-gradient(1000px 500px at 80% 30%, rgba(16,185,129,0.18), transparent 55%), linear-gradient(180deg, var(--bg0), var(--bg1)); }
+
+        .login-page {
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+        }
+
+        .login-shell {
+            width: min(920px, 100%);
+            display: grid;
+            grid-template-columns: 1.1fr 0.9fr;
+            gap: 18px;
+            align-items: stretch;
+        }
+
+        .login-hero, .login-box {
+            border-radius: 18px;
+            border: 1px solid var(--card-border);
+            background: var(--card);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            box-shadow: 0 18px 60px rgba(0,0,0,0.35);
+        }
+
+        .login-hero {
+            padding: 34px 32px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .login-hero:before {
+            content: "";
+            position: absolute;
+            inset: -60px -80px auto auto;
+            width: 320px;
+            height: 320px;
+            background: radial-gradient(circle at 30% 30%, rgba(59,130,246,0.35), transparent 60%);
+            filter: blur(2px);
+        }
+
+        .hero-title {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: #f8fafc;
+            letter-spacing: 0.02em;
+        }
+
+        .hero-sub {
+            margin-top: 10px;
+            color: var(--muted);
+            line-height: 1.6;
+            font-size: 0.95rem;
+        }
+
+        .hero-pills { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 10px; }
+        .pill {
+            font-size: 0.85rem;
+            color: #cbd5e1;
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            background: rgba(15, 23, 42, 0.35);
+            padding: 8px 10px;
+            border-radius: 999px;
+        }
+
+        .login-box {
+            padding: 28px 26px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+        .brand img { width: 52px; height: 52px; object-fit: contain; border-radius: 14px; background: rgba(15,23,42,0.55); border: 1px solid rgba(148,163,184,0.22); }
+        .brand h1 { font-size: 1.15rem; color: #f8fafc; margin: 0; }
+        .brand .sub { font-size: 0.85rem; color: var(--muted); margin-top: 4px; }
+
+        .error {
+            color: var(--danger);
+            background: rgba(248, 113, 113, 0.12);
+            border: 1px solid rgba(248, 113, 113, 0.25);
+            padding: 10px 12px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            margin: 8px 0 14px 0;
+        }
+
+        .field { margin-top: 12px; }
+        label { display: block; font-size: 0.85rem; color: #cbd5e1; margin-bottom: 8px; }
+
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 12px 12px;
+            border: 1px solid rgba(148,163,184,0.22);
+            border-radius: 12px;
+            background: rgba(2,6,23,0.35);
+            color: var(--text);
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s, transform 0.05s;
+        }
+        input:focus {
+            border-color: rgba(59,130,246,0.7);
+            box-shadow: 0 0 0 4px rgba(59,130,246,0.18);
+        }
+
+        .actions { margin-top: 16px; }
+        button {
+            width: 100%;
+            padding: 12px 14px;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(135deg, var(--primary), var(--primary2));
+            color: #fff;
+            font-size: 1rem;
+            font-weight: 650;
+            cursor: pointer;
+            transition: transform 0.05s, filter 0.2s;
+        }
+        button:hover { filter: brightness(1.05); }
+        button:active { transform: translateY(1px); }
+
+        .footnote { margin-top: 14px; font-size: 0.78rem; color: var(--muted2); line-height: 1.5; }
+        input[name="next"] { display: none; }
+
+        @media (max-width: 860px) {
+            .login-shell { grid-template-columns: 1fr; }
+            .login-hero { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-page">
+        <div class="login-shell">
+            <section class="login-hero">
+                <div class="hero-title">数据中台门户</div>
+                <div class="hero-sub">
+                    统一入口 · 统一权限 · 一站式数据服务<br>
+                    数据字典 / 数据血缘 / 业务应用 / 技术支持
+                </div>
+                <div class="hero-pills">
+                    <span class="pill">单端口访问</span>
+                    <span class="pill">模块化导航</span>
+                    <span class="pill">账号权限控制</span>
+                    <span class="pill">可持续扩展</span>
+                </div>
+            </section>
+
+            <section class="login-box">
+                <div class="brand">
+                    <img src="{{ url_for('static', filename='img/大同证券.png') }}" alt="logo">
+                    <div>
+                        <h1>数据中台门户</h1>
+                        <div class="sub">请登录后访问</div>
+                    </div>
+                </div>
+
+                {% if error %}
+                <div class="error">{{ error }}</div>
+                {% endif %}
+
+                <form method="post" action="{{ url_for('login') }}">
+                    <input type="hidden" name="next" value="{{ next_url }}">
+                    <div class="field">
+                        <label>用户名</label>
+                        <input type="text" name="username" placeholder="请输入用户名" required autofocus>
+                    </div>
+                    <div class="field">
+                        <label>密码</label>
+                        <input type="password" name="password" placeholder="请输入密码" required>
+                    </div>
+                    <div class="actions">
+                        <button type="submit">登录</button>
+                    </div>
+                </form>
+                <div class="footnote">提示：如忘记账号权限配置，请联系管理员或检查 <code>portal/users.json</code>。</div>
+            </section>
+        </div>
+    </div>
+</body>
+</html>

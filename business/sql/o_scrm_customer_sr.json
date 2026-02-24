@@ -1,0 +1,74 @@
+{
+  "job": {
+    "content": [
+      {
+        "reader": {
+          "name": "mysqlreader",
+          "parameter": {
+            "username": "dtproduser@SCRM#dtzq_observer",
+            "password": "dtproduser@2025&",
+            "connection": [
+              {
+                "jdbcUrl": [
+                  "jdbc:mysql://10.10.21.205:12888/enterprise_weixin"
+                ],
+                "querySql": [
+                  "SELECT id, name, external_id, avatar, gender, union_id, mobile, address, customer_code, id_code, remark, birth_date, create_time, update_time, real_name, state, kyc, type, user_table_id, add_time, del_time, add_time_before, del_time_before, avatar_fast_url, account_no FROM customer WHERE DATE(create_time) = CURDATE()"
+                ]
+              }
+            ],
+            "splitPk": "id"
+          }
+        },
+        "writer": {
+          "name": "mysqlwriter",
+          "parameter": {
+            "username": "root",
+            "password": "star@dt1988",
+            "connection": [
+              {
+                "jdbcUrl": "jdbc:mysql://10.8.93.40:9030/test_db",
+                "table": ["o_scrm_customer"]
+              }
+            ],
+            "column": [
+              "id",
+              "name",
+              "external_id",
+              "avatar",
+              "gender",
+              "union_id",
+              "mobile",
+              "address",
+              "customer_code",
+              "id_code",
+              "remark",
+              "birth_date",
+              "create_time",
+              "update_time",
+              "real_name",
+              "state",
+              "kyc",
+              "type",
+              "user_table_id",
+              "add_time",
+              "del_time",
+              "add_time_before",
+              "del_time_before",
+              "avatar_fast_url",
+              "account_no"
+            ],
+            "writeMode": "insert",
+            "preSql": ["TRUNCATE TABLE o_scrm_customer"],
+            "postSql": []
+          }
+        }
+      }
+    ],
+    "setting": {
+      "speed": {
+        "channel": 3
+      }
+    }
+  }
+}

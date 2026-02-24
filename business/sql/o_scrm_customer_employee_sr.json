@@ -1,0 +1,68 @@
+{
+  "job": {
+    "content": [
+      {
+        "reader": {
+          "name": "mysqlreader",
+          "parameter": {
+            "username": "dtproduser@SCRM#dtzq_observer",
+            "password": "dtproduser@2025&",
+            "connection": [
+              {
+                "jdbcUrl": [
+                  "jdbc:mysql://10.10.21.205:12888/enterprise_weixin"
+                ],
+                "querySql": [
+                  "SELECT id, customer_id, user_id, state, user_name, user_table_id, external_id, remark, description, remark_corp_name, remark_mobiles, add_way, add_time, contact_type, create_time, relation_update_date, relation_break_time, relation_update_time, department_ids FROM customer_employee WHERE DATE(create_time) = CURDATE()"
+                ]
+              }
+            ],
+            "splitPk": "id"
+          }
+        },
+        "writer": {
+          "name": "mysqlwriter",
+          "parameter": {
+            "username": "root",
+            "password": "star@dt1988",
+            "connection": [
+              {
+                "jdbcUrl": "jdbc:mysql://10.8.93.40:9030/test_db",
+                "table": ["o_scrm_customer_employee"]
+              }
+            ],
+            "column": [
+              "id",
+              "customer_id",
+              "user_id",
+              "state",
+              "user_name",
+              "user_table_id",
+              "external_id",
+              "remark",
+              "description",
+              "remark_corp_name",
+              "remark_mobiles",
+              "add_way",
+              "add_time",
+              "contact_type",
+              "create_time",
+              "relation_update_date",
+              "relation_break_time",
+              "relation_update_time",
+              "department_ids"
+            ],
+            "writeMode": "insert",
+            "preSql": ["TRUNCATE TABLE o_scrm_customer_employee"],
+            "postSql": []
+          }
+        }
+      }
+    ],
+    "setting": {
+      "speed": {
+        "channel": 3
+      }
+    }
+  }
+}

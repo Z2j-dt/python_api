@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hive元数据查询系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- 内网环境无法访问外网 CDN 会报 ERR_NAME_NOT_RESOLVED，已去掉 Font Awesome 外链；需要图标可改为本地静态文件 -->
+</head>
+<body>
+<div class="container">
+    {% block content %}{% endblock %}
+</div>
+{% block scripts %}{% endblock %}
+</body>
+</html>

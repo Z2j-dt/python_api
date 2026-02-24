@@ -1,0 +1,80 @@
+{
+  "job": {
+    "content": [
+      {
+        "reader": {
+          "name": "mysqlreader",
+          "parameter": {
+            "username": "dtproduser@SCRM#dtzq_observer",
+            "password": "dtproduser@2025&",
+            "connection": [
+              {
+                "jdbcUrl": [
+                  "jdbc:mysql://10.10.21.205:12888/enterprise_weixin"
+                ],
+                "querySql": [
+                  "select * from tag_group"
+                ]
+              }
+            ],
+            "splitPk": ""
+          }
+        },
+        "writer": {
+          "name": "hdfswriter",
+          "parameter": {
+            "defaultFS": "hdfs://hadoop101:8020",
+            "fileType": "orc",
+            "path": "/user/hive/warehouse/ods.db/o_scrm_tag_group/day=@_@",
+            "fileName": "o_scrm_tag_group",
+            "column": [
+              {
+                "name": "name",
+                "type": "string"
+              },
+              {
+                "name": "group_id",
+                "type": "string"
+              },
+              {
+                "name": "create_time",
+                "type": "string"
+              },
+              {
+                "name": "sort",
+                "type": "string"
+              },
+              {
+                "name": "owner",
+                "type": "string"
+              },
+              {
+                "name": "low_sort",
+                "type": "string"
+              },
+              {
+                "name": "qw_order",
+                "type": "string"
+              },
+              {
+                "name": "is_system",
+                "type": "string"
+              },
+              {
+                "name": "update_time",
+                "type": "string"
+              }
+            ],
+            "fieldDelimiter": "\t",
+            "writeMode": "append"
+          }
+        }
+      }
+    ],
+    "setting": {
+      "speed": {
+        "channel": 3
+      }
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "开户时间": "open_time",
+  "开户渠道": "open_channel",
+  "跟进人": "follower",
+  "跟进人ID": "follower_id",
+  "微信号": "wechat_id",
+  "企业微信昵称": "corp_wechat_name"
+}
+

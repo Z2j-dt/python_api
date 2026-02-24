@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>表搜索</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f5f5f5;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        .search-container {
+            max-width: 800px;
+            margin: 50px auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+
+        .search-header {
+            margin-bottom: 20px;
+        }
+
+        .search-box {
+            margin-bottom: 20px;
+        }
+
+        .search-input-group {
+            position: relative;
+        }
+
+        .search-input {
+            padding-right: 120px;
+            height: 46px;
+            font-size: 16px;
+        }
+
+        .search-button {
+            position: absolute;
+            right: 5px;
+            top: 5px;
+            bottom: 5px;
+            z-index: 5;
+        }
+
+        .clear-button {
+            position: absolute;
+            right: 90px;
+            top: 5px;
+            bottom: 5px;
+            z-index: 5;
+            color: #666;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+        }
+
+        .clear-button:hover {
+            color: #333;
+        }
+
+        .result-item {
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .result-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .result-item:last-child {
+            border-bottom: none;
+        }
+
+        .result-table-name {
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 3px;
+        }
+
+        .result-meta {
+            font-size: 13px;
+            color: #666;
+        }
+
+        .result-count {
+            color: #666;
+            padding: 10px 15px;
+            border-bottom: 1px solid #eee;
+            font-size: 14px;
+        }
+
+        .no-results {
+            padding: 40px 20px;
+            text-align: center;
+            color: #666;
+        }
+
+        .layer-tag {
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin-right: 8px;
+        }
+
+        .ods-tag { background-color: #ffebee; color: #c62828; }
+        .dwd-tag { background-color: #e3f2fd; color: #1565c0; }
+        .dws-tag { background-color: #e8f5e8; color: #2e7d32; }
+        .ads-tag { background-color: #f3e5f5; color: #7b1fa2; }
+        .dim-tag { background-color: #fff8e1; color: #ff8f00; }
+        .other-tag { background-color: #f5f5f5; color: #616161; }
+    </style>
+</head>
+<body>
+<div class="search-container">
+    <div class="search-header">
+        <h5 style="margin-bottom: 5px;">搜索类型：表名搜索</h5>
+        <p class="text-muted" style="font-size: 14px; margin-bottom: 0;">按表名进行模糊搜索</p>
+    </div>
+
+    <div class="search-box">
+        <form id="searchForm" action="/search" method="get">
+            <div class="search-input-group">
+                <input type="text"
+                       class="form-control search-input"
+                       name="keyword"
+                       id="searchInput"
+                       placeholder="输入表名进行搜索"
+                       value="{{ keyword or '' }}">
+                <button type="button" class="clear-button" id="clearButton">清空</button>
+                <button type="submit" class="btn btn-primary search-button">搜索</button>
+            </div>
+        </form>
+    </div>
+
+    {% if keyword %}
+    <div class="result-count">
+        找到 {{ result.total }} 个表
+    </div>
+
+    <div id="resultsList">
+        {% if result.tables %}
+        {% for table in result.tables %}
+        <div class="result-item" onclick="viewTableDetail('{{ table.target_table_name|urlencode }}')">
+            <div class="result-table-name">
+                {% if table.target_table_name.startswith('ods.') %}
+                <span class="layer-tag ods-tag">ODS</span>
+                {% elif table.target_table_name.startswith('dwd.') %}
+                <span class="layer-tag dwd-tag">DWD</span>
+                {% elif table.target_table_name.startswith('dws.') %}
+                <span class="layer-tag dws-tag">DWS</span>
+                {% elif table.target_table_name.startswith('ads.') %}
+                <span class="layer-tag ads-tag">ADS</span>
+                {% elif table.target_table_name.startswith('dim.') %}
+                <span class="layer-tag dim-tag">DIM</span>
+                {% else %}
+                <span class="layer-tag other-tag">OTHER</span>
+                {% endif %}
+                {{ table.target_table_name }}
+            </div>
+            <div class="result-meta">
+                相关任务: {{ table.task_count }}个 |
+                最后分析: {{ table.last_analysis[:16] if table.last_analysis else '未知' }}
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="no-results">
+            没有找到匹配的表
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    // 自动聚焦搜索框
+    document.getElementById('searchInput').focus();
+
+    // 清空搜索框
+    document.getElementById('clearButton').addEventListener('click', function() {
+        document.getElementById('searchInput').value = '';
+        document.getElementById('searchInput').focus();
+    });
+
+    // 查看表详情
+    function viewTableDetail(tableName) {
+        window.location.href = '/table/' + tableName;
+    }
+
+    // 回车键搜索
+    document.getElementById('searchInput').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            document.getElementById('searchForm').submit();
+        }
+    });
+</script>
+</body>
+</html>

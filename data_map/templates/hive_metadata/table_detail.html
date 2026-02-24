@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="table-detail-container">
+    <!-- 添加返回按钮 -->
+    <div class="back-button-container">
+        <button class="simple-back-button" onclick="window.history.back()">
+            <i class="fas fa-arrow-left"></i> 返回搜索结果
+        </button>
+    </div>
+
+    <!-- 表信息卡片 -->
+    <div class="table-info-card">
+        <div class="card-header">
+            <i class="fas fa-info-circle"></i>
+            <span>表信息</span>
+        </div>
+        <div class="card-body">
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">表名</div>
+                    <div class="info-value table-name-value">{{ table_name }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">所属层级</div>
+                    <div class="info-value">
+                        <span class="layer-indicator {{ schema }}">{{ schema|upper }}</span>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">表注释</div>
+                    <div class="info-value" id="tableComment">加载中...</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">字段总数</div>
+                    <div class="info-value" id="fieldCount">-</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 字段列表 -->
+    <div class="fields-container">
+        <div class="fields-header">
+            <div class="fields-title">
+                <i class="fas fa-columns"></i>
+                <span>字段列表</span>
+                <span class="fields-count" id="fieldsCount">0个字段</span>
+            </div>
+        </div>
+
+        <div class="fields-table-container">
+            <table class="fields-table" id="fieldsTable">
+                <thead>
+                <tr>
+                    <th class="index-col">
+                        <i class="fas fa-hashtag"></i>
+                        序号
+                    </th>
+                    <th class="name-col">
+                        <i class="fas fa-tag"></i>
+                        字段名
+                    </th>
+                    <th class="type-col">
+                        <i class="fas fa-code"></i>
+                        数据类型
+                    </th>
+                    <th class="comment-col">
+                        <i class="fas fa-comment"></i>
+                        字段注释
+                    </th>
+                </tr>
+                </thead>
+                <tbody id="fieldsBody">
+                <!-- 字段信息将在这里加载 -->
+                </tbody>
+            </table>
+        </div>
+
+        <div class="no-fields" id="noFields" style="display: none;">
+            <div class="empty-state">
+                <i class="fas fa-columns fa-3x"></i>
+                <h3>暂无字段信息</h3>
+                <p>此表没有字段信息或字段信息为空</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 加载状态 -->
+    <div id="loading" class="loading-state">
+        <div class="loading-content">
+            <div class="loading-spinner">
+                <i class="fas fa-spinner fa-spin"></i>
+            </div>
+            <div class="loading-text">
+                <p>正在加载表信息...</p>
+                <p class="loading-subtext">请稍候</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 消息提示 -->
+    <div id="message" class="message" style="display: none;"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    var BASE_PATH = "{{ base_path or '' }}";
+    document.addEventListener('DOMContentLoaded', function() {
+        loadTableDetail();
+    });
+
+    function loadTableDetail() {
+        const schema = "{{ schema }}";
+        const tableName = "{{ table_name }}";
+
+        showLoading(true);
+        document.getElementById('fieldsBody').innerHTML = '';
+
+        fetch(`${BASE_PATH}/api/table/${encodeURIComponent(schema)}/${encodeURIComponent(tableName)}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('表不存在或查询失败');
+                }
+                return response.json();
+            })
+            .then(data => {
+                showLoading(false);
+
+                if (!data.success) {
+                    showMessage(data.error || '加载失败', 'error');
+                    return;
+                }
+
+                // 更新表信息
+                document.getElementById('tableComment').textContent = data.table_comment;
+                document.getElementById('fieldCount').textContent = data.columns.length;
+
+                // 显示字段信息
+                displayFields(data.columns);
+            })
+            .catch(error => {
+                showLoading(false);
+                showMessage('加载失败: ' + error.message, 'error');
+            });
+    }
+
+    function displayFields(columns) {
+        const fieldsBody = document.getElementById('fieldsBody');
+        const fieldsCount = document.getElementById('fieldsCount');
+        const noFields = document.getElementById('noFields');
+
+        if (!columns || columns.length === 0) {
+            fieldsBody.innerHTML = '';
+            fieldsCount.textContent = '0个字段';
+            noFields.style.display = 'block';
+            return;
+        }
+
+        let html = '';
+        columns.forEach((col, index) => {
+            const isEven = index % 2 === 0;
+            html += `
+            <tr class="${isEven ? 'even' : 'odd'}" data-field-name="${col.name.toLowerCase()}">
+                <td class="index-cell">
+                    <div class="index-badge">${col.index !== null ? col.index : index + 1}</div>
+                </td>
+                <td class="name-cell">
+                    <div class="field-name">
+                        <span class="field-name-text" title="${col.name}">${col.name}</span>
+                    </div>
+                </td>
+                <td class="type-cell">
+                    <div class="field-type">
+                        <span class="type-badge ${getTypeClass(col.type)}">${col.type}</span>
+                    </div>
+                </td>
+                <td class="comment-cell">
+                    <div class="field-comment" title="${col.comment}">
+                        ${col.comment || '<span class="no-comment">暂无注释</span>'}
+                    </div>
+                </td>
+            </tr>
+            `;
+        });
+
+        fieldsBody.innerHTML = html;
+        fieldsCount.textContent = columns.length + '个字段';
+        noFields.style.display = 'none';
+    }
+
+    function getTypeClass(type) {
+        type = (type || '').toLowerCase();
+        if (type.includes('int') || type.includes('bigint') || type.includes('smallint')) {
+            return 'type-numeric';
+        } else if (type.includes('decimal') || type.includes('float') || type.includes('double')) {
+            return 'type-decimal';
+        } else if (type.includes('string') || type.includes('varchar') || type.includes('char')) {
+            return 'type-string';
+        } else if (type.includes('date') || type.includes('time') || type.includes('timestamp')) {
+            return 'type-date';
+        } else if (type.includes('boolean') || type.includes('bool')) {
+            return 'type-boolean';
+        } else {
+            return 'type-other';
+        }
+    }
+
+    function showLoading(show) {
+        document.getElementById('loading').style.display = show ? 'flex' : 'none';
+    }
+
+    function showMessage(text, type = 'info') {
+        const messageDiv = document.getElementById('message');
+        messageDiv.textContent = text;
+        messageDiv.className = `message ${type}`;
+        messageDiv.style.display = 'block';
+
+        setTimeout(() => {
+            messageDiv.style.display = 'none';
+        }, 3000);
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>DolphinScheduler 失败任务管理</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "PingFang SC", "Microsoft YaHei", sans-serif; font-size: 14px; margin: 0; padding: 10px; background: #f5f5f5; }
+        h1 { font-size: 18px; margin: 0 0 10px; }
+        .toolbar { margin-bottom: 10px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+        .toolbar label { font-size: 13px; }
+        .toolbar input[type="date"], .toolbar input[type="text"] { padding: 2px 4px; font-size: 13px; }
+        .toolbar button { padding: 4px 10px; font-size: 13px; cursor: pointer; }
+        button:disabled { cursor: not-allowed; opacity: 0.6; }
+        .summary { margin-bottom: 8px; color: #555; font-size: 13px; }
+        table { width: 100%; border-collapse: collapse; background: #fff; }
+        th, td { border: 1px solid #ddd; padding: 4px 6px; text-align: left; font-size: 12px; }
+        th { background: #f0f0f0; }
+        tr:nth-child(even) { background: #fafafa; }
+        tr:hover { background: #f1f7ff; }
+        .btn-small { padding: 2px 6px; font-size: 12px; }
+        /* 忙碌态（刷新/批量重跑中）：所有重跑按钮禁用 */
+        body.busy button.btn-rerun,
+        body.busy #btn-batch-rerun {
+            pointer-events: none;
+            opacity: 0.6;
+        }
+    </style>
+</head>
+<body>
+    <h1>DolphinScheduler 失败任务管理</h1>
+    <p class="summary">进入即展示 SR 中的失败任务；点击「刷新」仅从 Dolphin 拉取并更新 SR 数据；支持单条重跑或勾选后批量重跑。</p>
+    <div class="toolbar">
+        <label>
+            日期：
+            <input type="date" id="dt-date">
+        </label>
+        <button id="btn-load">查询</button>
+        <button id="btn-refresh">刷新</button>
+        <button id="btn-batch-rerun">批量重跑（选中项）</button>
+    </div>
+    <div id="dt-summary" class="summary">请选择日期后查询。</div>
+    <table>
+        <thead>
+            <tr>
+                <th><input type="checkbox" id="dt-check-all"></th>
+                <th>项目编码</th>
+                <th>项目名称</th>
+                <th>流程实例ID</th>
+                <th>任务名称</th>
+                <th>任务类型</th>
+                <th>状态</th>
+                <th>开始时间</th>
+                <th>结束时间</th>
+                <th>主机</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody id="dt-tbody"></tbody>
+    </table>
+
+    <script>
+        (function () {
+            var $ = function (id) { return document.getElementById(id); };
+            var dtDateInput = $('dt-date');
+            var tbody = $('dt-tbody');
+            var summaryDiv = $('dt-summary');
+            var checkAll = $('dt-check-all');
+            var btnLoad = $('btn-load');
+            var btnRefresh = $('btn-refresh');
+            var btnBatchRerun = $('btn-batch-rerun');
+            var _busy = false;
+            var _rerunCooldownUntil = 0; // timestamp(ms)
+            var _cooldownTimer = null;
+            var RERUN_COOLDOWN_MINUTES = 1; // 批量/单条重跑后冷却时间（分钟）
+
+            // 推导当前模块的 base 前缀，例如 /support/dolphin
+            var basePath = window.location.pathname.replace(/\/$/, "");
+
+            // 默认日期设为今天
+            dtDateInput.value = new Date().toISOString().slice(0, 10);
+
+            btnLoad.onclick = loadFailedTasks;
+            btnRefresh.onclick = function () { refreshOnly(); };
+            btnBatchRerun.onclick = batchRerunSelected;
+
+            // 兜底：捕获阶段拦截重跑点击（防止极端情况下 disabled 未生效）
+            tbody.addEventListener('click', function (e) {
+                try {
+                    var t = e && e.target;
+                    if (!t) return;
+                    if (_busy && t.classList && t.classList.contains('btn-rerun')) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }
+                } catch (err) {}
+            }, true);
+
+            function setBusy(busy, busyText) {
+                _busy = !!busy;
+                document.body.classList.toggle('busy', _busy);
+                btnLoad.disabled = _busy;
+                btnRefresh.disabled = _busy;
+                // 批量重跑还需叠加冷却态
+                btnBatchRerun.disabled = _busy || isRerunCoolingDown();
+                updateRerunButtonsDisabled();
+                if (_busy && busyText) {
+                    summaryDiv.textContent = busyText;
+                }
+            }
+
+            function isRerunCoolingDown() {
+                return Date.now() < _rerunCooldownUntil;
+            }
+
+            function formatRemainMs(ms) {
+                ms = Math.max(0, ms);
+                var sec = Math.ceil(ms / 1000);
+                var m = Math.floor(sec / 60);
+                var s = sec % 60;
+                return String(m).padStart(2, '0') + ":" + String(s).padStart(2, '0');
+            }
+
+            function updateRerunButtonsDisabled() {
+                var cooling = isRerunCoolingDown();
+                // 行内“重跑”按钮：仅忙碌时禁用（单条重跑后不禁用其他行的重跑）
+                tbody.querySelectorAll('button.btn-rerun').forEach(function (b) {
+                    b.disabled = _busy;
+                });
+                // 批量重跑按钮：忙碌或冷却时禁用
+                btnBatchRerun.disabled = _busy || cooling;
+                btnBatchRerun.textContent = cooling
+                    ? ("批量重跑（冷却中 " + formatRemainMs(_rerunCooldownUntil - Date.now()) + "）")
+                    : "批量重跑（选中项）";
+            }
+
+            function startRerunCooldown(minutes) {
+                var ms = (minutes || 1) * 60 * 1000;
+                _rerunCooldownUntil = Date.now() + ms;
+                updateRerunButtonsDisabled();
+                if (_cooldownTimer) {
+                    clearInterval(_cooldownTimer);
+                    _cooldownTimer = null;
+                }
+                _cooldownTimer = setInterval(function () {
+                    if (!isRerunCoolingDown()) {
+                        clearInterval(_cooldownTimer);
+                        _cooldownTimer = null;
+                        updateRerunButtonsDisabled();
+                        return;
+                    }
+                    updateRerunButtonsDisabled();
+                }, 1000);
+            }
+
+            checkAll.onclick = function () {
+                var checked = this.checked;
+                tbody.querySelectorAll('input[type="checkbox"].row-check').forEach(function (cb) {
+                    cb.checked = checked;
+                });
+            };
+
+            async function loadFailedTasks() {
+                var date = dtDateInput.value;
+                if (!date) {
+                    alert('请先选择日期');
+                    return;
+                }
+                var url = basePath.replace(/\/$/, "") + "/api/failed-tasks?date=" + encodeURIComponent(date);
+
+                summaryDiv.textContent = '加载中...';
+                tbody.innerHTML = '';
+
+                try {
+                    var res = await fetch(url);
+                    var data = await res.json();
+                    if (!data.success) {
+                        summaryDiv.textContent = '查询失败：' + (data.message || '未知错误');
+                        return;
+                    }
+                    renderTable(data.data || []);
+                    summaryDiv.textContent = '共 ' + (data.count || 0) + ' 条失败任务';
+                } catch (e) {
+                    summaryDiv.textContent = '请求异常：' + e;
+                }
+            }
+
+            function renderTable(rows) {
+                tbody.innerHTML = '';
+                rows.forEach(function (row) {
+                    var tr = document.createElement('tr');
+
+                    var tdCheck = document.createElement('td');
+                    var cb = document.createElement('input');
+                    cb.type = 'checkbox';
+                    cb.className = 'row-check';
+                    cb.dataset.projectCode = row.project_code;
+                    cb.dataset.processInstanceId = row.process_instance_id;
+                    tdCheck.appendChild(cb);
+                    tr.appendChild(tdCheck);
+
+                    function td(text) {
+                        var td = document.createElement('td');
+                        td.textContent = (text == null ? '' : text);
+                        return td;
+                    }
+
+                    tr.appendChild(td(row.project_code));
+                    tr.appendChild(td(row.project_name));
+                    tr.appendChild(td(row.process_instance_id));
+                    tr.appendChild(td(row.task_name || row.process_instance_name || ''));
+                    tr.appendChild(td(row.task_type));
+                    tr.appendChild(td(row.state));
+                    tr.appendChild(td(row.start_time));
+                    tr.appendChild(td(row.end_time));
+                    tr.appendChild(td(row.host));
+
+                    var tdOp = document.createElement('td');
+                    var btn = document.createElement('button');
+                    btn.textContent = '重跑';
+                    btn.className = 'btn-small btn-rerun';
+                    btn.onclick = function () {
+                        rerunSingle(row.project_code, row.process_instance_id);
+                    };
+                    tdOp.appendChild(btn);
+                    tr.appendChild(tdOp);
+
+                    tbody.appendChild(tr);
+                });
+                updateRerunButtonsDisabled();
+            }
+
+            async function refreshOnly() {
+                if (_busy) return;
+                var date = dtDateInput.value;
+                if (!date) {
+                    alert('请先选择日期');
+                    return;
+                }
+                setBusy(true, '刷新中（从 Dolphin 拉取并更新 SR 数据）...');
+                try {
+                    var res = await fetch(basePath + "/api/refresh", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ date: date })
+                    });
+                    var data = await res.json();
+                    if (!data.success) {
+                        summaryDiv.textContent = '刷新失败：' + (data.message || '未知错误');
+                        return;
+                    }
+                    var s = data.summary || {};
+                    summaryDiv.textContent = '刷新完成：日期 ' + (s.date || date) + '，总失败 ' + (s.total_failed || 0) + ' 条';
+                    await loadFailedTasks();
+                } catch (e) {
+                    summaryDiv.textContent = '刷新异常：' + e;
+                } finally {
+                    setBusy(false);
+                }
+            }
+
+            async function rerunSingle(projectCode, processInstanceId) {
+                if (_busy) return;
+                if (isRerunCoolingDown()) {
+                    alert('重跑操作冷却中，请稍后再试（剩余 ' + formatRemainMs(_rerunCooldownUntil - Date.now()) + '）');
+                    return;
+                }
+                if (!confirm('确认重跑流程实例 ' + processInstanceId + ' 吗？')) return;
+                try {
+                    // 单条重跑：仅批量重跑按钮进入冷却，其他重跑键不禁用
+                    startRerunCooldown(RERUN_COOLDOWN_MINUTES);
+                    var res = await fetch(basePath + "/api/rerun/single", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            projectCode: String(projectCode),
+                            processInstanceId: Number(processInstanceId)
+                        })
+                    });
+                    var data = await res.json();
+                    if (!data.success) {
+                        alert('重跑失败：' + (data.message || '未知错误'));
+                    } else {
+                        alert('重跑已触发');
+                    }
+                } catch (e) {
+                    alert('重跑异常：' + e);
+                }
+            }
+
+            async function batchRerunSelected() {
+                if (_busy) return;
+                if (isRerunCoolingDown()) {
+                    alert('批量重跑冷却中，请稍后再试（剩余 ' + formatRemainMs(_rerunCooldownUntil - Date.now()) + '）');
+                    return;
+                }
+                var date = dtDateInput.value;
+                if (!date) {
+                    alert('请先选择日期');
+                    return;
+                }
+                var checks = Array.prototype.slice.call(
+                    tbody.querySelectorAll('input.row-check:checked')
+                );
+                if (!checks.length) {
+                    alert('请先勾选要重跑的任务');
+                    return;
+                }
+                var projectCode = checks[0].dataset.projectCode;
+                var ids = checks.map(function (cb) { return Number(cb.dataset.processInstanceId); });
+                var uniqueIds = ids.filter(function (id, i) { return ids.indexOf(id) === i; });
+                if (!confirm('确认对项目 ' + projectCode + ' 批量重跑 ' + uniqueIds.length + ' 个流程实例吗？')) return;
+                setBusy(true, '批量重跑中…');
+                try {
+                    var res = await fetch(basePath + "/api/rerun/batch", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            projectCode: String(projectCode),
+                            processInstanceIds: uniqueIds,
+                            batchSize: 5,
+                            intervalSeconds: 60
+                        })
+                    });
+                    var data = await res.json();
+                    if (!data.success) {
+                        alert('批量重跑失败：' + (data.message || '未知错误'));
+                    } else {
+                        var results = data.results || [];
+                        var ok = results.filter(function (r) { return r.success; }).length;
+                        var fail = results.length - ok;
+                        alert('批量重跑完成：成功 ' + ok + '，失败 ' + fail);
+                    }
+                    // 批量重跑结束后，批量按钮进入冷却，单条重跑键放开
+                    startRerunCooldown(RERUN_COOLDOWN_MINUTES);
+                } catch (e) {
+                    alert('批量重跑异常：' + e);
+                } finally {
+                    setBusy(false);
+                }
+            }
+
+            // 页面加载完自动查一次
+            loadFailedTasks();
+        })();
+    </script>
+</body>
+</html>
+

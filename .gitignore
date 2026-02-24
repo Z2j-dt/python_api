@@ -1,0 +1,22 @@
+# 项目根虚拟环境
+venv/
+.venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# 前端（部署时只同步源码，在服务器上 npm install && build）
+node_modules/
+
+# 环境与本地配置（按需取消注释）
+# .env
+# *.local
+portal/auth_config.py
+portal/users.json

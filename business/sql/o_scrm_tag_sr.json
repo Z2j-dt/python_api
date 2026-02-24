@@ -1,0 +1,57 @@
+{
+  "job": {
+    "content": [
+      {
+        "reader": {
+          "name": "mysqlreader",
+          "parameter": {
+            "username": "dtproduser@SCRM#dtzq_observer",
+            "password": "dtproduser@2025&",
+            "connection": [
+              {
+                "jdbcUrl": [
+                  "jdbc:mysql://10.10.21.205:12888/enterprise_weixin"
+                ],
+                "querySql": [
+                  "SELECT id, tag_id, tag_name, create_time, group_id, type, disabled, owner FROM tag WHERE DATE(create_time) = CURDATE()"
+                ]
+              }
+            ],
+            "splitPk": "id"
+          }
+        },
+        "writer": {
+          "name": "mysqlwriter",
+          "parameter": {
+            "username": "root",
+            "password": "star@dt1988",
+            "connection": [
+              {
+                "jdbcUrl": "jdbc:mysql://10.8.93.40:9030/test_db",
+                "table": ["o_scrm_tag"]
+              }
+            ],
+            "column": [
+              "id",
+              "tag_id",
+              "tag_name",
+              "create_time",
+              "group_id",
+              "type",
+              "disabled",
+              "owner"
+            ],
+            "writeMode": "insert",
+            "preSql": ["TRUNCATE TABLE o_scrm_tag"],
+            "postSql": []
+          }
+        }
+      }
+    ],
+    "setting": {
+      "speed": {
+        "channel": 3
+      }
+    }
+  }
+}

@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1><i class="fas fa-file-excel"></i> Excel 入库 Hive（tmp 库）</h1>
+
+<div class="info-box">
+    <p><strong>流程说明：</strong></p>
+    <ul>
+        <li>按 Excel 字段在 <strong>tmp</strong> 库建 Hive 外部表</li>
+        <li>自动检测 Excel 是否有表头</li>
+        <li>将数据转为 UTF-8 CSV 并上传 HDFS</li>
+        <li>执行 Impala 刷新，即可用 Hive/Impala 查询</li>
+    </ul>
+</div>
+
+<div class="upload-section">
+    <form id="uploadForm" enctype="multipart/form-data">
+        <div class="form-group">
+            <label for="file">选择 Excel 文件（.xlsx / .xls）</label>
+            <input type="file" id="file" name="file" accept=".xlsx,.xls" required>
+        </div>
+        <div class="form-group">
+            <label for="table_name">表名（可选，默认取文件名）</label>
+            <input type="text" id="table_name" name="table_name" placeholder="例如: my_data">
+        </div>
+        <button type="submit" class="btn-primary" id="submitBtn">
+            <i class="fas fa-upload"></i> 上传并入库
+        </button>
+    </form>
+</div>
+
+<div id="result" class="result-box" style="display: none;"></div>
+<div id="error" class="error-box" style="display: none;"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    var form = document.getElementById('uploadForm');
+    var resultEl = document.getElementById('result');
+    var errorEl = document.getElementById('error');
+    var submitBtn = document.getElementById('submitBtn');
+
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        errorEl.style.display = 'none';
+        resultEl.style.display = 'none';
+        var fd = new FormData();
+        var file = document.getElementById('file').files[0];
+        var tableName = document.getElementById('table_name').value.trim();
+        if (!file) {
+            errorEl.textContent = '请选择文件';
+            errorEl.style.display = 'block';
+            return;
+        }
+        fd.append('file', file);
+        if (tableName) fd.append('table_name', tableName);
+        submitBtn.disabled = true;
+        submitBtn.textContent = '处理中...';
+
+        fetch('{{ base_path }}/api/upload', {
+            method: 'POST',
+            body: fd
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                resultEl.innerHTML = '<strong>成功</strong><br>' +
+                    '表: <code>' + (data.table || '') + '</code><br>' +
+                    '数据行数: ' + (data.rows || 0) + '<br>' +
+                    '检测到表头: ' + (data.has_header ? '是' : '否') + '<br>' +
+                    'HDFS 路径: <code>' + (data.hdfs_path || '') + '</code><br>' +
+                    (data.ddl ? '<pre class="ddl">' + data.ddl + '</pre>' : '');
+                resultEl.className = 'result-box success';
+                resultEl.style.display = 'block';
+            } else {
+                errorEl.textContent = data.message || '未知错误';
+                errorEl.style.display = 'block';
+            }
+        })
+        .catch(function(err) {
+            errorEl.textContent = '请求失败: ' + err.message;
+            errorEl.style.display = 'block';
+        })
+        .finally(function() {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-upload"></i> 上传并入库';
+        });
+    });
+})();
+</script>
+{% endblock %}

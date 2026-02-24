@@ -1,0 +1,120 @@
+{
+  "job": {
+    "content": [
+      {
+        "reader": {
+          "name": "mysqlreader",
+          "parameter": {
+            "username": "dtproduser@SCRM#dtzq_observer",
+            "password": "dtproduser@2025&",
+            "connection": [
+              {
+                "jdbcUrl": [
+                  "jdbc:mysql://10.10.21.205:12888/enterprise_weixin"
+                ],
+                "querySql": [
+                  "select * from customer_employee"
+                ]
+              }
+            ],
+            "splitPk": ""
+          }
+        },
+        "writer": {
+          "name": "hdfswriter",
+          "parameter": {
+            "defaultFS": "hdfs://hadoop101:8020",
+            "fileType": "orc",
+            "path": "/user/hive/warehouse/ods.db/o_scrm_customer_employee/day=@_@",
+            "fileName": "o_scrm_customer_employee",
+            "column": [
+              {
+                "name": "id",
+                "type": "string"
+              },
+              {
+                "name": "customer_id",
+                "type": "string"
+              },
+              {
+                "name": "user_id",
+                "type": "string"
+              },
+              {
+                "name": "state",
+                "type": "string"
+              },
+              {
+                "name": "user_name",
+                "type": "string"
+              },
+              {
+                "name": "user_table_id",
+                "type": "string"
+              },
+              {
+                "name": "external_id",
+                "type": "string"
+              },
+              {
+                "name": "remark",
+                "type": "string"
+              },
+              {
+                "name": "description",
+                "type": "string"
+              },
+              {
+                "name": "remark_corp_name",
+                "type": "string"
+              },
+              {
+                "name": "remark_mobiles",
+                "type": "string"
+              },
+              {
+                "name": "add_way",
+                "type": "string"
+              },
+              {
+                "name": "add_time",
+                "type": "string"
+              },
+              {
+                "name": "contact_type",
+                "type": "string"
+              },
+              {
+                "name": "create_time",
+                "type": "string"
+              },
+              {
+                "name": "relation_update_date",
+                "type": "string"
+              },
+              {
+                "name": "relation_break_time",
+                "type": "string"
+              },
+              {
+                "name": "relation_update_time",
+                "type": "string"
+              },
+              {
+                "name": "department_ids",
+                "type": "string"
+              }
+            ],
+            "fieldDelimiter": "\t",
+            "writeMode": "append"
+          }
+        }
+      }
+    ],
+    "setting": {
+      "speed": {
+        "channel": 3
+      }
+    }
+  }
+}

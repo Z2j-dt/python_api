@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据中台门户</title>
+    <link rel="icon" href="{{ url_for('static', filename='img/大同.png') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="portal">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="brand">
+                    <img src="{{ url_for('static', filename='img/大同.png') }}" alt="logo">
+                    <div>
+                        <h1>数据中台门户</h1>
+                        <p class="subtitle">统一门户</p>
+                    </div>
+                </div>
+            </div>
+            <nav class="nav">
+                {% set show_data_map = ('hive_metadata' in allowed_modules) or ('sql_lineage' in allowed_modules) %}
+                {% set show_support = ('excel_to_hive' in allowed_modules) %}
+                {% set show_business = ('sr_api' in allowed_modules) %}
+
+                {% if show_data_map %}
+                <div class="nav-group">
+                    <button class="nav-group-header" type="button" data-group="data_map" aria-expanded="true">
+                        <span class="nav-group-text">数据地图</span>
+                        <span class="nav-group-chevron">▾</span>
+                    </button>
+                    <div class="nav-group-body" data-group-body="data_map">
+                        {% if 'hive_metadata' in allowed_modules %}
+                        <a class="nav-item nav-item-child" data-module="hive_metadata" href="#hive_metadata">
+                            <span>数据字典</span>
+                        </a>
+                        {% endif %}
+                        {% if 'sql_lineage' in allowed_modules %}
+                        <a class="nav-item nav-item-child" data-module="sql_lineage" href="#sql_lineage">
+                            <span>数据血缘</span>
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if show_support %}
+                <div class="nav-group">
+                    <button class="nav-group-header" type="button" data-group="support" aria-expanded="true">
+                        <span class="nav-group-text">技术支持</span>
+                        <span class="nav-group-chevron">▾</span>
+                    </button>
+                    <div class="nav-group-body" data-group-body="support">
+                        <a class="nav-item nav-item-child" data-module="excel_to_hive" href="#excel_to_hive">
+                            <span>Excel 入库 Hive</span>
+                        </a>
+                        <a class="nav-item nav-item-child" data-module="dolphin_failed" href="#dolphin_failed">
+                            <span>Dolphin 失败任务</span>
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if show_business %}
+                <div class="nav-group">
+                    <button class="nav-group-header" type="button" data-group="business" aria-expanded="true">
+                        <span class="nav-group-text">业务应用</span>
+                        <span class="nav-group-chevron">▾</span>
+                    </button>
+                    <div class="nav-group-body" data-group-body="business">
+                        <div class="nav-subgroup">
+                            <div class="nav-subgroup-title">数据展示</div>
+                            <a class="nav-item nav-item-child" data-module="sr_api" data-view="realtime" href="#sr_api_realtime">
+                                <span>实时加微监测</span>
+                            </a>
+                            <a class="nav-item nav-item-child" data-module="sr_api" data-view="open_channel_daily" href="#sr_api_open_channel_daily">
+                                <span>自营渠道的每日加微数据</span>
+                            </a>
+                        </div>
+                        <div class="nav-subgroup">
+                            <div class="nav-subgroup-title">业务配置</div>
+                            <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_open" href="#sr_api_config_open">
+                                <span>开户渠道&企微客户标签</span>
+                            </a>
+                            <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_staff" href="#sr_api_config_staff">
+                                <span>投流渠道承接员工配置表</span>
+                            </a>
+                            <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_code_mapping" href="#sr_api_config_code_mapping">
+                                <span>抖音广告主体渠道</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </nav>
+            <div class="sidebar-footer">
+                {% if username %}
+                <div class="user-footer">
+                    <div class="user-name">{{ username }}</div>
+                    <a href="{{ url_for('logout') }}" class="logout-link">退出登录</a>
+                </div>
+                {% else %}
+                <p class="tip">点击左侧模块切换界面</p>
+                {% endif %}
+            </div>
+        </aside>
+        <main class="content">
+            <div id="module-placeholder" class="module-placeholder">请从左侧选择模块</div>
+            {% set init_path = initial_path|default('/data_map/hive_metadata') %}
+            <iframe id="module-frame" title="模块内容" src="about:blank" data-initial-path="{{ init_path }}" frameborder="0"></iframe>
+            <iframe id="module-frame-config" class="module-frame-sr-config" title="业务配置" src="about:blank" frameborder="0"></iframe>
+        </main>
+    </div>
+    <script type="application/json" id="portal-bootstrap">
+    {"dataMapBase":{{ (data_map_base or '')|tojson }},"supportBase":{{ (support_base or '')|tojson }},"businessBase":{{ (business_base or '')|tojson }},"businessIframeBase":{{ (business_iframe_base or '')|tojson }},"portalToken":{{ (portal_token or '')|tojson }}}
+    </script>
+    <script>
+        (function () {
+            var bootEl = document.getElementById("portal-bootstrap");
+            var boot = {};
+            try {
+                if (bootEl && bootEl.textContent) boot = JSON.parse(bootEl.textContent);
+            } catch (e) { boot = {}; }
+            var dataMapBase = boot.dataMapBase || "";
+            var supportBase = boot.supportBase || "";
+            var businessBase = boot.businessBase || "";
+            var businessIframeBase = boot.businessIframeBase || "";
+            var portalToken = boot.portalToken || "";
+            var moduleToPath = {
+                hive_metadata: "/data_map/hive_metadata",
+                sql_lineage: "/data_map/sql_lineage_web",
+                excel_to_hive: "/support/excel_to_hive",
+                dolphin_failed: "/support/dolphin",
+                sr_api: "/business/realtime_mv"
+            };
+            var pathToModule = {
+                "/data_map/hive_metadata": "hive_metadata",
+                "/data_map/sql_lineage_web": "sql_lineage",
+                "/support/excel_to_hive": "excel_to_hive",
+                "/support/dolphin": "dolphin_failed",
+                "/business/realtime_mv": "sr_api"
+            };
+            /* hash -> { module, view }，用于平板/手机点击只触发地址栏 # 变化时的兜底 */
+            var hashToModuleView = {
+                "hive_metadata": { module: "hive_metadata", view: "" },
+                "sql_lineage": { module: "sql_lineage", view: "" },
+                "excel_to_hive": { module: "excel_to_hive", view: "" },
+                "dolphin_failed": { module: "dolphin_failed", view: "" },
+                "sr_api_realtime": { module: "sr_api", view: "realtime" },
+                "sr_api_open_channel_daily": { module: "sr_api", view: "open_channel_daily" },
+                "sr_api_config_open": { module: "sr_api", view: "config_open" },
+                "sr_api_config_staff": { module: "sr_api", view: "config_staff" },
+                "sr_api_config_code_mapping": { module: "sr_api", view: "config_code_mapping" }
+            };
+            var config = {
+                hive_metadata: (dataMapBase ? dataMapBase + "/hive_metadata/" : "/data_map/hive_metadata/"),
+                sql_lineage: (dataMapBase ? dataMapBase + "/sql_lineage_web/" : "/data_map/sql_lineage_web/"),
+                excel_to_hive: (supportBase ? supportBase + "/excel_to_hive/" : "/support/excel_to_hive/"),
+                dolphin_failed: (supportBase ? supportBase + "/dolphin/" : "/support/dolphin/"),
+                sr_api: (businessIframeBase ? (businessIframeBase.replace(/\/$/, "") + "/realtime_mv/") : (businessBase ? (businessBase.replace(/\/$/, "") + "/realtime_mv/") : "/business/realtime_mv/"))
+            };
+            function addPortalToken(url) {
+                if (!portalToken || !url) return url;
+                var sep = url.indexOf("?") >= 0 ? "&" : "?";
+                return url + sep + "portal_token=" + encodeURIComponent(portalToken);
+            }
+            var frame = document.getElementById("module-frame");
+            var frameConfig = document.getElementById("module-frame-config");
+            var contentMain = document.querySelector(".content");
+            var initialPath = (frame && frame.getAttribute("data-initial-path")) || "/data_map/hive_metadata";
+            var currentModule = null;
+            var currentView = "";
+            var lastUrlMain = "";
+            var lastUrlConfig = "";
+            var navItems = document.querySelectorAll(".nav-item");
+            var groupHeaders = document.querySelectorAll(".nav-group-header");
+
+            function setActive(item) {
+                navItems.forEach(function (n) { n.classList.remove("active"); });
+                if (item) item.classList.add("active");
+            }
+
+            function findNavItem(moduleId, view) {
+                view = view || "";
+                for (var i = 0; i < navItems.length; i++) {
+                    var n = navItems[i];
+                    if (n.getAttribute("data-module") !== moduleId) continue;
+                    if ((n.getAttribute("data-view") || "") === view) return n;
+                }
+                return null;
+            }
+
+            function loadModule(moduleId, view) {
+                view = view || "";
+                var url = config[moduleId];
+                if (moduleId === "sr_api") {
+                    var sep = url.indexOf("?") >= 0 ? "&" : "?";
+                    if (view === "open_channel_daily") {
+                        url = url + sep + "view=open_channel_daily";
+                    } else if (view === "config_open") {
+                        url = url + sep + "view=config&tab=open_channel_tag";
+                    } else if (view === "config_staff") {
+                        url = url + sep + "view=config&tab=channel_staff";
+                    } else if (view === "config_code_mapping") {
+                        url = url + sep + "view=config&tab=code_mapping";
+                    }
+                } else if (view === "config") {
+                    var sep = url.indexOf("?") >= 0 ? "&" : "?";
+                    url = url + sep + "view=config";
+                }
+                if (!url || !frame) return;
+                var fullUrl = addPortalToken(url);
+                if (contentMain) contentMain.classList.add("has-module");
+                if (frameConfig) { frameConfig.classList.remove("visible"); frameConfig.src = "about:blank"; }
+                frame.classList.remove("hidden");
+                frame.src = fullUrl;
+                lastUrlMain = fullUrl;
+                lastUrlConfig = "";
+                currentModule = moduleId;
+                currentView = view;
+                var path = moduleToPath[moduleId];
+                if (path && history.replaceState) {
+                    if (moduleId === "sr_api" && view) {
+                        path = path + (path.indexOf("?") >= 0 ? "&" : "?") + "view=" + encodeURIComponent(view);
+                    } else if (view === "config") {
+                        path = path + (path.indexOf("?") >= 0 ? "&" : "?") + "view=config";
+                    }
+                    history.replaceState({ module: moduleId, view: view }, "", path);
+                }
+            }
+
+            function applyHash() {
+                var h = (window.location.hash || "").slice(1);
+                if (!h) return;
+                var p = hashToModuleView[h];
+                if (!p || !config[p.module]) return;
+                var item = findNavItem(p.module, p.view);
+                if (item) setActive(item);
+                loadModule(p.module, p.view);
+            }
+            function applyPath() {
+                var path = (window.location.pathname || "/").replace(/\/$/, "") || "/";
+                var moduleId = pathToModule[path];
+                if (!moduleId || !config[moduleId]) return;
+                var view = "";
+                if (moduleId === "sr_api") {
+                    var search = (window.location.search || "").replace(/^\?/, "");
+                    var params = {};
+                    search.split("&").forEach(function (pair) {
+                        var i = pair.indexOf("=");
+                        if (i >= 0) {
+                            try {
+                                params[pair.slice(0, i)] = decodeURIComponent((pair.slice(i + 1)).replace(/\+/g, " "));
+                            } catch (err) {
+                                params[pair.slice(0, i)] = pair.slice(i + 1);
+                            }
+                        }
+                    });
+                    var v = (params.view || "realtime").trim();
+                    if (["realtime", "open_channel_daily", "config_open", "config_staff", "config_code_mapping"].indexOf(v) >= 0) view = v;
+                    else view = "realtime";
+                }
+                var item = findNavItem(moduleId, view);
+                if (item) setActive(item);
+                loadModule(moduleId, view);
+            }
+            function applyInitialUrl() {
+                var path = (window.location.pathname || "/").replace(/\/$/, "") || "/";
+                if (path !== "/" && pathToModule[path]) {
+                    applyPath();
+                    return;
+                }
+                var h = (window.location.hash || "").slice(1);
+                if (h && hashToModuleView[h]) {
+                    applyHash();
+                }
+            }
+            window.addEventListener("hashchange", applyHash);
+            function findNavItemFromTarget(target) {
+                var el = target;
+                while (el && el !== document.body) {
+                    if (el.classList && el.classList.contains("nav-item")) return el;
+                    el = el.parentElement;
+                }
+                return null;
+            }
+            var navEl = document.querySelector(".nav");
+            if (navEl) {
+                navEl.addEventListener("click", function (e) {
+                    var item = findNavItemFromTarget(e.target);
+                    if (!item) return;
+                    e.preventDefault();
+                    setActive(item);
+                    loadModule(item.getAttribute("data-module"), item.getAttribute("data-view") || "");
+                });
+            }
+
+            function toggleGroup(btn) {
+                var group = btn.getAttribute("data-group");
+                var body = document.querySelector(".nav-group-body[data-group-body='" + group + "']");
+                if (!body) return;
+                var isOpen = btn.getAttribute("aria-expanded") === "true";
+                btn.setAttribute("aria-expanded", String(!isOpen));
+                body.style.display = isOpen ? "none" : "block";
+                btn.classList.toggle("collapsed", isOpen);
+            }
+
+            groupHeaders.forEach(function (btn) {
+                btn.addEventListener("click", function () { toggleGroup(btn); });
+            });
+
+            applyInitialUrl();
+            /* 若仍在根路径且未加载任何模块，自动加载第一个菜单项，避免整页空白 */
+            if (contentMain && !contentMain.classList.contains("has-module") && navItems.length > 0) {
+                var first = navItems[0];
+                setActive(first);
+                loadModule(first.getAttribute("data-module") || "", first.getAttribute("data-view") || "");
+            }
+            window.addEventListener("popstate", function (e) {
+                var s = e.state;
+                if (!s || !config[s.module]) return;
+                var item = findNavItem(s.module, s.view || "");
+                if (item) setActive(item);
+                loadModule(s.module, s.view || "");
+            });
+        })();
+    </script>
+</body>
+</html>
