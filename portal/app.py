@@ -195,6 +195,12 @@ def _render_index(user, path_hint=None):
             app.config["SECRET_KEY"],
         )
     allowed = user.get("modules") or []
+    # users.json 里可配置 readonly=true；用于 sr_api 内嵌页面禁用编辑控件
+    try:
+        uconf = (app.config.get("AUTH_USERS") or {}).get(user.get("username") or "", {}) or {}
+        is_readonly = bool(uconf.get("readonly"))
+    except Exception:
+        is_readonly = False
     # 优先用 path_hint 解析模块；否则用第一个有权限的，且默认不选业务应用避免首屏卡死
     first_id = _module_from_path(path_hint) if path_hint else None
     if not first_id or first_id not in allowed:
@@ -220,6 +226,7 @@ def _render_index(user, path_hint=None):
         business_base=business_base,
         business_iframe_base=business_iframe_base,
         portal_token=portal_token,
+        is_readonly=is_readonly,
         first_module_url=first_module_url,
         initial_path=initial_path,
     )

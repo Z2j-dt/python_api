@@ -104,7 +104,26 @@ interface CodeMappingItem {
   created_time?: string | null
 }
 
-type ConfigTab = 'open_channel_tag' | 'channel_staff' | 'code_mapping'
+interface StockPositionItem {
+  id: number
+  product_name?: string | null
+  trade_date?: string | null
+  stock_code?: string | null
+  stock_name?: string | null
+  position_pct?: number | null
+  side?: string | null
+  price?: number | null
+  created_at?: string | null
+  updated_at?: string | null
+}
+
+interface NavChartPoint {
+  date: string
+  nav: number
+  hs300_nav?: number | null
+}
+
+type ConfigTab = 'open_channel_tag' | 'channel_staff' | 'code_mapping' | 'stock_position'
 
 type ViewMode = 'realtime' | 'open_channel_daily' | 'config'
 
@@ -112,6 +131,7 @@ const CONFIG_TAB_LABEL: Record<ConfigTab, string> = {
   open_channel_tag: '开户渠道 & 企微客户标签',
   channel_staff: '投流渠道承接员工',
   code_mapping: '抖音广告主体渠道',
+  stock_position: '股票仓位/买卖配置',
 }
 
 function getViewFromLocation(): ViewMode {
@@ -128,6 +148,7 @@ function getViewFromLocation(): ViewMode {
 function getConfigTabFromLocation(): ConfigTab {
   try {
     const tab = new URLSearchParams(window.location.search).get('tab')
+    if (tab === 'stock_position') return 'stock_position'
     if (tab === 'code_mapping') return 'code_mapping'
     if (tab === 'channel_staff') return 'channel_staff'
     return 'open_channel_tag'
@@ -140,6 +161,19 @@ function App() {
   const [view] = useState<ViewMode>(() => getViewFromLocation())
   const isConfigMode = view === 'config'
   const isDailyStatsMode = view === 'open_channel_daily'
+  const isConfigReadOnly = (() => {
+    try {
+      const p = new URLSearchParams(window.location.search)
+      const ro = p.get('readonly')
+      if (ro === '1' || ro === 'true') return true
+      const role = p.get('role')
+      if (role && role.toLowerCase() === 'readonly') return true
+      const w = window as unknown as { __READ_ONLY__?: boolean }
+      return w.__READ_ONLY__ === true
+    } catch {
+      return false
+    }
+  })()
 
   // -------------------- 物化视图数据查看 --------------------
   const [selectedTable, setSelectedTable] = useState<string>('')
@@ -312,6 +346,73 @@ function App() {
     channel_name: '',
   })
 
+  // 股票仓位/买卖配置
+  const STOCK_POSITION_PAGE_SIZE = 30
+  const [stockPositionItems, setStockPositionItems] = useState<StockPositionItem[]>([])
+  const [stockPositionTotal, setStockPositionTotal] = useState(0)
+  const [stockPositionPage, setStockPositionPage] = useState(1)
+  const [stockPositionProducts, setStockPositionProducts] = useState<string[]>([])
+  const [stockPositionFilter, setStockPositionFilter] = useState<string>('短线王')
+  const [stockPositionLoading, setStockPositionLoading] = useState(false)
+  const [stockPositionError, setStockPositionError] = useState<string | null>(null)
+
+  // 净值图（弹窗）
+  const [navModalOpen, setNavModalOpen] = useState(false)
+  const [navChartLoading, setNavChartLoading] = useState(false)
+  const [navChartError, setNavChartError] = useState<string | null>(null)
+  const [navSeries, setNavSeries] = useState<NavChartPoint[]>([])
+  const [navHoverIndex, setNavHoverIndex] = useState<number | null>(null)
+  const [navStartDate, setNavStartDate] = useState<string>(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 90)
+    return d.toISOString().slice(0, 10)
+  })
+  const [navEndDate, setNavEndDate] = useState<string>(() => new Date().toISOString().slice(0, 10))
+  const [navZoomMode, setNavZoomMode] = useState<'30d' | '90d' | 'all'>('90d')
+
+  const getFirstProductName = useCallback((v: string) => {
+    const first = v
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)[0]
+    return first || '短线王'
+  }, [])
+  const [stockPositionNewRow, setStockPositionNewRow] = useState<{
+    product_name: string
+    trade_date: string
+    stock_code: string
+    stock_name: string
+    position_pct: string
+    side: string
+    price: string
+  }>({
+    product_name: '短线王',
+    trade_date: '',
+    stock_code: '',
+    stock_name: '',
+    position_pct: '',
+    side: '买入',
+    price: '',
+  })
+  const [editingStockPositionId, setEditingStockPositionId] = useState<number | null>(null)
+  const [editingStockPositionRow, setEditingStockPositionRow] = useState<StockPositionItem | null>(null)
+
+  useEffect(() => {
+    if (configTab !== 'stock_position') return
+    const first = getFirstProductName(stockPositionFilter)
+    setStockPositionNewRow((p) => ({ ...p, product_name: first || p.product_name }))
+  }, [configTab, stockPositionFilter, getFirstProductName])
+
+  // ESC 关闭净值图弹窗
+  useEffect(() => {
+    if (!navModalOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setNavModalOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [navModalOpen])
+
   // -------------------- 配置界面：请求 --------------------
 
   const loadOpenChannelTags = useCallback(async () => {
@@ -371,9 +472,44 @@ function App() {
     }
   }, [])
 
+  const loadStockPositionProducts = useCallback(async () => {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/config/stock-position/products`)
+      if (!res.ok) throw new Error(await res.text())
+      const list: string[] = await res.json()
+      setStockPositionProducts(list)
+    } catch {
+      setStockPositionProducts([])
+    }
+  }, [])
+
+  const loadStockPosition = useCallback(async () => {
+    setStockPositionLoading(true)
+    setStockPositionError(null)
+    try {
+      const params = new URLSearchParams()
+      if (stockPositionFilter.trim()) params.set('product_names', stockPositionFilter.trim())
+      params.set('page', String(stockPositionPage))
+      params.set('page_size', String(STOCK_POSITION_PAGE_SIZE))
+      const res = await fetchWithTimeout(`${API_BASE}/api/config/stock-position?${params}`)
+      if (!res.ok) throw new Error(await res.text())
+      const data: { total: number; items: StockPositionItem[] } = await res.json()
+      setStockPositionTotal(data.total)
+      setStockPositionItems(data.items)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '加载失败'
+      setStockPositionError(msg === 'The operation was aborted.' ? '请求超时' : msg)
+    } finally {
+      setStockPositionLoading(false)
+    }
+  }, [stockPositionFilter, stockPositionPage])
+
   const refreshCurrentConfig = () => {
     if (configTab === 'open_channel_tag') {
       void loadOpenChannelTags()
+    } else if (configTab === 'stock_position') {
+      void loadStockPosition()
+      void loadStockPositionProducts()
     } else {
       void loadChannelStaff()
     }
@@ -395,6 +531,18 @@ function App() {
     void loadCodeMapping()
   }, [isConfigMode, configTab, loadCodeMapping])
 
+  useEffect(() => {
+    if (!isConfigMode) return
+    if (configTab !== 'stock_position') return
+    void loadStockPositionProducts()
+  }, [isConfigMode, configTab, loadStockPositionProducts])
+
+  useEffect(() => {
+    if (!isConfigMode) return
+    if (configTab !== 'stock_position') return
+    void loadStockPosition()
+  }, [isConfigMode, configTab, stockPositionFilter, stockPositionPage, loadStockPosition])
+
   const openAddCodeMapping = () => {
     setEditingCodeMapping(null)
     setCodeMappingForm({ id: '', code_value: '', description: '', stat_cost: '', channel_name: '' })
@@ -414,6 +562,10 @@ function App() {
   }
 
   const saveCodeMapping = async () => {
+    if (isConfigReadOnly) {
+      setCodeMappingError('只读账号不可修改')
+      return
+    }
     setCodeMappingError(null)
     const isEdit = codeMappingModal === 'edit' && !!editingCodeMapping
 
@@ -474,6 +626,10 @@ function App() {
   }
 
   const deleteCodeMapping = async (item: CodeMappingItem) => {
+    if (isConfigReadOnly) {
+      setCodeMappingError('只读账号不可修改')
+      return
+    }
     if (!window.confirm(`确定删除 code_mapping: ${item.id} 吗？`)) return
     try {
       const res = await fetchWithTimeout(`${API_BASE}/api/config/code-mapping/${item.id}`, { method: 'DELETE' })
@@ -485,8 +641,212 @@ function App() {
     }
   }
 
+  const saveStockPositionNewRow = async () => {
+    if (isConfigReadOnly) {
+      setStockPositionError('只读账号不可修改')
+      return
+    }
+    const r = stockPositionNewRow
+    if (!r.stock_code.trim()) {
+      setStockPositionError('股票代码为必填')
+      return
+    }
+    if (!r.position_pct.trim()) {
+      setStockPositionError('仓位为必填')
+      return
+    }
+    const pct = Number(r.position_pct)
+    if (!Number.isFinite(pct)) {
+      setStockPositionError('仓位需为数字')
+      return
+    }
+    if (!r.side || (r.side !== '买入' && r.side !== '卖出')) {
+      setStockPositionError('请选择买入或卖出')
+      return
+    }
+    if (!r.price.trim()) {
+      setStockPositionError('成交价为必填')
+      return
+    }
+    const price = Number(r.price)
+    if (!Number.isFinite(price)) {
+      setStockPositionError('成交价需为数字')
+      return
+    }
+    setStockPositionError(null)
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/config/stock-position`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          product_name: r.product_name.trim() || null,
+          trade_date: r.trade_date.trim() || null,
+          stock_code: r.stock_code.trim(),
+          stock_name: r.stock_name.trim() || null,
+          position_pct: pct,
+          side: r.side,
+          price,
+        }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      const created: StockPositionItem = await res.json()
+      setStockPositionNewRow({
+        product_name: r.product_name,
+        trade_date: '',
+        stock_code: '',
+        stock_name: '',
+        position_pct: '',
+        side: '买入',
+        price: '',
+      })
+      // 新增后回到第 1 页，并在当前页把新纪录插入到最上方
+      setStockPositionPage(1)
+      setStockPositionTotal((prev) => prev + 1)
+      setStockPositionItems((prev) => [created, ...prev].slice(0, STOCK_POSITION_PAGE_SIZE))
+      // 产品下拉可能新增了产品名称，刷新一次
+      await loadStockPositionProducts()
+    } catch (e) {
+      setStockPositionError(e instanceof Error ? e.message : '新增失败')
+    }
+  }
+
+  const saveStockPositionEdit = async () => {
+    if (isConfigReadOnly) {
+      setStockPositionError('只读账号不可修改')
+      return
+    }
+    if (editingStockPositionId == null || !editingStockPositionRow) return
+    const r = editingStockPositionRow
+    if (!r.stock_code?.trim()) {
+      setStockPositionError('股票代码为必填')
+      return
+    }
+    const pct = r.position_pct
+    if (pct == null || !Number.isFinite(Number(pct))) {
+      setStockPositionError('仓位需为有效数字')
+      return
+    }
+    if (!r.side || (r.side !== '买入' && r.side !== '卖出')) {
+      setStockPositionError('请选择买入或卖出')
+      return
+    }
+    const price = r.price
+    if (price == null || !Number.isFinite(Number(price))) {
+      setStockPositionError('成交价需为有效数字')
+      return
+    }
+    setStockPositionError(null)
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/config/stock-position/${editingStockPositionId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          trade_date: r.trade_date ?? undefined,
+          stock_code: r.stock_code,
+          stock_name: r.stock_name ?? undefined,
+          position_pct: Number(pct),
+          side: r.side,
+          price: Number(price),
+        }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      setEditingStockPositionId(null)
+      setEditingStockPositionRow(null)
+      await loadStockPosition()
+    } catch (e) {
+      setStockPositionError(e instanceof Error ? e.message : '保存失败')
+    }
+  }
+
+  const deleteStockPosition = async (item: StockPositionItem) => {
+    if (isConfigReadOnly) {
+      setStockPositionError('只读账号不可修改')
+      return
+    }
+    if (!window.confirm(`确定删除该条记录吗？`)) return
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/config/stock-position/${item.id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error(await res.text())
+      await loadStockPosition()
+    } catch (e) {
+      setStockPositionError(e instanceof Error ? e.message : '删除失败')
+    }
+  }
+
+  const downloadStockPositionExcel = async () => {
+    const productName = getFirstProductName(stockPositionFilter.trim() || '短线王')
+    setStockPositionError(null)
+    try {
+      const params = new URLSearchParams()
+      params.set('product_name', productName)
+      // 后端生成双 sheet：Sheet1=仓位明细，Sheet2=净值（用于核对/绘图）
+      const res = await fetchWithTimeout(`${API_BASE}/api/config/stock-position/export.xlsx?${params}`, {}, 60000)
+      if (!res.ok) throw new Error(await res.text())
+
+      const cd = res.headers.get('content-disposition')
+      const pickName = () => {
+        if (!cd) return null
+        const mStar = /filename\*\s*=\s*UTF-8''([^;]+)/i.exec(cd)
+        if (mStar?.[1]) {
+          try {
+            return decodeURIComponent(mStar[1])
+          } catch {
+            return mStar[1]
+          }
+        }
+        const m = /filename\s*=\s*"?([^";]+)"?/i.exec(cd)
+        return m?.[1] ?? null
+      }
+
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = pickName() || `${productName}_仓位+净值.xlsx`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setStockPositionError(e instanceof Error ? e.message : '导出失败')
+    }
+  }
+
+  const loadNavSeries = useCallback(async () => {
+    const productName = getFirstProductName(stockPositionFilter)
+    setNavChartLoading(true)
+    setNavChartError(null)
+    try {
+      const params = new URLSearchParams()
+      params.set('product_name', productName)
+      if (navStartDate.trim()) params.set('start_date', navStartDate.trim())
+      if (navEndDate.trim()) params.set('end_date', navEndDate.trim())
+      const res = await fetchWithTimeout(`${API_BASE}/api/config/stock-position/nav-chart?${params}`)
+      if (!res.ok) throw new Error(await res.text())
+      const list: NavChartPoint[] = await res.json()
+      setNavSeries(Array.isArray(list) ? list : [])
+      setNavHoverIndex(null)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '加载净值失败'
+      setNavChartError(msg === 'The operation was aborted.' ? '请求超时' : msg)
+      setNavSeries([])
+    } finally {
+      setNavChartLoading(false)
+    }
+  }, [getFirstProductName, stockPositionFilter, navStartDate, navEndDate])
+
+  const openNavModal = async () => {
+    setNavModalOpen(true)
+    setNavHoverIndex(null)
+    await loadNavSeries()
+  }
+
   // 新增 / 保存：开户渠道 & 标签
   const handleSaveOpenChannel = async () => {
+    if (isConfigReadOnly) {
+      setConfigError('只读账号不可修改')
+      return
+    }
     if (!openForm.open_channel.trim() || !openForm.wechat_customer_tag.trim()) {
       setConfigError('开户渠道和企微客户标签不能为空')
       return
@@ -530,6 +890,7 @@ function App() {
   }
 
   const handleDeleteOpenChannel = async (item: OpenChannelTagItem) => {
+    if (isConfigReadOnly) return
     if (!window.confirm(`确定删除【${item.open_channel} - ${item.wechat_customer_tag}】这条配置吗？`)) {
       return
     }
@@ -541,7 +902,7 @@ function App() {
       if (!res.ok) throw new Error(await res.text())
       // 删除成功后刷新页面，避免显示"没有该条记录"等错误
       window.location.reload()
-    } catch (e) {
+    } catch {
       // 删除失败（如记录已不存在）时也刷新页面，不显示错误
       window.location.reload()
     }
@@ -549,6 +910,10 @@ function App() {
 
   // 新增 / 保存：投流渠道承接员工
   const handleSaveStaff = async () => {
+    if (isConfigReadOnly) {
+      setConfigError('只读账号不可修改')
+      return
+    }
     if (!staffForm.branch_name.trim() || !staffForm.staff_name.trim()) {
       setConfigError('营业部和姓名不能为空')
       return
@@ -595,6 +960,7 @@ function App() {
   }
 
   const handleDeleteStaff = async (item: ChannelStaffItem) => {
+    if (isConfigReadOnly) return
     if (!window.confirm(`确定删除【${item.branch_name} - ${item.staff_name}】这条配置吗？`)) {
       return
     }
@@ -606,7 +972,7 @@ function App() {
       if (!res.ok) throw new Error(await res.text())
       // 删除成功后刷新页面，避免显示"没有该条记录"等错误
       window.location.reload()
-    } catch (e) {
+    } catch {
       // 删除失败（如记录已不存在）时也刷新页面，不显示错误
       window.location.reload()
     }
@@ -780,11 +1146,12 @@ function App() {
               </div>
             )}
 
-            {configTab !== 'code_mapping' && (
+            {configTab !== 'code_mapping' && configTab !== 'stock_position' && (
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => {
+                      if (isConfigReadOnly) return
                       if (configTab === 'open_channel_tag') {
                         setEditingOpenItem(null)
                         setOpenForm({ open_channel: '', wechat_customer_tag: '' })
@@ -796,7 +1163,12 @@ function App() {
                         setStaffModal('add')
                       }
                     }}
-                    className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-medium transition-colors"
+                    disabled={isConfigReadOnly}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      isConfigReadOnly
+                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                        : 'bg-sky-600 hover:bg-sky-500 text-white'
+                    }`}
                   >
                     新增
                   </button>
@@ -867,13 +1239,19 @@ function App() {
                               <td className="px-4 py-3 text-slate-700 whitespace-nowrap">
                                 <button
                                   onClick={() => handleEditOpenChannel(item)}
-                                  className="mr-2 px-3 py-1 text-sky-600 hover:text-sky-700 text-xs font-medium"
+                                  disabled={isConfigReadOnly}
+                                  className={`mr-2 px-3 py-1 text-xs font-medium ${
+                                    isConfigReadOnly ? 'text-slate-400 cursor-not-allowed' : 'text-sky-600 hover:text-sky-700'
+                                  }`}
                                 >
                                   修改
                                 </button>
                                 <button
                                   onClick={() => void handleDeleteOpenChannel(item)}
-                                  className="px-3 py-1 text-red-600 hover:text-red-700 text-xs font-medium"
+                                  disabled={isConfigReadOnly}
+                                  className={`px-3 py-1 text-xs font-medium ${
+                                    isConfigReadOnly ? 'text-slate-300 cursor-not-allowed' : 'text-red-600 hover:text-red-700'
+                                  }`}
                                 >
                                   删除
                                 </button>
@@ -942,13 +1320,19 @@ function App() {
                               <td className="px-4 py-3 text-slate-700 whitespace-nowrap">
                                 <button
                                   onClick={() => handleEditStaff(item)}
-                                  className="mr-2 px-3 py-1 text-sky-600 hover:text-sky-700 text-xs font-medium"
+                                  disabled={isConfigReadOnly}
+                                  className={`mr-2 px-3 py-1 text-xs font-medium ${
+                                    isConfigReadOnly ? 'text-slate-400 cursor-not-allowed' : 'text-sky-600 hover:text-sky-700'
+                                  }`}
                                 >
                                   修改
                                 </button>
                                 <button
                                   onClick={() => void handleDeleteStaff(item)}
-                                  className="px-3 py-1 text-red-600 hover:text-red-700 text-xs font-medium"
+                                  disabled={isConfigReadOnly}
+                                  className={`px-3 py-1 text-xs font-medium ${
+                                    isConfigReadOnly ? 'text-slate-300 cursor-not-allowed' : 'text-red-600 hover:text-red-700'
+                                  }`}
                                 >
                                   删除
                                 </button>
@@ -961,6 +1345,795 @@ function App() {
                   </div>
                 </div>
               </div>
+            ) : configTab === 'stock_position' ? (
+              <div className="mt-4">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <label className="text-sm text-slate-600">产品名称筛选（默认 短线王）：</label>
+                    <input
+                      list="stock-position-products"
+                      value={stockPositionFilter}
+                      onChange={(e) => setStockPositionFilter(e.target.value)}
+                      onBlur={() => void loadStockPosition()}
+                      className="px-3 py-2 rounded-lg border border-slate-300 text-slate-800 text-sm w-48"
+                      placeholder="短线王"
+                    />
+                    <datalist id="stock-position-products">
+                      {stockPositionProducts.map((p) => (
+                        <option key={p} value={p} />
+                      ))}
+                    </datalist>
+                    <button
+                      onClick={() => void loadStockPosition()}
+                      disabled={stockPositionLoading}
+                      className="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 disabled:opacity-50 text-slate-800 font-medium"
+                    >
+                      {stockPositionLoading ? '加载中...' : '查询'}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => void openNavModal()}
+                      className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-medium transition-colors"
+                      title="查看净值曲线（默认近 90 天）"
+                    >
+                      净值图
+                    </button>
+                    <button
+                      onClick={() => void downloadStockPositionExcel()}
+                      className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition-colors"
+                      title="导出当前产品全部数据"
+                    >
+                      下载 Excel
+                    </button>
+                    <button
+                      onClick={() => void loadStockPosition()}
+                      disabled={stockPositionLoading}
+                      className="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 disabled:opacity-50 text-slate-800 font-medium"
+                    >
+                      刷新
+                    </button>
+                  </div>
+                </div>
+                {stockPositionError && (
+                  <div className="mb-4 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+                    {stockPositionError}
+                  </div>
+                )}
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-slate-100">
+                          <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">产品名称</th>
+                          <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">日期</th>
+                          <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">股票代码</th>
+                          <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">个股</th>
+                          <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">仓位(%)</th>
+                          <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">买入/卖出</th>
+                          <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">成交价</th>
+                          <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">操作</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {isConfigReadOnly && (
+                          <tr className="border-b border-slate-200 bg-slate-50">
+                            <td colSpan={8} className="px-3 py-2 text-slate-500 text-xs">
+                              当前为只读账号：不可新增/修改/删除，但可查看、筛选、下载 Excel、查看净值图。
+                            </td>
+                          </tr>
+                        )}
+
+                        {/* 新增行：顶部一行，右箭头切下一格，买入/卖出用 select 键盘可操作 */}
+                        <tr className={`border-b border-slate-200 ${isConfigReadOnly ? 'bg-slate-50' : 'bg-sky-50/60'}`}>
+                          <td className="px-3 py-2">
+                            <input
+                              value={stockPositionNewRow.product_name}
+                              readOnly
+                              disabled={isConfigReadOnly}
+                              onKeyDown={(e) => {
+                                if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                                  e.preventDefault()
+                                  const tr = (e.target as HTMLElement).closest('tr')
+                                  const inputs = tr?.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input, select')
+                                  const idx = inputs ? Array.from(inputs).indexOf(e.target as HTMLInputElement) : -1
+                                  if (idx >= 0 && inputs) {
+                                    const nextIdx = e.key === 'ArrowRight' ? idx + 1 : idx - 1
+                                    if (nextIdx >= 0 && nextIdx < inputs.length) (inputs[nextIdx] as HTMLElement).focus()
+                                  }
+                                }
+                              }}
+                              className={`w-full min-w-[80px] px-2 py-1.5 rounded border text-xs ${
+                                isConfigReadOnly ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed' : 'border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed'
+                              }`}
+                              placeholder="产品名称（随上方筛选）"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              value={stockPositionNewRow.trade_date}
+                              onChange={(e) => setStockPositionNewRow((p) => ({ ...p, trade_date: e.target.value }))}
+                              disabled={isConfigReadOnly}
+                              onKeyDown={(e) => {
+                                if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                                  e.preventDefault()
+                                  const tr = (e.target as HTMLElement).closest('tr')
+                                  const inputs = tr?.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input, select')
+                                  const idx = inputs ? Array.from(inputs).indexOf(e.target as HTMLInputElement) : -1
+                                  if (idx >= 0 && inputs) {
+                                    const nextIdx = e.key === 'ArrowRight' ? idx + 1 : idx - 1
+                                    if (nextIdx >= 0 && nextIdx < inputs.length) (inputs[nextIdx] as HTMLElement).focus()
+                                  }
+                                }
+                              }}
+                              className={`w-full min-w-[100px] px-2 py-1.5 rounded border text-xs ${
+                                isConfigReadOnly ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed' : 'border-slate-300 text-slate-800'
+                              }`}
+                              placeholder="YYYY-MM-DD，空=今天"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              value={stockPositionNewRow.stock_code}
+                              onChange={(e) => setStockPositionNewRow((p) => ({ ...p, stock_code: e.target.value }))}
+                              disabled={isConfigReadOnly}
+                              onKeyDown={(e) => {
+                                if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                                  e.preventDefault()
+                                  const tr = (e.target as HTMLElement).closest('tr')
+                                  const inputs = tr?.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input, select')
+                                  const idx = inputs ? Array.from(inputs).indexOf(e.target as HTMLInputElement) : -1
+                                  if (idx >= 0 && inputs) {
+                                    const nextIdx = e.key === 'ArrowRight' ? idx + 1 : idx - 1
+                                    if (nextIdx >= 0 && nextIdx < inputs.length) (inputs[nextIdx] as HTMLElement).focus()
+                                  }
+                                }
+                              }}
+                              className={`w-full min-w-[90px] px-2 py-1.5 rounded border text-xs ${
+                                isConfigReadOnly ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed' : 'border-slate-300 text-slate-800'
+                              }`}
+                              placeholder="必填"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              value={stockPositionNewRow.stock_name}
+                              onChange={(e) => setStockPositionNewRow((p) => ({ ...p, stock_name: e.target.value }))}
+                              disabled={isConfigReadOnly}
+                              onKeyDown={(e) => {
+                                if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                                  e.preventDefault()
+                                  const tr = (e.target as HTMLElement).closest('tr')
+                                  const inputs = tr?.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input, select')
+                                  const idx = inputs ? Array.from(inputs).indexOf(e.target as HTMLInputElement) : -1
+                                  if (idx >= 0 && inputs) {
+                                    const nextIdx = e.key === 'ArrowRight' ? idx + 1 : idx - 1
+                                    if (nextIdx >= 0 && nextIdx < inputs.length) (inputs[nextIdx] as HTMLElement).focus()
+                                  }
+                                }
+                              }}
+                              className={`w-full min-w-[80px] px-2 py-1.5 rounded border text-xs ${
+                                isConfigReadOnly ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed' : 'border-slate-300 text-slate-800'
+                              }`}
+                              placeholder="个股"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              value={stockPositionNewRow.position_pct}
+                              onChange={(e) => setStockPositionNewRow((p) => ({ ...p, position_pct: e.target.value }))}
+                              disabled={isConfigReadOnly}
+                              onKeyDown={(e) => {
+                                if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                                  e.preventDefault()
+                                  const tr = (e.target as HTMLElement).closest('tr')
+                                  const inputs = tr?.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input, select')
+                                  const idx = inputs ? Array.from(inputs).indexOf(e.target as HTMLInputElement) : -1
+                                  if (idx >= 0 && inputs) {
+                                    const nextIdx = e.key === 'ArrowRight' ? idx + 1 : idx - 1
+                                    if (nextIdx >= 0 && nextIdx < inputs.length) (inputs[nextIdx] as HTMLElement).focus()
+                                  }
+                                }
+                              }}
+                              className={`w-full min-w-[60px] px-2 py-1.5 rounded border text-xs ${
+                                isConfigReadOnly ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed' : 'border-slate-300 text-slate-800'
+                              }`}
+                              placeholder="必填"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <select
+                              value={stockPositionNewRow.side}
+                              onChange={(e) => setStockPositionNewRow((p) => ({ ...p, side: e.target.value }))}
+                              disabled={isConfigReadOnly}
+                              onKeyDown={(e) => {
+                                if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                                  e.preventDefault()
+                                  const tr = (e.target as HTMLElement).closest('tr')
+                                  const inputs = tr?.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input, select')
+                                  const idx = inputs ? Array.from(inputs).indexOf(e.target as HTMLSelectElement) : -1
+                                  if (idx >= 0 && inputs) {
+                                    const nextIdx = e.key === 'ArrowRight' ? idx + 1 : idx - 1
+                                    if (nextIdx >= 0 && nextIdx < inputs.length) (inputs[nextIdx] as HTMLElement).focus()
+                                  }
+                                }
+                                if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                                  e.preventDefault()
+                                  setStockPositionNewRow((p) => ({ ...p, side: p.side === '买入' ? '卖出' : '买入' }))
+                                }
+                              }}
+                              className={`min-w-[72px] px-2 py-1.5 rounded border text-xs ${
+                                isConfigReadOnly ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed' : 'border-slate-300 text-slate-800 bg-white'
+                              }`}
+                            >
+                              <option value="买入">买入</option>
+                              <option value="卖出">卖出</option>
+                            </select>
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              value={stockPositionNewRow.price}
+                              onChange={(e) => setStockPositionNewRow((p) => ({ ...p, price: e.target.value }))}
+                              disabled={isConfigReadOnly}
+                              onKeyDown={(e) => {
+                                if (e.key === 'ArrowLeft') {
+                                  e.preventDefault()
+                                  const tr = (e.target as HTMLElement).closest('tr')
+                                  const inputs = tr?.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input, select')
+                                  const idx = inputs ? Array.from(inputs).indexOf(e.target as HTMLInputElement) : -1
+                                  if (idx >= 0 && inputs) {
+                                    const nextIdx = idx - 1
+                                    if (nextIdx >= 0 && nextIdx < inputs.length) (inputs[nextIdx] as HTMLElement).focus()
+                                  }
+                                  return
+                                }
+                                if (e.key === 'ArrowRight' || e.key === 'Enter') {
+                                  e.preventDefault()
+                                  void saveStockPositionNewRow()
+                                }
+                              }}
+                              className={`w-full min-w-[70px] px-2 py-1.5 rounded border text-xs ${
+                                isConfigReadOnly ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed' : 'border-slate-300 text-slate-800'
+                              }`}
+                              placeholder="必填"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <button
+                              type="button"
+                              onClick={() => void saveStockPositionNewRow()}
+                              disabled={isConfigReadOnly}
+                              className={`px-2 py-1 rounded text-xs ${
+                                isConfigReadOnly ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-sky-600 hover:bg-sky-500 text-white'
+                              }`}
+                            >
+                              保存
+                            </button>
+                          </td>
+                        </tr>
+                        {stockPositionLoading && stockPositionItems.length === 0 ? (
+                          <tr><td colSpan={8} className="py-8 text-center text-slate-500">加载中...</td></tr>
+                        ) : stockPositionItems.length === 0 ? (
+                          <tr><td colSpan={8} className="py-8 text-center text-slate-500">暂无数据（默认展示产品「短线王」）</td></tr>
+                        ) : (
+                          stockPositionItems.map((item) => (
+                            editingStockPositionId === item.id ? (
+                              <tr key={item.id} className="border-b border-slate-200 bg-amber-50/60">
+                                <td className="px-3 py-2">
+                                  <input
+                                    value={editingStockPositionRow?.product_name ?? ''}
+                                    readOnly
+                                    className="w-full min-w-[80px] px-2 py-1.5 rounded border border-slate-200 text-xs bg-slate-100 text-slate-500 cursor-not-allowed"
+                                  />
+                                </td>
+                                <td className="px-3 py-2">
+                                  <input
+                                    value={editingStockPositionRow?.trade_date ?? ''}
+                                    onChange={(e) => setEditingStockPositionRow((p) => p ? { ...p, trade_date: e.target.value } : null)}
+                                    className="w-full min-w-[100px] px-2 py-1.5 rounded border border-slate-300 text-xs"
+                                  />
+                                </td>
+                                <td className="px-3 py-2">
+                                  <input
+                                    value={editingStockPositionRow?.stock_code ?? ''}
+                                    onChange={(e) => setEditingStockPositionRow((p) => p ? { ...p, stock_code: e.target.value } : null)}
+                                    className="w-full min-w-[90px] px-2 py-1.5 rounded border border-slate-300 text-xs"
+                                  />
+                                </td>
+                                <td className="px-3 py-2">
+                                  <input
+                                    value={editingStockPositionRow?.stock_name ?? ''}
+                                    onChange={(e) => setEditingStockPositionRow((p) => p ? { ...p, stock_name: e.target.value } : null)}
+                                    className="w-full min-w-[80px] px-2 py-1.5 rounded border border-slate-300 text-xs"
+                                  />
+                                </td>
+                                <td className="px-3 py-2">
+                                  <input
+                                    type="number"
+                                    value={editingStockPositionRow?.position_pct != null ? String(editingStockPositionRow.position_pct) : ''}
+                                    onChange={(e) => setEditingStockPositionRow((p) => p ? { ...p, position_pct: e.target.value ? Number(e.target.value) : null } : null)}
+                                    className="w-full min-w-[60px] px-2 py-1.5 rounded border border-slate-300 text-xs"
+                                  />
+                                </td>
+                                <td className="px-3 py-2">
+                                  <select
+                                    value={editingStockPositionRow?.side ?? '买入'}
+                                    onChange={(e) => setEditingStockPositionRow((p) => p ? { ...p, side: e.target.value } : null)}
+                                    className="min-w-[72px] px-2 py-1.5 rounded border border-slate-300 text-xs bg-white"
+                                  >
+                                    <option value="买入">买入</option>
+                                    <option value="卖出">卖出</option>
+                                  </select>
+                                </td>
+                                <td className="px-3 py-2">
+                                  <input
+                                    type="number"
+                                    value={editingStockPositionRow?.price != null ? String(editingStockPositionRow.price) : ''}
+                                    onChange={(e) => setEditingStockPositionRow((p) => p ? { ...p, price: e.target.value ? Number(e.target.value) : null } : null)}
+                                    className="w-full min-w-[70px] px-2 py-1.5 rounded border border-slate-300 text-xs"
+                                  />
+                                </td>
+                                <td className="px-3 py-2">
+                                  <button type="button" onClick={() => void saveStockPositionEdit()} className="mr-1 px-2 py-1 rounded bg-sky-600 text-white text-xs">保存</button>
+                                  <button type="button" onClick={() => { setEditingStockPositionId(null); setEditingStockPositionRow(null); }} className="px-2 py-1 rounded bg-slate-200 text-xs">取消</button>
+                                </td>
+                              </tr>
+                            ) : (
+                              <tr key={item.id} className="border-b border-slate-200 hover:bg-slate-100/80">
+                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{item.product_name ?? '-'}</td>
+                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{item.trade_date ?? '-'}</td>
+                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{item.stock_code ?? '-'}</td>
+                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{item.stock_name ?? '-'}</td>
+                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{item.position_pct != null ? `${item.position_pct}%` : '-'}</td>
+                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{item.side ?? '-'}</td>
+                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
+                                  {item.price == null || !Number.isFinite(Number(item.price)) ? '-' : Number(item.price).toFixed(2)}
+                                </td>
+                                <td className="px-3 py-2 whitespace-nowrap">
+                                  {!isConfigReadOnly ? (
+                                    <>
+                                      <button type="button" onClick={() => { setEditingStockPositionId(item.id); setEditingStockPositionRow({ ...item }); }} className="mr-1 px-2 py-1 text-sky-600 hover:text-sky-700 text-xs">修改</button>
+                                      <button type="button" onClick={() => void deleteStockPosition(item)} className="px-2 py-1 text-red-600 hover:text-red-700 text-xs">删除</button>
+                                    </>
+                                  ) : (
+                                    <span className="text-slate-400 text-xs">只读</span>
+                                  )}
+                                </td>
+                              </tr>
+                            )
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                {stockPositionTotal > 0 && (
+                  <div className="mt-3 flex items-center justify-between">
+                    <span className="text-sm text-slate-500">共 {stockPositionTotal} 条，每页 {STOCK_POSITION_PAGE_SIZE} 条</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        disabled={stockPositionPage <= 1}
+                        onClick={() => setStockPositionPage((p) => Math.max(1, p - 1))}
+                        className="px-3 py-1 rounded bg-slate-200 hover:bg-slate-300 disabled:opacity-50 text-slate-700 text-sm"
+                      >
+                        上一页
+                      </button>
+                      <span className="text-slate-500 text-sm">{stockPositionPage} / {Math.max(1, Math.ceil(stockPositionTotal / STOCK_POSITION_PAGE_SIZE))}</span>
+                      <button
+                        disabled={stockPositionPage >= Math.ceil(stockPositionTotal / STOCK_POSITION_PAGE_SIZE)}
+                        onClick={() => setStockPositionPage((p) => p + 1)}
+                        className="px-3 py-1 rounded bg-slate-200 hover:bg-slate-300 disabled:opacity-50 text-slate-700 text-sm"
+                      >
+                        下一页
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* 净值图弹窗 */}
+                {navModalOpen && (
+                  <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+                    onClick={() => setNavModalOpen(false)}
+                  >
+                    <div
+                      className="w-full max-w-5xl bg-white rounded-xl shadow-lg border border-slate-200 p-5 mx-4"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-base font-semibold text-slate-800">
+                            净值图 · {getFirstProductName(stockPositionFilter)}
+                          </div>
+                          <div className="text-sm text-slate-500 mt-0.5">默认展示近 90 天，可按日期筛选</div>
+                        </div>
+                        <button
+                          onClick={() => setNavModalOpen(false)}
+                          className="text-slate-500 hover:text-slate-700"
+                          aria-label="关闭"
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
+                        <div className="flex flex-wrap items-end gap-3">
+                          <div>
+                            <div className="text-xs text-slate-600 mb-1">开始日期</div>
+                            <input
+                              type="date"
+                              value={navStartDate}
+                              onChange={(e) => setNavStartDate(e.target.value)}
+                              className="px-3 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm bg-white"
+                            />
+                          </div>
+                          <div>
+                            <div className="text-xs text-slate-600 mb-1">结束日期</div>
+                            <input
+                              type="date"
+                              value={navEndDate}
+                              onChange={(e) => setNavEndDate(e.target.value)}
+                              className="px-3 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm bg-white"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => void loadNavSeries()}
+                            disabled={navChartLoading}
+                            className="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 disabled:opacity-50 text-slate-800 font-medium"
+                          >
+                            {navChartLoading ? '加载中...' : '查询'}
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-4 text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="inline-block text-xs text-slate-500">缩放：</span>
+                            <button
+                              type="button"
+                              onClick={() => setNavZoomMode('30d')}
+                              className={`px-2 py-1 rounded text-xs border ${
+                                navZoomMode === '30d'
+                                  ? 'bg-sky-600 text-white border-sky-600'
+                                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                              }`}
+                            >
+                              近30天
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setNavZoomMode('90d')}
+                              className={`px-2 py-1 rounded text-xs border ${
+                                navZoomMode === '90d'
+                                  ? 'bg-sky-600 text-white border-sky-600'
+                                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                              }`}
+                            >
+                              近90天
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setNavZoomMode('all')}
+                              className={`px-2 py-1 rounded text-xs border ${
+                                navZoomMode === 'all'
+                                  ? 'bg-sky-600 text-white border-sky-600'
+                                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                              }`}
+                            >
+                              全部
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="inline-block w-3 h-3 rounded bg-red-500" />
+                            <span className="text-slate-600">组合净值</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="inline-block w-3 h-3 rounded bg-amber-500" />
+                            <span className="text-slate-600">沪深300净值</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {navChartError && (
+                        <div className="mt-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+                          {navChartError}
+                        </div>
+                      )}
+
+                      <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
+                        <div className="p-4 bg-white border-b border-slate-200 flex items-center justify-between">
+                          <div className="text-sm text-slate-600">
+                            共 {navSeries.length} 个点
+                          </div>
+                        </div>
+                        <div className="p-4">
+                          {navChartLoading && navSeries.length === 0 ? (
+                            <div className="py-16 text-center text-slate-500">加载中...</div>
+                          ) : navSeries.length < 2 ? (
+                            <div className="py-16 text-center text-slate-500">暂无可绘制数据</div>
+                          ) : (
+                            (() => {
+                              // 根据缩放模式裁剪可见数据（简单缩放：只看最后 N 天）
+                              let visible = navSeries
+                              if (navZoomMode !== 'all' && navSeries.length > 0) {
+                                const n = navZoomMode === '30d' ? 30 : 90
+                                visible = navSeries.slice(-n)
+                              }
+
+                              const w = 1000
+                              const h = 360
+                              const padL = 56
+                              const padR = 16
+                              const padT = 28 // 顶部留白：放标题
+                              const padB = 36
+
+                              const navVals = visible.map((p) => Number(p.nav)).filter((v) => Number.isFinite(v))
+                              const hsVals = visible
+                                .map((p) => (p.hs300_nav == null ? NaN : Number(p.hs300_nav)))
+                                .filter((v) => Number.isFinite(v))
+                              const allVals = [...navVals, ...hsVals]
+                              // 强制包含基准 1.0000，并在顶部额外留白，避免最高点标注遮挡
+                              const rawMin0 = Math.min(...allVals, 1.0)
+                              const rawMax0 = Math.max(...allVals, 1.0)
+                              const rawSpan0 = rawMax0 - rawMin0 || 1
+                              const minV = rawMin0 - rawSpan0 * 0.02
+                              const maxV = rawMax0 + rawSpan0 * 0.10
+                              const span = maxV - minV || 1
+
+                              const xOf = (i: number) =>
+                                padL + (i * (w - padL - padR)) / Math.max(1, visible.length - 1)
+                              const yOf = (v: number) =>
+                                padT + ((maxV - v) * (h - padT - padB)) / span
+
+                              const mkPath = (vals: Array<number | null | undefined>) => {
+                                let d = ''
+                                let started = false
+                                for (let i = 0; i < vals.length; i++) {
+                                  const v = vals[i]
+                                  if (v == null || !Number.isFinite(Number(v))) {
+                                    started = false
+                                    continue
+                                  }
+                                  const x = xOf(i)
+                                  const y = yOf(Number(v))
+                                  if (!started) {
+                                    d += `M ${x} ${y}`
+                                    started = true
+                                  } else {
+                                    d += ` L ${x} ${y}`
+                                  }
+                                }
+                                return d
+                              }
+
+                              const dNav = mkPath(visible.map((p) => p.nav))
+                              const dHs = mkPath(visible.map((p) => p.hs300_nav ?? null))
+
+                              const yTicks = 5
+                              const ticks = Array.from({ length: yTicks + 1 }, (_, i) => i)
+                              const fmt4 = (v: number) => {
+                                const n = Number(v)
+                                if (!Number.isFinite(n)) return '-'
+                                return n.toFixed(4)
+                              }
+
+                              const last = visible[visible.length - 1]
+                              const lastNav = Number.isFinite(Number(last.nav)) ? Number(last.nav) : null
+                              const lastHs =
+                                last.hs300_nav == null
+                                  ? null
+                                  : Number.isFinite(Number(last.hs300_nav))
+                                    ? Number(last.hs300_nav)
+                                    : null
+
+                              // 计算 X 轴刻度（多几个日期）
+                              const xTickCount = Math.min(6, visible.length)
+                              const xTicks = Array.from({ length: xTickCount }, (_, i) => {
+                                const idx =
+                                  xTickCount === 1
+                                    ? 0
+                                    : Math.round((i * (visible.length - 1)) / (xTickCount - 1))
+                                return { idx, date: visible[idx].date }
+                              })
+
+                              // 产品净值拐点（上升后转折的“尖尖”）：局部峰值
+                              const navNums = visible.map((p) => (Number.isFinite(Number(p.nav)) ? Number(p.nav) : NaN))
+                              const rawPeaks: number[] = []
+                              for (let i = 1; i < navNums.length - 1; i++) {
+                                const a = navNums[i - 1]
+                                const b = navNums[i]
+                                const c = navNums[i + 1]
+                                if (!Number.isFinite(a) || !Number.isFinite(b) || !Number.isFinite(c)) continue
+                                if (a < b && b > c) rawPeaks.push(i)
+                              }
+                              const PEAK_EPS = 0.0001
+                              let peaks = rawPeaks.filter((i) => navNums[i] - Math.max(navNums[i - 1], navNums[i + 1]) >= PEAK_EPS)
+                              // 峰值过多时只标注最“尖”的几个（避免满屏文字）
+                              if (peaks.length > 8) {
+                                peaks = [...peaks]
+                                  .sort((i, j) => navNums[j] - navNums[i])
+                                  .slice(0, 8)
+                                  .sort((a, b) => a - b)
+                              }
+                              const labelIdxSet = new Set<number>([...peaks, visible.length - 1])
+
+                              const handleSvgMouseMove = (evt: React.MouseEvent<SVGSVGElement>) => {
+                                const rect = (evt.currentTarget as SVGSVGElement).getBoundingClientRect()
+                                const px = evt.clientX - rect.left
+                                const scaleX = w / Math.max(1, rect.width)
+                                const svgX = px * scaleX
+                                const xMin = padL
+                                const xMax = w - padR
+                                if (svgX < xMin || svgX > xMax) {
+                                  setNavHoverIndex(null)
+                                  return
+                                }
+                                const t = (svgX - xMin) / Math.max(1, xMax - xMin)
+                                const idx = Math.round(t * (visible.length - 1))
+                                if (idx >= 0 && idx < visible.length) {
+                                  setNavHoverIndex(idx)
+                                } else {
+                                  setNavHoverIndex(null)
+                                }
+                              }
+
+                              const handleSvgMouseLeave = () => {
+                                setNavHoverIndex(null)
+                              }
+
+                              const hover =
+                                navHoverIndex != null && navHoverIndex >= 0 && navHoverIndex < visible.length
+                                  ? visible[navHoverIndex]
+                                  : null
+
+                              const hoverX = hover ? xOf(navHoverIndex!) : null
+                              const hoverNavY =
+                                hover && Number.isFinite(Number(hover.nav)) ? yOf(Number(hover.nav)) : null
+                              const hoverHsY =
+                                hover && hover.hs300_nav != null && Number.isFinite(Number(hover.hs300_nav))
+                                  ? yOf(Number(hover.hs300_nav))
+                                  : null
+
+                              return (
+                                <div className="w-full">
+                                  <div className="w-full">
+                                    <svg
+                                      viewBox={`0 0 ${w} ${h}`}
+                                      className="w-full h-[360px] cursor-crosshair"
+                                      onMouseMove={handleSvgMouseMove}
+                                      onMouseLeave={handleSvgMouseLeave}
+                                      onClick={handleSvgMouseMove}
+                                    >
+                                      {/* title */}
+                                      <text x={w / 2} y={14} textAnchor="middle" fontSize="14" fill="#0f172a" fontWeight="600">
+                                        {getFirstProductName(stockPositionFilter)} vs 沪深300
+                                      </text>
+
+                                      {/* grid */}
+                                      {ticks.map((t) => {
+                                        const y = padT + (t * (h - padT - padB)) / yTicks
+                                        const v = maxV - (t * span) / yTicks
+                                        return (
+                                          <g key={t}>
+                                            <line x1={padL} y1={y} x2={w - padR} y2={y} stroke="#e2e8f0" strokeWidth="1" />
+                                            <text x={padL - 10} y={y + 4} textAnchor="end" fontSize="12" fill="#64748b">
+                                              {fmt4(v)}
+                                            </text>
+                                          </g>
+                                        )
+                                      })}
+
+                                      {/* axes */}
+                                      <line x1={padL} y1={padT} x2={padL} y2={h - padB} stroke="#94a3b8" strokeWidth="1" />
+                                      <line x1={padL} y1={h - padB} x2={w - padR} y2={h - padB} stroke="#94a3b8" strokeWidth="1" />
+
+                                      {/* series */}
+                                      <path d={dNav} fill="none" stroke="#ef4444" strokeWidth="2.5" />
+                                      {dHs ? <path d={dHs} fill="none" stroke="#f59e0b" strokeWidth="2.5" /> : null}
+
+                                      {/* 1.0000 基准线（纵轴额外标注） */}
+                                      {(() => {
+                                        const y = yOf(1.0)
+                                        if (y < padT || y > h - padB) return null
+                                        return (
+                                          <g>
+                                            <line x1={padL} y1={y} x2={w - padR} y2={y} stroke="#cbd5e1" strokeWidth="1" strokeDasharray="3 3" />
+                                            <text x={padL - 10} y={y + 4} textAnchor="end" fontSize="12" fill="#111827">
+                                              1.0000
+                                            </text>
+                                          </g>
+                                        )
+                                      })()}
+
+                                      {/* 产品净值拐点 & 最后一天：标注净值 */}
+                                      {Array.from(labelIdxSet).map((idx) => {
+                                        const p = visible[idx]
+                                        const v = Number(p?.nav)
+                                        if (!Number.isFinite(v)) return null
+                                        const x = xOf(idx)
+                                        const y = yOf(v)
+                                        const isLast = idx === visible.length - 1
+                                        const anchor = isLast ? 'end' : 'middle'
+                                        const dx = isLast ? -6 : 0
+                                        const textY = Math.max(padT + 12, y - 10)
+                                        return (
+                                          <g key={`nav-label-${idx}`}>
+                                            <circle cx={x} cy={y} r={3} fill="#ef4444" stroke="#ffffff" strokeWidth={1.5} />
+                                            <text
+                                              x={x}
+                                              y={textY}
+                                              dx={dx}
+                                              textAnchor={anchor}
+                                              fontSize="12"
+                                              fill="#111827"
+                                              style={{ paintOrder: 'stroke', stroke: '#ffffff', strokeWidth: 3 }}
+                                            >
+                                              {fmt4(v)}
+                                            </text>
+                                          </g>
+                                        )
+                                      })}
+
+                                      {/* x labels：多日期刻度 */}
+                                      {xTicks.map((t, idx) => {
+                                        const x = xOf(t.idx)
+                                        return (
+                                          <text
+                                            key={idx}
+                                            x={x}
+                                            y={h - 10}
+                                            textAnchor={idx === 0 ? 'start' : idx === xTicks.length - 1 ? 'end' : 'middle'}
+                                            fontSize="12"
+                                            fill="#64748b"
+                                          >
+                                            {t.date}
+                                          </text>
+                                        )
+                                      })}
+
+                                      {/* hover 指示线与点 */}
+                                      {hover && hoverX != null && (
+                                        <g>
+                                          <line
+                                            x1={hoverX}
+                                            y1={padT}
+                                            x2={hoverX}
+                                            y2={h - padB}
+                                            stroke="#94a3b8"
+                                            strokeWidth="1"
+                                            strokeDasharray="4 4"
+                                          />
+                                          {hoverNavY != null && (
+                                            <circle cx={hoverX} cy={hoverNavY} r={4} fill="#ef4444" stroke="#ffffff" strokeWidth={1.5} />
+                                          )}
+                                          {hoverHsY != null && (
+                                            <circle cx={hoverX} cy={hoverHsY} r={4} fill="#f59e0b" stroke="#ffffff" strokeWidth={1.5} />
+                                          )}
+                                        </g>
+                                      )}
+                                    </svg>
+                                    <div className="mt-2 text-sm text-slate-600 flex flex-wrap gap-x-6 gap-y-1">
+                                      <div>
+                                        最新日期：{last.date}（右端） 组合净值：{lastNav == null ? '-' : fmt4(lastNav)} 沪深300净值：
+                                        {lastHs == null ? '-' : fmt4(lastHs)}
+                                      </div>
+                                      {hover && (
+                                        <div className="text-slate-700">
+                                          当前点：日期 {hover.date} · 组合净值 {fmt4(Number(hover.nav))}
+                                          {hover.hs300_nav != null ? ` · 沪深300净值 ${fmt4(Number(hover.hs300_nav))}` : ''}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              )
+                            })()
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             ) : null}
 
             {/* 追加：code_mapping 配置表（仅在抖音广告主体渠道页面展示） */}
@@ -972,12 +2145,14 @@ function App() {
                   <div className="text-sm text-slate-500">渠道映射 / 消耗配置（来自 StarRocks 物化视图）</div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <button
-                    onClick={openAddCodeMapping}
-                    className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-medium transition-colors"
-                  >
-                    新增
-                  </button>
+                  {!isConfigReadOnly && (
+                    <button
+                      onClick={openAddCodeMapping}
+                      className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-medium transition-colors"
+                    >
+                      新增
+                    </button>
+                  )}
                   <button
                     onClick={() => void loadCodeMapping()}
                     disabled={codeMappingLoading}
@@ -1026,18 +2201,24 @@ function App() {
                             <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{item.channel_name ?? '-'}</td>
                             <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{item.created_time ?? '-'}</td>
                             <td className="px-4 py-3 text-slate-700 whitespace-nowrap">
-                              <button
-                                onClick={() => openEditCodeMapping(item)}
-                                className="mr-2 px-3 py-1 text-sky-600 hover:text-sky-700 text-xs font-medium"
-                              >
-                                修改
-                              </button>
-                              <button
-                                onClick={() => void deleteCodeMapping(item)}
-                                className="px-3 py-1 text-red-600 hover:text-red-700 text-xs font-medium"
-                              >
-                                删除
-                              </button>
+                              {!isConfigReadOnly ? (
+                                <>
+                                  <button
+                                    onClick={() => openEditCodeMapping(item)}
+                                    className="mr-2 px-3 py-1 text-sky-600 hover:text-sky-700 text-xs font-medium"
+                                  >
+                                    修改
+                                  </button>
+                                  <button
+                                    onClick={() => void deleteCodeMapping(item)}
+                                    className="px-3 py-1 text-red-600 hover:text-red-700 text-xs font-medium"
+                                  >
+                                    删除
+                                  </button>
+                                </>
+                              ) : (
+                                <span className="text-slate-400 text-xs">只读</span>
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -1139,6 +2320,7 @@ function App() {
                     </button>
                     <button
                       onClick={() => void saveCodeMapping()}
+                      disabled={isConfigReadOnly}
                       className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-medium transition-colors"
                     >
                       保存
@@ -1210,6 +2392,7 @@ function App() {
                     </button>
                     <button
                       onClick={() => void handleSaveOpenChannel()}
+                      disabled={isConfigReadOnly}
                       className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-medium"
                     >
                       保存
@@ -1280,6 +2463,7 @@ function App() {
                     </button>
                     <button
                       onClick={() => void handleSaveStaff()}
+                      disabled={isConfigReadOnly}
                       className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-medium"
                     >
                       保存

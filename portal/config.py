@@ -31,6 +31,7 @@ def _get_auth_users():
                 out[name] = {
                     "password": u.get("password"),
                     "modules": u.get("modules") or ["hive_metadata", "sql_lineage", "sr_api"],
+                    "readonly": bool(u.get("readonly")) if "readonly" in u else False,
                 }
             if out:
                 return out

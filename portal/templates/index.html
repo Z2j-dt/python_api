@@ -89,6 +89,9 @@
                             <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_code_mapping" href="#sr_api_config_code_mapping">
                                 <span>抖音广告主体渠道</span>
                             </a>
+                            <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_stock_position" href="#sr_api_config_stock_position">
+                                <span>股票仓位/买卖配置</span>
+                            </a>
                         </div>
                     </div>
                 </div>
@@ -113,7 +116,7 @@
         </main>
     </div>
     <script type="application/json" id="portal-bootstrap">
-    {"dataMapBase":{{ (data_map_base or '')|tojson }},"supportBase":{{ (support_base or '')|tojson }},"businessBase":{{ (business_base or '')|tojson }},"businessIframeBase":{{ (business_iframe_base or '')|tojson }},"portalToken":{{ (portal_token or '')|tojson }}}
+    {"dataMapBase":{{ (data_map_base or '')|tojson }},"supportBase":{{ (support_base or '')|tojson }},"businessBase":{{ (business_base or '')|tojson }},"businessIframeBase":{{ (business_iframe_base or '')|tojson }},"portalToken":{{ (portal_token or '')|tojson }},"readonly":{{ (is_readonly or false)|tojson }}}
     </script>
     <script>
         (function () {
@@ -127,6 +130,7 @@
             var businessBase = boot.businessBase || "";
             var businessIframeBase = boot.businessIframeBase || "";
             var portalToken = boot.portalToken || "";
+            var isReadOnly = !!boot.readonly;
             var moduleToPath = {
                 hive_metadata: "/data_map/hive_metadata",
                 sql_lineage: "/data_map/sql_lineage_web",
@@ -151,7 +155,8 @@
                 "sr_api_open_channel_daily": { module: "sr_api", view: "open_channel_daily" },
                 "sr_api_config_open": { module: "sr_api", view: "config_open" },
                 "sr_api_config_staff": { module: "sr_api", view: "config_staff" },
-                "sr_api_config_code_mapping": { module: "sr_api", view: "config_code_mapping" }
+                "sr_api_config_code_mapping": { module: "sr_api", view: "config_code_mapping" },
+                "sr_api_config_stock_position": { module: "sr_api", view: "config_stock_position" }
             };
             var config = {
                 hive_metadata: (dataMapBase ? dataMapBase + "/hive_metadata/" : "/data_map/hive_metadata/"),
@@ -204,6 +209,13 @@
                         url = url + sep + "view=config&tab=channel_staff";
                     } else if (view === "config_code_mapping") {
                         url = url + sep + "view=config&tab=code_mapping";
+                    } else if (view === "config_stock_position") {
+                        url = url + sep + "view=config&tab=stock_position";
+                    }
+                    // 只读账号：业务应用 iframe 追加 readonly=1，前端置灰禁用编辑控件
+                    if (isReadOnly) {
+                        sep = url.indexOf("?") >= 0 ? "&" : "?";
+                        url = url + sep + "readonly=1";
                     }
                 } else if (view === "config") {
                     var sep = url.indexOf("?") >= 0 ? "&" : "?";
@@ -258,7 +270,7 @@
                         }
                     });
                     var v = (params.view || "realtime").trim();
-                    if (["realtime", "open_channel_daily", "config_open", "config_staff", "config_code_mapping"].indexOf(v) >= 0) view = v;
+                    if (["realtime", "open_channel_daily", "config_open", "config_staff", "config_code_mapping", "config_stock_position"].indexOf(v) >= 0) view = v;
                     else view = "realtime";
                 }
                 var item = findNavItem(moduleId, view);
