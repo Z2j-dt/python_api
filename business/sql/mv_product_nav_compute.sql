@@ -40,7 +40,7 @@ all_dates AS (
       THEN STR_TO_DATE(CAST(biz_date AS CHAR), '%Y%m%d')
       ELSE biz_date
     END AS biz_date
-  FROM test_db.hsgt_price_deliver
+  FROM portal_db.hsgt_price_deliver
   WHERE biz_date IS NOT NULL
 ),
 -- 3. 每日每股持仓（截至该日）
@@ -78,7 +78,7 @@ price_normalized AS (
     END AS biz_date,
     stock_code,
     last_price
-  FROM test_db.hsgt_price_deliver
+  FROM portal_db.hsgt_price_deliver
   WHERE biz_date IS NOT NULL AND last_price IS NOT NULL
 ),
 -- 6. 市值（持仓 * 收盘价；股票代码需与 hsgt_price_deliver 对齐，必要时做 SZ/SH 映射）
@@ -102,7 +102,7 @@ hs300_price AS (
       ELSE biz_date
     END AS biz_date,
     last_price
-  FROM test_db.hsgt_price_deliver
+  FROM portal_db.hsgt_price_deliver
   WHERE biz_date IS NOT NULL
     AND last_price IS NOT NULL
     AND stock_code = '000300'

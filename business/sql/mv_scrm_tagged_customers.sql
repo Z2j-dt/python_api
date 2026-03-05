@@ -28,8 +28,8 @@ FROM (
             remark,
             add_time,
             ROW_NUMBER() OVER (PARTITION BY external_id ORDER BY add_time ASC) AS rn
-        FROM test_db.o_scrm_customer_employee ce
-        JOIN test_db.config_channel_staff cs
+        FROM portal_db.o_scrm_customer_employee ce
+        JOIN portal_db.config_channel_staff cs
           ON ce.user_name = cs.staff_name
         WHERE ce.add_time IS NOT NULL 
           AND ce.add_time != ''
@@ -40,12 +40,12 @@ FROM (
 JOIN (
     -- 有标签的客户（Hive，取最新 day）
     SELECT DISTINCT name, external_id
-    FROM test_db.o_scrm_customer
+    FROM portal_db.o_scrm_customer
 ) tb ON m.external_id = tb.external_id
 JOIN (
     -- 有标签的客户（Hive，取最新 day）
     SELECT DISTINCT external_id, tag_id
-    FROM test_db.o_scrm_customer_tag
+    FROM portal_db.o_scrm_customer_tag
 ) tc ON m.external_id = tc.external_id
 JOIN (
     -- 标签信息（Hive，取最新 day）

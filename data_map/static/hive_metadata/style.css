@@ -3,22 +3,22 @@
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
     margin: 0;
-    padding: 20px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 0;
+    background: #ffffff; /* 嵌入门户时整体白色背景 */
     min-height: 100vh;
 }
 
 .container {
-    max-width: 1200px;
-    margin: 0 auto;
-    background: white;
-    padding: 30px;
-    border-radius: 12px;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+    max-width: 100%;
+    margin: 0;
+    background: #ffffff; /* 内容区域白色背景 */
+    padding: 24px 24px 32px;
+    border-radius: 0;
+    box-shadow: none; /* 去掉外层卡片阴影，和其他中心保持一致 */
 }
 
 h1 {
-    color: #333;
+    color: #2563eb; /* 标题浅蓝色，与门户统一 */
     border-bottom: none;
     padding-bottom: 15px;
     margin-bottom: 25px;
@@ -28,7 +28,7 @@ h1 {
 }
 
 h1 i {
-    color: #667eea;
+    color: #2563eb;
 }
 
 /* 首页样式 */

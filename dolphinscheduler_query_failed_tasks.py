@@ -603,7 +603,7 @@ DEFAULT_SR_CONF = {
     "port": int(os.environ.get("STARROCKS_PORT", "9030")),
     "user": os.environ.get("STARROCKS_USER", "root"),
     "password": os.environ.get("STARROCKS_PASSWORD", "star@dt1988"),
-    "database": os.environ.get("STARROCKS_DATABASE", "test_db"),
+    "database": os.environ.get("STARROCKS_DATABASE", "portal_db"),
     "table": os.environ.get("STARROCKS_TABLE", "dolphin_failed_task"),
 }
 

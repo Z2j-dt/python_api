@@ -14,7 +14,7 @@ SR_HOST = "10.8.93.40"
 SR_PORT = 9030
 SR_USER = "root"
 SR_PASSWORD = "star@dt1988"
-SR_DB = "test_db"
+SR_DB = "portal_db"
 
 PRICE_TABLE = "hsgt_price_deliver"  # 价格表
 HS300_CODE = "000300"               # 沪深300 代码（纯数字）

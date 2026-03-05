@@ -2,9 +2,9 @@
 -- 上游: MySQL enterprise_weixin.customer
 -- 用途: DataX 同步 ODS 层（create_time 为当日数据）
 
-CREATE DATABASE IF NOT EXISTS test_db;
+CREATE DATABASE IF NOT EXISTS portal_db;
 
-USE test_db;
+USE portal_db;
 
 CREATE TABLE IF NOT EXISTS o_scrm_customer (
     id                      BIGINT,

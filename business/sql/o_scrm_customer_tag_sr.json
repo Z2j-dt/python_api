@@ -27,7 +27,7 @@
             "password": "star@dt1988",
             "connection": [
               {
-                "jdbcUrl": "jdbc:mysql://10.8.93.40:9030/test_db",
+                "jdbcUrl": "jdbc:mysql://10.8.93.40:9030/portal_db",
                 "table": ["o_scrm_customer_tag"]
               }
             ],

@@ -841,7 +841,7 @@ async def list_stock_position(
                 f"position_pct, side, price, created_at, updated_at "
                 f"FROM `{CONFIG_STOCK_POSITION_TABLE}` "
                 f"WHERE product_name IN ({placeholders}) "
-                f"ORDER BY created_at DESC, id DESC LIMIT %s OFFSET %s"
+                f"ORDER BY trade_date desc, created_at DESC, id DESC LIMIT %s OFFSET %s"
             )
             cur.execute(list_sql, tuple(names) + (page_size, offset))
             rows = cur.fetchall()
@@ -967,7 +967,7 @@ async def export_stock_position_excel(
 # 净值图：计算参数与 temp3.py 一致
 NAV_INIT_CAPITAL = 10_000_000  # 初始资金 1000万
 NAV_TRADE_UNIT = 100           # A股交易单位（股）
-HSGT_PRICE_TABLE = "test_db.hsgt_price_deliver"  # 收盘价表，biz_date=yyyymmdd, stock_code, last_price
+HSGT_PRICE_TABLE = "portal_db.hsgt_price_deliver"  # 收盘价表，biz_date=yyyymmdd, stock_code, last_price
 PRODUCT_NAV_DAILY_TABLE = "product_nav_daily"     # 净值结果表，由定时任务按同口径写入，接口优先查此表
 # 净值数据来源：product_nav_daily（默认）或 mv_product_nav_compute（物化视图直接计算，含沪深300）
 NAV_SOURCE_TABLE = os.environ.get("NAV_SOURCE_TABLE", "product_nav_daily")
@@ -1264,10 +1264,17 @@ async def create_stock_position(body: StockPositionCreate, request: Request) -> 
                 )
                 new_id = cur.lastrowid
                 if not new_id:
-                    # 某些引擎/驱动可能拿不到 lastrowid，兜底查最近一条
+                    # 某些引擎/驱动可能拿不到 lastrowid，用本次插入的字段精确查刚插入的那条，避免取到旧行
                     cur.execute(
                         f"SELECT id FROM `{CONFIG_STOCK_POSITION_TABLE}` "
-                        f"ORDER BY id DESC LIMIT 1"
+                        f"WHERE product_name <=> %s AND trade_date = %s AND stock_code = %s AND created_at = %s "
+                        f"ORDER BY id DESC LIMIT 1",
+                        (
+                            (body.product_name or "").strip() or None,
+                            trade_date.strip(),
+                            (body.stock_code or "").strip(),
+                            now_str,
+                        ),
                     )
                     r = cur.fetchone() or {}
                     new_id = r.get("id")
@@ -1400,7 +1407,7 @@ async def delete_stock_position(item_id: int, request: Request) -> Dict[str, Any
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# -------------------- API：沪深港通价格推送（test_db.hsgt_price_deliver） --------------------
+# -------------------- API：沪深港通价格推送（portal_db.hsgt_price_deliver） --------------------
 
 class HsgtPriceDeliverOut(BaseModel):
     biz_date: Optional[str] = None  # YYYY-MM-DD
@@ -1414,7 +1421,7 @@ async def get_hsgt_price_deliver(
     biz_date: Optional[str] = None,
 ) -> List[HsgtPriceDeliverOut]:
     """
-    查询 StarRocks 中 test_db.hsgt_price_deliver 表。
+    查询 StarRocks 中 portal_db.hsgt_price_deliver 表。
 
     - 若传入 biz_date（格式如 '2026-02-11'），则按该日期筛选；
     - 若不传 biz_date，则返回表中全部数据。
@@ -1423,7 +1430,7 @@ async def get_hsgt_price_deliver(
         with _db_cursor() as cur:
             sql = (
                 "SELECT biz_date, stock_code, stock_name, last_price "
-                "FROM test_db.hsgt_price_deliver where biz_date is not null"
+                "FROM portal_db.hsgt_price_deliver where biz_date is not null"
             )
             params: List[Any] = []
             if biz_date:

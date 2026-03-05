@@ -1,22 +1,22 @@
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     margin: 0;
-    padding: 20px;
-    background: linear-gradient(135deg, #2d5a3d 0%, #1e3a2a 100%);
+    padding: 0;
+    background: #ffffff; /* 嵌入门户时使用白色背景 */
     min-height: 100vh;
 }
 
 .container {
-    max-width: 700px;
-    margin: 0 auto;
-    background: #fff;
-    padding: 28px;
-    border-radius: 12px;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+    max-width: 100%;
+    margin: 0;
+    background: #ffffff;
+    padding: 24px 24px 32px;
+    border-radius: 0;
+    box-shadow: none; /* 去掉外层阴影，跟门户风格统一 */
 }
 
 h1 {
-    color: #1e3a2a;
+    color: #2563eb; /* 标题浅蓝色 */
     margin-bottom: 20px;
     display: flex;
     align-items: center;
@@ -24,18 +24,18 @@ h1 {
 }
 
 h1 i {
-    color: #2d5a3d;
+    color: #2563eb;
 }
 
 .info-box {
-    background: #f0f7f2;
+    background: #f1f5f9;
     padding: 14px 18px;
     border-radius: 8px;
     margin-bottom: 24px;
     border-left: 4px solid #2d5a3d;
 }
 
-.info-box p, .info-box ul {
+ .info-box p, .info-box ul {
     margin: 6px 0;
     color: #333;
     font-size: 14px;
@@ -70,7 +70,7 @@ h1 i {
 }
 
 .btn-primary {
-    background: #2d5a3d;
+    background: #2563eb;
     color: #fff;
     border: none;
     padding: 10px 20px;
@@ -80,7 +80,7 @@ h1 i {
 }
 
 .btn-primary:hover:not(:disabled) {
-    background: #1e3a2a;
+    background: #1d4ed8;
 }
 
 .btn-primary:disabled {
@@ -96,8 +96,8 @@ h1 i {
 }
 
 .result-box.success {
-    background: #e8f5e9;
-    border-left: 4px solid #2d5a3d;
+    background: #eff6ff;
+    border-left: 4px solid #2563eb;
 }
 
 .result-box pre.ddl {

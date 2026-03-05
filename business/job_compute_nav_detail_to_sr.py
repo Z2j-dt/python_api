@@ -17,7 +17,7 @@ SR_HOST = "10.8.93.40"
 SR_PORT = 9030
 SR_USER = "root"
 SR_PASSWORD = "star@dt1988"
-SR_DB = "test_db"
+SR_DB = "portal_db"
 
 CONFIG_STOCK_POSITION_TABLE = "config_stock_position"
 HSGT_PRICE_TABLE = "hsgt_price_deliver"

@@ -26,13 +26,13 @@ FROM (
         WHERE day = (SELECT MAX(day) FROM hive_catalog.ods.o_scrm_customer_employee)
         UNION
         SELECT external_id, user_name, add_time
-        FROM test_db.o_scrm_customer_employee
+        FROM portal_db.o_scrm_customer_employee
     ) ce
-    JOIN test_db.config_channel_staff cs
+    JOIN portal_db.config_channel_staff cs
       ON ce.user_name = cs.staff_name
     JOIN (
         SELECT DISTINCT external_id, tag_id
-        FROM test_db.o_scrm_customer_tag
+        FROM portal_db.o_scrm_customer_tag
     ) tc ON ce.external_id = tc.external_id
     JOIN (
         SELECT tag_id, tag_name
@@ -43,7 +43,7 @@ FROM (
       AND ce.add_time != ''
       AND CAST(ce.add_time AS BIGINT) > 0
 ) e
-JOIN test_db.config_open_channel_tag c
+JOIN portal_db.config_open_channel_tag c
   ON e.tag_name = c.wechat_customer_tag
 LEFT JOIN (
     -- 抖音消耗：按渠道+日期汇总，取最新分区；channel_name 与 open_channel 关联
@@ -51,7 +51,7 @@ LEFT JOIN (
         channel,
         entry,
         use_amt
-    FROM test_db.mv_channel_use_amt
+    FROM portal_db.mv_channel_use_amt
 ) dy ON c.open_channel = dy.channel AND CAST(e.add_time AS DATE) = dy.entry
 GROUP BY
     CAST(e.add_time AS DATE),

@@ -4,7 +4,11 @@
 """
 import os
 import sys
+import json
+from datetime import datetime, timedelta
 from pathlib import Path
+
+import pymysql
 
 # 保证直接运行 python portal/app.py 时项目根在 path 里，能 import portal
 _ROOT = Path(__file__).resolve().parent.parent
@@ -39,6 +43,107 @@ app.wsgi_app = auth_middleware(app.wsgi_app, _auth_config)
 def _current_user():
     """从鉴权中间件注入的 environ 中取当前用户，未登录为 None。"""
     return request.environ.get("portal.user") if request.environ else None
+
+
+try:
+    # 优先复用 business/app.py 里的 StarRocks 配置，避免重复配置一套环境变量
+    from business.app import _settings as _biz_settings  # type: ignore
+except Exception:
+    _biz_settings = None
+
+if _biz_settings is not None:
+    _SR_HOST = _biz_settings.starrocks_host
+    _SR_PORT = int(getattr(_biz_settings, "starrocks_port", 9030))
+    _SR_USER = _biz_settings.starrocks_user
+    _SR_PASSWORD = _biz_settings.starrocks_password
+    _SR_DB = _biz_settings.starrocks_database
+else:
+    _SR_HOST = os.environ.get("STARROCKS_HOST", "127.0.0.1")
+    _SR_PORT = int(os.environ.get("STARROCKS_PORT", "9030"))
+    _SR_USER = os.environ.get("STARROCKS_USER", "root")
+    _SR_PASSWORD = os.environ.get("STARROCKS_PASSWORD", "")
+    _SR_DB = os.environ.get("STARROCKS_DATABASE", "your_database")
+
+_SR_EVENT_TABLE = os.environ.get("PORTAL_EVENT_TABLE", "portal_event_log")
+_SR_EVENT_ENABLE = (os.environ.get("PORTAL_EVENT_TO_DB", "1").lower() in ("1", "true", "yes"))
+
+
+def _event_log_path() -> str:
+    """埋点日志文件路径，可通过环境变量 PORTAL_EVENT_LOG 覆盖。"""
+    cfg_path = app.config.get("EVENT_LOG_PATH") or os.environ.get("PORTAL_EVENT_LOG") or ""
+    if cfg_path:
+        return cfg_path
+    portal_dir = Path(__file__).resolve().parent
+    return str(portal_dir / "portal_events.log")
+
+
+def _log_event(event, username=None, **extra):
+    """简单埋点：按行写 JSON + 可选落库 StarRocks，避免影响主流程，所有异常静默忽略。"""
+    # 统一使用中国北京时间（UTC+8）
+    now = datetime.utcnow() + timedelta(hours=8)
+    ts_iso = now.isoformat(timespec="seconds")
+    try:
+        log_path = _event_log_path()
+        rec = {
+            "ts": ts_iso,
+            "event": event,
+            "username": username,
+            "ip": (request.headers.get("X-Real-IP") or
+                   (request.headers.get("X-Forwarded-For", "").split(",")[0].strip() if request.headers.get("X-Forwarded-For") else "") or
+                   request.remote_addr),
+            "ua": request.headers.get("User-Agent"),
+            "path": request.path,
+            "extra": extra or {},
+        }
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    except Exception:
+        # 埋点失败不影响正常业务
+        return
+
+    # 落库 StarRocks：低频埋点，允许同步插入；异常忽略
+    if not _SR_EVENT_ENABLE or not _SR_EVENT_TABLE:
+        return
+    try:
+        conn = pymysql.connect(
+            host=_SR_HOST,
+            port=_SR_PORT,
+            user=_SR_USER,
+            password=_SR_PASSWORD,
+            database=_SR_DB,
+            charset="utf8mb4",
+            cursorclass=pymysql.cursors.DictCursor,
+            connect_timeout=2,
+        )
+        try:
+            with conn.cursor() as cur:
+                event_date = now.date().isoformat()
+                ts_dt = now.strftime("%Y-%m-%d %H:%M:%S")
+                extra_json = extra or {}
+                cur.execute(
+                    f"INSERT INTO `{_SR_EVENT_TABLE}` "
+                    "(event_date, ts, event, username, module, view, label, ip, ua, path, extra_json) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    (
+                        event_date,
+                        ts_dt,
+                        str(event),
+                        username,
+                        (extra_json.get("module") if isinstance(extra_json, dict) else None),
+                        (extra_json.get("view") if isinstance(extra_json, dict) else None),
+                        (extra_json.get("label") if isinstance(extra_json, dict) else None),
+                        rec.get("ip"),
+                        rec.get("ua"),
+                        rec.get("path"),
+                        json.dumps(extra_json, ensure_ascii=False),
+                    ),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception:
+        # 不影响主流程
+        return
 
 
 def _proxy_sr_api(path=""):
@@ -92,6 +197,16 @@ def login():
             next_url=next_url,
             error="用户名或密码错误",
         ), 401
+
+    # 登录成功埋点：记录账号、模块权限等
+    try:
+        _log_event(
+            "login_success",
+            username=username,
+            modules=modules,
+        )
+    except Exception:
+        pass
 
     cookie_val = create_auth_cookie(
         username,
@@ -290,6 +405,45 @@ def health():
 @app.route("/sr_api/<path:path>")
 def proxy_sr_api(path):
     return _proxy_sr_api(path)
+
+
+@app.route("/track", methods=["POST"])
+def track():
+    """前端埋点上报接口：记录模块点击、页面加载等事件。"""
+    user = _current_user()
+    username = user.get("username") if isinstance(user, dict) else None
+    # 兼容 sendBeacon：其 Content-Type 通常不是 application/json，get_json 拿不到，需要手动解析原始 body
+    data = {}
+    try:
+        parsed = request.get_json(silent=True)
+        if isinstance(parsed, dict):
+            data = parsed
+        else:
+            raise ValueError
+    except Exception:
+        try:
+            raw = request.get_data(cache=False, as_text=True) or ""
+            if raw.strip():
+                loaded = json.loads(raw)
+                if isinstance(loaded, dict):
+                    data = loaded
+        except Exception:
+            data = {}
+    event = (data.get("event") or "").strip() or "unknown"
+    module_id = (data.get("module") or "").strip() or None
+    view = (data.get("view") or "").strip() or None
+    label = (data.get("label") or "").strip() or None
+    try:
+        _log_event(
+            event,
+            username=username,
+            module=module_id,
+            view=view,
+            label=label,
+        )
+    except Exception:
+        pass
+    return {"status": "ok"}
 
 
 if __name__ == "__main__":

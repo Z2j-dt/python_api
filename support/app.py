@@ -230,14 +230,14 @@ def _get_sr_store() -> StarRocksStore:
 
 def _get_hsgt_conn():
     """
-    复用 StarRocks 基本连接信息，只是库名默认用 test_db（可通过环境变量 HSGT_DATABASE 覆盖）。
+    复用 StarRocks 基本连接信息，只是库名默认用 portal_db（可通过环境变量 HSGT_DATABASE 覆盖）。
     """
     return pymysql.connect(
         host=os.environ.get("STARROCKS_HOST", DEFAULT_SR_CONF["host"]),
         port=int(os.environ.get("STARROCKS_PORT", DEFAULT_SR_CONF["port"])),
         user=os.environ.get("STARROCKS_USER", DEFAULT_SR_CONF["user"]),
         password=os.environ.get("STARROCKS_PASSWORD", DEFAULT_SR_CONF["password"]),
-        database=os.environ.get("HSGT_DATABASE", "test_db"),
+        database=os.environ.get("HSGT_DATABASE", "portal_db"),
         charset="utf8mb4",
         cursorclass=pymysql.cursors.DictCursor,
         connect_timeout=10,
@@ -247,7 +247,7 @@ def _get_hsgt_conn():
 @_dolphin_app.route("/api/hsgt-price-deliver", methods=["GET"])
 def hsgt_price_deliver():
     """
-    查询 StarRocks 中 test_db.hsgt_price_deliver 表。
+    查询 StarRocks 中 portal_db.hsgt_price_deliver 表。
 
     Query 参数:
       - biz_date（必填）：业务日期，格式 yyyymmdd（如 20260211）

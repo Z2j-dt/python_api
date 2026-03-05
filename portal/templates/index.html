@@ -20,17 +20,16 @@
                 </div>
             </div>
             <nav class="nav">
-                {% set show_data_map = ('hive_metadata' in allowed_modules) or ('sql_lineage' in allowed_modules) %}
-                {% set show_support = ('excel_to_hive' in allowed_modules) %}
+                {% set show_data_center = ('hive_metadata' in allowed_modules) or ('sql_lineage' in allowed_modules) or ('excel_to_hive' in allowed_modules) %}
                 {% set show_business = ('sr_api' in allowed_modules) %}
 
-                {% if show_data_map %}
+                {% if show_data_center %}
                 <div class="nav-group">
-                    <button class="nav-group-header" type="button" data-group="data_map" aria-expanded="true">
-                        <span class="nav-group-text">数据地图</span>
+                    <button class="nav-group-header" type="button" data-group="data_center" aria-expanded="true">
+                        <span class="nav-group-text">数据中心</span>
                         <span class="nav-group-chevron">▾</span>
                     </button>
-                    <div class="nav-group-body" data-group-body="data_map">
+                    <div class="nav-group-body" data-group-body="data_center">
                         {% if 'hive_metadata' in allowed_modules %}
                         <a class="nav-item nav-item-child" data-module="hive_metadata" href="#hive_metadata">
                             <span>数据字典</span>
@@ -41,58 +40,61 @@
                             <span>数据血缘</span>
                         </a>
                         {% endif %}
-                    </div>
-                </div>
-                {% endif %}
-
-                {% if show_support %}
-                <div class="nav-group">
-                    <button class="nav-group-header" type="button" data-group="support" aria-expanded="true">
-                        <span class="nav-group-text">技术支持</span>
-                        <span class="nav-group-chevron">▾</span>
-                    </button>
-                    <div class="nav-group-body" data-group-body="support">
+                        {% if 'excel_to_hive' in allowed_modules %}
                         <a class="nav-item nav-item-child" data-module="excel_to_hive" href="#excel_to_hive">
-                            <span>Excel 入库 Hive</span>
+                            <span>离线上传</span>
                         </a>
                         <a class="nav-item nav-item-child" data-module="dolphin_failed" href="#dolphin_failed">
-                            <span>Dolphin 失败任务</span>
+                            <span>任务管理</span>
                         </a>
+                        {% endif %}
                     </div>
                 </div>
                 {% endif %}
 
                 {% if show_business %}
                 <div class="nav-group">
-                    <button class="nav-group-header" type="button" data-group="business" aria-expanded="true">
-                        <span class="nav-group-text">业务应用</span>
+                    <button class="nav-group-header" type="button" data-group="market_center" aria-expanded="true">
+                        <span class="nav-group-text">市场中心</span>
                         <span class="nav-group-chevron">▾</span>
                     </button>
-                    <div class="nav-group-body" data-group-body="business">
-                        <div class="nav-subgroup">
-                            <div class="nav-subgroup-title">数据展示</div>
-                            <a class="nav-item nav-item-child" data-module="sr_api" data-view="realtime" href="#sr_api_realtime">
-                                <span>实时加微监测</span>
-                            </a>
-                            <a class="nav-item nav-item-child" data-module="sr_api" data-view="open_channel_daily" href="#sr_api_open_channel_daily">
-                                <span>自营渠道的每日加微数据</span>
-                            </a>
-                        </div>
-                        <div class="nav-subgroup">
-                            <div class="nav-subgroup-title">业务配置</div>
-                            <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_open" href="#sr_api_config_open">
-                                <span>开户渠道&企微客户标签</span>
-                            </a>
-                            <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_staff" href="#sr_api_config_staff">
-                                <span>投流渠道承接员工配置表</span>
-                            </a>
-                            <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_code_mapping" href="#sr_api_config_code_mapping">
-                                <span>抖音广告主体渠道</span>
-                            </a>
-                            <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_stock_position" href="#sr_api_config_stock_position">
-                                <span>股票仓位/买卖配置</span>
-                            </a>
-                        </div>
+                    <div class="nav-group-body" data-group-body="market_center">
+                        <a class="nav-item nav-item-child" data-module="sr_api" data-view="realtime" href="#sr_api_realtime">
+                            <span>实时加微名单</span>
+                        </a>
+                        <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_code_mapping" href="#sr_api_config_code_mapping">
+                            <span>抖音投流账号</span>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="nav-group">
+                    <button class="nav-group-header" type="button" data-group="direct_center" aria-expanded="true">
+                        <span class="nav-group-text">直销中心</span>
+                        <span class="nav-group-chevron">▾</span>
+                    </button>
+                    <div class="nav-group-body" data-group-body="direct_center">
+                        <a class="nav-item nav-item-child" data-module="sr_api" data-view="open_channel_daily" href="#sr_api_open_channel_daily">
+                            <span>自营渠道加微统计</span>
+                        </a>
+                        <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_open" href="#sr_api_config_open">
+                            <span>渠道字典配置</span>
+                        </a>
+                        <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_staff" href="#sr_api_config_staff">
+                            <span>承接人员配置</span>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="nav-group">
+                    <button class="nav-group-header" type="button" data-group="advisor_center" aria-expanded="true">
+                        <span class="nav-group-text">投顾中心</span>
+                        <span class="nav-group-chevron">▾</span>
+                    </button>
+                    <div class="nav-group-body" data-group-body="advisor_center">
+                        <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_stock_position" href="#sr_api_config_stock_position">
+                            <span>产品净值</span>
+                        </a>
                     </div>
                 </div>
                 {% endif %}
@@ -181,6 +183,24 @@
             var navItems = document.querySelectorAll(".nav-item");
             var groupHeaders = document.querySelectorAll(".nav-group-header");
 
+            function sendTrack(payload) {
+                try {
+                    var body = JSON.stringify(payload || {});
+                    if (window.navigator && window.navigator.sendBeacon) {
+                        window.navigator.sendBeacon("/track", body);
+                    } else if (window.fetch) {
+                        window.fetch("/track", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: body,
+                            keepalive: true
+                        });
+                    }
+                } catch (e) {
+                    // 埋点失败忽略
+                }
+            }
+
             function setActive(item) {
                 navItems.forEach(function (n) { n.classList.remove("active"); });
                 if (item) item.classList.add("active");
@@ -231,6 +251,14 @@
                 lastUrlConfig = "";
                 currentModule = moduleId;
                 currentView = view;
+                 // 模块加载埋点（包含首次加载、点击切换、浏览器前进/后退）
+                 try {
+                     sendTrack({
+                         event: "module_load",
+                         module: moduleId,
+                         view: view
+                     });
+                 } catch (e) {}
                 var path = moduleToPath[moduleId];
                 if (path && history.replaceState) {
                     if (moduleId === "sr_api" && view) {
@@ -303,6 +331,14 @@
                     var item = findNavItemFromTarget(e.target);
                     if (!item) return;
                     e.preventDefault();
+                    try {
+                        sendTrack({
+                            event: "nav_click",
+                            module: item.getAttribute("data-module") || "",
+                            view: item.getAttribute("data-view") || "",
+                            label: (item.textContent || "").trim()
+                        });
+                    } catch (err) {}
                     setActive(item);
                     loadModule(item.getAttribute("data-module"), item.getAttribute("data-view") || "");
                 });

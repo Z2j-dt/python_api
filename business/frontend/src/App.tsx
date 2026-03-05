@@ -130,8 +130,8 @@ type ViewMode = 'realtime' | 'open_channel_daily' | 'config'
 const CONFIG_TAB_LABEL: Record<ConfigTab, string> = {
   open_channel_tag: '开户渠道 & 企微客户标签',
   channel_staff: '投流渠道承接员工',
-  code_mapping: '抖音广告主体渠道',
-  stock_position: '股票仓位/买卖配置',
+  code_mapping: '[市场中心] 抖音投流账号',
+  stock_position: '[投顾中心] 产品净值',
 }
 
 function getViewFromLocation(): ViewMode {
@@ -689,7 +689,6 @@ function App() {
         }),
       })
       if (!res.ok) throw new Error(await res.text())
-      const created: StockPositionItem = await res.json()
       setStockPositionNewRow({
         product_name: r.product_name,
         trade_date: '',
@@ -699,11 +698,9 @@ function App() {
         side: '买入',
         price: '',
       })
-      // 新增后回到第 1 页，并在当前页把新纪录插入到最上方
+      // 新增后回到第 1 页并重新拉取列表（后端 ORDER BY created_at DESC，新记录自然在最上，避免 lastrowid 不可靠导致返回错行、前端误插重复）
       setStockPositionPage(1)
-      setStockPositionTotal((prev) => prev + 1)
-      setStockPositionItems((prev) => [created, ...prev].slice(0, STOCK_POSITION_PAGE_SIZE))
-      // 产品下拉可能新增了产品名称，刷新一次
+      await loadStockPosition()
       await loadStockPositionProducts()
     } catch (e) {
       setStockPositionError(e instanceof Error ? e.message : '新增失败')
@@ -980,13 +977,27 @@ function App() {
 
   // -------------------- 渲染：顶部导航 --------------------
 
+  const pageTitle = (() => {
+    if (!isConfigMode) {
+      if (view === 'realtime') return '【市场中心】实时加微名单'
+      if (view === 'open_channel_daily') return '自营渠道加微统计'
+      return 'StarRocks 业务应用'
+    }
+    // 配置视图下按 tab 区分
+    if (configTab === 'code_mapping') return '[市场中心] 抖音投流账号'
+    if (configTab === 'open_channel_tag') return '渠道字典配置'
+    if (configTab === 'channel_staff') return '承接人员配置'
+    if (configTab === 'stock_position') return '产品净值'
+    return 'StarRocks 业务应用'
+  })()
+
   return (
     <div className="min-h-screen bg-white text-slate-800 font-sans">
       <header className="border-b border-slate-200 bg-white/95 backdrop-blur sticky top-0 z-10">
         <div className="max-w-[1600px] mx-auto px-6 py-4 flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-xl font-semibold text-sky-600">
-              StarRocks 业务应用
+              {pageTitle}
             </h1>
             {!isConfigMode ? (
               <>
@@ -2136,14 +2147,14 @@ function App() {
               </div>
             ) : null}
 
-            {/* 追加：code_mapping 配置表（仅在抖音广告主体渠道页面展示） */}
+            {/* 追加：code_mapping 配置表 */}
             {configTab === 'code_mapping' && (
             <div className="mt-4">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <div className="text-base font-semibold text-slate-800">抖音广告主体渠道</div>
+                {/* <div>
+                  <div className="text-base font-semibold text-slate-800">[市场中心] 抖音投流账号</div>
                   <div className="text-sm text-slate-500">渠道映射 / 消耗配置（来自 StarRocks 物化视图）</div>
-                </div>
+                </div> */}
                 <div className="flex items-center gap-3">
                   {!isConfigReadOnly && (
                     <button
@@ -2245,7 +2256,7 @@ function App() {
                 >
                   <div className="flex items-center justify-between mb-4">
                     <div className="text-base font-semibold text-slate-800">
-                      {codeMappingModal === 'edit' ? '修改抖音广告主体渠道' : '新增抖音广告主体渠道'}
+                      {codeMappingModal === 'edit' ? '修改[市场中心]抖音投流账号' : '新增[市场中心]抖音投流账号'}
                     </div>
                     <button
                       onClick={() => {
