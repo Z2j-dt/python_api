@@ -241,9 +241,61 @@
                 return null;
             }
 
-            function loadModule(moduleId, view) {
+            function expandGroupForItem(item) {
+                if (!item) return;
+                try {
+                    var g = item.closest(".nav-group");
+                    if (g) {
+                        var btn = g.querySelector(".nav-group-header");
+                        if (btn) {
+                            btn.setAttribute("aria-expanded", "true");
+                            btn.classList.remove("collapsed");
+                        }
+                    }
+                } catch (err2) {}
+            }
+
+            function updatePageTitle(moduleId, view) {
+                view = view || "";
+                var title = "数据中台门户";
+                if (moduleId === "hive_metadata") {
+                    title = "数据中心-数据字典";
+                } else if (moduleId === "sql_lineage") {
+                    title = "数据中心-数据血缘";
+                } else if (moduleId === "excel_to_hive") {
+                    title = "数据中心-离线上传";
+                } else if (moduleId === "dolphin_failed") {
+                    title = "数据中心-任务管理";
+                } else if (moduleId === "sql_to_excel") {
+                    title = "数据中心-数据导出";
+                } else if (moduleId === "sr_api") {
+                    if (view === "realtime") {
+                        title = "市场中心-实时加微名单";
+                    } else if (view === "config_code_mapping") {
+                        title = "市场中心-抖音投流账号配置";
+                    } else if (view === "open_channel_daily") {
+                        title = "直销中心-自营渠道加微统计";
+                    } else if (view === "config_open") {
+                        title = "直销中心-渠道字典配置";
+                    } else if (view === "config_staff") {
+                        title = "直销中心-承接人员配置";
+                    } else if (view === "config_stock_position") {
+                        title = "投顾中心-产品净值";
+                    } else if (view === "config_opportunity_lead") {
+                        title = "客户中心-商机线索配置";
+                    } else {
+                        title = "业务应用";
+                    }
+                }
+                try {
+                    document.title = title;
+                } catch (e) {}
+            }
+
+            function buildModuleUrl(moduleId, view) {
                 view = view || "";
                 var url = config[moduleId];
+                if (!url) return "";
                 if (moduleId === "sr_api") {
                     var sep = url.indexOf("?") >= 0 ? "&" : "?";
                     if (view === "open_channel_daily") {
@@ -259,17 +311,21 @@
                     } else if (view === "config_opportunity_lead") {
                         url = url + sep + "view=config&tab=opportunity_lead";
                     }
-                    // 只读账号：业务应用 iframe 追加 readonly=1，前端置灰禁用编辑控件
+                    // 只读账号：业务应用追加 readonly=1
                     if (isReadOnly) {
                         sep = url.indexOf("?") >= 0 ? "&" : "?";
                         url = url + sep + "readonly=1";
                     }
                 } else if (view === "config") {
-                    var sep = url.indexOf("?") >= 0 ? "&" : "?";
-                    url = url + sep + "view=config";
+                    var sep2 = url.indexOf("?") >= 0 ? "&" : "?";
+                    url = url + sep2 + "view=config";
                 }
-                if (!url || !frame) return;
-                var fullUrl = addPortalToken(url);
+                return addPortalToken(url);
+            }
+
+            function loadModule(moduleId, view) {
+                var fullUrl = buildModuleUrl(moduleId, view);
+                if (!fullUrl || !frame) return;
                 if (contentMain) contentMain.classList.add("has-module");
                 if (frameConfig) { frameConfig.classList.remove("visible"); frameConfig.src = "about:blank"; }
                 frame.classList.remove("hidden");
@@ -278,6 +334,12 @@
                 lastUrlConfig = "";
                 currentModule = moduleId;
                 currentView = view;
+                updatePageTitle(moduleId, view);
+                var item = findNavItem(moduleId, view);
+                if (item) {
+                    setActive(item);
+                    expandGroupForItem(item);
+                }
                  // 模块加载埋点（包含首次加载、点击切换、浏览器前进/后退）
                  try {
                      sendTrack({
@@ -359,16 +421,7 @@
                     if (!item) return;
                     e.preventDefault();
                     // 只有用户点击模块时才展开其所在中心
-                    try {
-                        var g = item.closest(".nav-group");
-                        if (g) {
-                            var btn = g.querySelector(".nav-group-header");
-                            if (btn) {
-                                btn.setAttribute("aria-expanded", "true");
-                                btn.classList.remove("collapsed");
-                            }
-                        }
-                    } catch (err2) {}
+                    expandGroupForItem(item);
                     try {
                         sendTrack({
                             event: "nav_click",
@@ -377,8 +430,16 @@
                             label: (item.textContent || "").trim()
                         });
                     } catch (err) {}
-                    setActive(item);
-                    loadModule(item.getAttribute("data-module"), item.getAttribute("data-view") || "");
+                    // 统一改为新开窗口（新标签页），避免切换模块丢失当前模块页面状态
+                    var targetModule = item.getAttribute("data-module");
+                    var targetView = item.getAttribute("data-view") || "";
+                    // 新开“门户壳页面”（带左侧目录栏），而不是直接打开模块服务页
+                    // 这样新标签页里也保留侧边栏；每个模块开一个标签页即可保留各自状态
+                    var path = moduleToPath[targetModule] || "/";
+                    if (targetModule === "sr_api" && targetView) {
+                        path = path + (path.indexOf("?") >= 0 ? "&" : "?") + "view=" + encodeURIComponent(targetView);
+                    }
+                    window.open(path, "_blank");
                 });
             }
 
