@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>数据中台门户</title>
     <link rel="icon" href="{{ url_for('static', filename='img/大同.png') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ build_version }}">
 </head>
 <body>
     <div class="portal">
@@ -16,18 +16,19 @@
                     <div>
                         <h1>数据中台门户</h1>
                         <p class="subtitle">统一门户</p>
+                        <p class="user-info">build: {{ build_version }}</p>
                     </div>
                 </div>
             </div>
             <nav class="nav">
-                {% set show_data_center = ('hive_metadata' in allowed_modules) or ('sql_lineage' in allowed_modules) or ('excel_to_hive' in allowed_modules) %}
+                {% set show_data_center = ('hive_metadata' in allowed_modules) or ('sql_lineage' in allowed_modules) or ('excel_to_hive' in allowed_modules) or ('dolphin_failed' in allowed_modules) %}
                 {% set show_business = ('sr_api' in allowed_modules) %}
 
                 {% if show_data_center %}
                 <div class="nav-group">
-                    <button class="nav-group-header" type="button" data-group="data_center" aria-expanded="true">
+                    <button class="nav-group-header collapsed" type="button" data-group="data_center" aria-expanded="false">
+                        <span class="nav-group-chevron">▸</span>
                         <span class="nav-group-text">数据中心</span>
-                        <span class="nav-group-chevron">▾</span>
                     </button>
                     <div class="nav-group-body" data-group-body="data_center">
                         {% if 'hive_metadata' in allowed_modules %}
@@ -44,8 +45,15 @@
                         <a class="nav-item nav-item-child" data-module="excel_to_hive" href="#excel_to_hive">
                             <span>离线上传</span>
                         </a>
+                        {% endif %}
+                        {% if 'dolphin_failed' in allowed_modules %}
                         <a class="nav-item nav-item-child" data-module="dolphin_failed" href="#dolphin_failed">
                             <span>任务管理</span>
+                        </a>
+                        {% endif %}
+                        {% if 'sql_to_excel' in allowed_modules %}
+                        <a class="nav-item nav-item-child" data-module="sql_to_excel" href="#sql_to_excel">
+                            <span>数据导出</span>
                         </a>
                         {% endif %}
                     </div>
@@ -54,24 +62,24 @@
 
                 {% if show_business %}
                 <div class="nav-group">
-                    <button class="nav-group-header" type="button" data-group="market_center" aria-expanded="true">
+                    <button class="nav-group-header collapsed" type="button" data-group="market_center" aria-expanded="false">
+                        <span class="nav-group-chevron">▸</span>
                         <span class="nav-group-text">市场中心</span>
-                        <span class="nav-group-chevron">▾</span>
                     </button>
                     <div class="nav-group-body" data-group-body="market_center">
                         <a class="nav-item nav-item-child" data-module="sr_api" data-view="realtime" href="#sr_api_realtime">
                             <span>实时加微名单</span>
                         </a>
                         <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_code_mapping" href="#sr_api_config_code_mapping">
-                            <span>抖音投流账号</span>
+                            <span>抖音投流账号配置</span>
                         </a>
                     </div>
                 </div>
 
                 <div class="nav-group">
-                    <button class="nav-group-header" type="button" data-group="direct_center" aria-expanded="true">
+                    <button class="nav-group-header collapsed" type="button" data-group="direct_center" aria-expanded="false">
+                        <span class="nav-group-chevron">▸</span>
                         <span class="nav-group-text">直销中心</span>
-                        <span class="nav-group-chevron">▾</span>
                     </button>
                     <div class="nav-group-body" data-group-body="direct_center">
                         <a class="nav-item nav-item-child" data-module="sr_api" data-view="open_channel_daily" href="#sr_api_open_channel_daily">
@@ -87,13 +95,25 @@
                 </div>
 
                 <div class="nav-group">
-                    <button class="nav-group-header" type="button" data-group="advisor_center" aria-expanded="true">
+                    <button class="nav-group-header collapsed" type="button" data-group="advisor_center" aria-expanded="false">
+                        <span class="nav-group-chevron">▸</span>
                         <span class="nav-group-text">投顾中心</span>
-                        <span class="nav-group-chevron">▾</span>
                     </button>
                     <div class="nav-group-body" data-group-body="advisor_center">
                         <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_stock_position" href="#sr_api_config_stock_position">
                             <span>产品净值</span>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="nav-group">
+                    <button class="nav-group-header collapsed" type="button" data-group="customer_center" aria-expanded="false">
+                        <span class="nav-group-chevron">▸</span>
+                        <span class="nav-group-text">客户中心</span>
+                    </button>
+                    <div class="nav-group-body" data-group-body="customer_center">
+                        <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_opportunity_lead" href="#sr_api_config_opportunity_lead">
+                            <span>商机线索配置</span>
                         </a>
                     </div>
                 </div>
@@ -138,6 +158,7 @@
                 sql_lineage: "/data_map/sql_lineage_web",
                 excel_to_hive: "/support/excel_to_hive",
                 dolphin_failed: "/support/dolphin",
+                sql_to_excel: "/support/sql_to_excel",
                 sr_api: "/business/realtime_mv"
             };
             var pathToModule = {
@@ -145,6 +166,7 @@
                 "/data_map/sql_lineage_web": "sql_lineage",
                 "/support/excel_to_hive": "excel_to_hive",
                 "/support/dolphin": "dolphin_failed",
+                "/support/sql_to_excel": "sql_to_excel",
                 "/business/realtime_mv": "sr_api"
             };
             /* hash -> { module, view }，用于平板/手机点击只触发地址栏 # 变化时的兜底 */
@@ -153,18 +175,21 @@
                 "sql_lineage": { module: "sql_lineage", view: "" },
                 "excel_to_hive": { module: "excel_to_hive", view: "" },
                 "dolphin_failed": { module: "dolphin_failed", view: "" },
+                "sql_to_excel": { module: "sql_to_excel", view: "" },
                 "sr_api_realtime": { module: "sr_api", view: "realtime" },
                 "sr_api_open_channel_daily": { module: "sr_api", view: "open_channel_daily" },
                 "sr_api_config_open": { module: "sr_api", view: "config_open" },
                 "sr_api_config_staff": { module: "sr_api", view: "config_staff" },
                 "sr_api_config_code_mapping": { module: "sr_api", view: "config_code_mapping" },
-                "sr_api_config_stock_position": { module: "sr_api", view: "config_stock_position" }
+                "sr_api_config_stock_position": { module: "sr_api", view: "config_stock_position" },
+                "sr_api_config_opportunity_lead": { module: "sr_api", view: "config_opportunity_lead" }
             };
             var config = {
                 hive_metadata: (dataMapBase ? dataMapBase + "/hive_metadata/" : "/data_map/hive_metadata/"),
                 sql_lineage: (dataMapBase ? dataMapBase + "/sql_lineage_web/" : "/data_map/sql_lineage_web/"),
                 excel_to_hive: (supportBase ? supportBase + "/excel_to_hive/" : "/support/excel_to_hive/"),
                 dolphin_failed: (supportBase ? supportBase + "/dolphin/" : "/support/dolphin/"),
+                sql_to_excel: (supportBase ? supportBase + "/sql_to_excel/" : "/support/sql_to_excel/"),
                 sr_api: (businessIframeBase ? (businessIframeBase.replace(/\/$/, "") + "/realtime_mv/") : (businessBase ? (businessBase.replace(/\/$/, "") + "/realtime_mv/") : "/business/realtime_mv/"))
             };
             function addPortalToken(url) {
@@ -231,6 +256,8 @@
                         url = url + sep + "view=config&tab=code_mapping";
                     } else if (view === "config_stock_position") {
                         url = url + sep + "view=config&tab=stock_position";
+                    } else if (view === "config_opportunity_lead") {
+                        url = url + sep + "view=config&tab=opportunity_lead";
                     }
                     // 只读账号：业务应用 iframe 追加 readonly=1，前端置灰禁用编辑控件
                     if (isReadOnly) {
@@ -298,7 +325,7 @@
                         }
                     });
                     var v = (params.view || "realtime").trim();
-                    if (["realtime", "open_channel_daily", "config_open", "config_staff", "config_code_mapping", "config_stock_position"].indexOf(v) >= 0) view = v;
+                    if (["realtime", "open_channel_daily", "config_open", "config_staff", "config_code_mapping", "config_stock_position", "config_opportunity_lead"].indexOf(v) >= 0) view = v;
                     else view = "realtime";
                 }
                 var item = findNavItem(moduleId, view);
@@ -331,6 +358,17 @@
                     var item = findNavItemFromTarget(e.target);
                     if (!item) return;
                     e.preventDefault();
+                    // 只有用户点击模块时才展开其所在中心
+                    try {
+                        var g = item.closest(".nav-group");
+                        if (g) {
+                            var btn = g.querySelector(".nav-group-header");
+                            if (btn) {
+                                btn.setAttribute("aria-expanded", "true");
+                                btn.classList.remove("collapsed");
+                            }
+                        }
+                    } catch (err2) {}
                     try {
                         sendTrack({
                             event: "nav_click",
@@ -344,19 +382,70 @@
                 });
             }
 
+            /* 左侧栏滚轮兜底：
+               - 鼠标在某个中心列表内且该列表可滚动时：滚动该列表
+               - 否则：滚动外层 nav（用于滚到下面的中心）
+            */
+            try {
+                var sidebarEl = document.querySelector(".sidebar");
+                if (sidebarEl && navEl) {
+                    function _wheelDeltaY(e) {
+                        var dy = (typeof e.deltaY === "number" ? e.deltaY : 0);
+                        if (e.deltaMode === 1) dy = dy * 16; // 行
+                        else if (e.deltaMode === 2) dy = dy * ((navEl && navEl.clientHeight) || 600); // 页
+                        return dy;
+                    }
+                    function _findScrollableBody(target) {
+                        var el = target;
+                        while (el && el !== sidebarEl && el !== document.body) {
+                            if (el.classList && el.classList.contains("nav-group-body")) return el;
+                            el = el.parentElement;
+                        }
+                        return null;
+                    }
+                    sidebarEl.addEventListener(
+                        "wheel",
+                        function (e) {
+                            if (!navEl) return;
+                            var dy = _wheelDeltaY(e);
+                            if (!dy) return;
+
+                            var body = _findScrollableBody(e.target);
+                            var scrollEl = null;
+                            if (body && body.scrollHeight > body.clientHeight) {
+                                scrollEl = body;
+                            } else if (navEl.scrollHeight > navEl.clientHeight) {
+                                scrollEl = navEl;
+                            }
+                            if (!scrollEl) return;
+                            e.preventDefault();
+                            scrollEl.scrollTop = scrollEl.scrollTop + dy;
+                        },
+                        { passive: false, capture: true }
+                    );
+                }
+            } catch (e) {}
+
             function toggleGroup(btn) {
                 var group = btn.getAttribute("data-group");
                 var body = document.querySelector(".nav-group-body[data-group-body='" + group + "']");
                 if (!body) return;
                 var isOpen = btn.getAttribute("aria-expanded") === "true";
-                btn.setAttribute("aria-expanded", String(!isOpen));
-                body.style.display = isOpen ? "none" : "block";
+                btn.setAttribute("aria-expanded", isOpen ? "false" : "true");
                 btn.classList.toggle("collapsed", isOpen);
             }
 
             groupHeaders.forEach(function (btn) {
                 btn.addEventListener("click", function () { toggleGroup(btn); });
             });
+
+            // 默认全部中心收起（登录/刷新后都不展开）
+            try {
+                groupHeaders.forEach(function (btn) {
+                    btn.setAttribute("aria-expanded", "false");
+                    btn.classList.add("collapsed");
+                });
+            } catch (e) {}
 
             applyInitialUrl();
             /* 若仍在根路径且未加载任何模块，自动加载第一个菜单项，避免整页空白 */

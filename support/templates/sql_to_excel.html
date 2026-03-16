@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+
+{% block title %}数据导出{% endblock %}
+
+{% block content %}
+<h1>数据导出（StarRocks SQL）</h1>
+
+<div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap; margin-bottom:16px;">
+  <div style="flex:3 1 360px; min-width:320px;">
+    <div class="info-box" style="margin-bottom:12px;">
+      <p><strong>说明</strong></p>
+      <ul>
+        <li>仅支持 <code>SELECT</code> / <code>WITH</code> 查询（不允许多语句、写入语句）。</li>
+        <li>点击“预览”展示前 20 行；点击“下载 Excel”导出全量结果。</li>
+        <li>右侧为 StarRocks 库 / 表 / 视图目录，点击可快速生成查询 SQL。</li>
+      </ul>
+    </div>
+
+    <div class="upload-section">
+      <div class="form-group">
+        <label for="sql">SQL（StarRocks）</label>
+        <textarea id="sql" rows="10" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;"
+          placeholder="例如：SELECT * FROM your_table WHERE dt='2026-03-12' ORDER BY id DESC"></textarea>
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button type="button" class="btn-primary" id="btnPreview">预览（20 行）</button>
+        <button type="button" class="btn-primary" id="btnDownload">下载 Excel（全量）</button>
+      </div>
+    </div>
+  </div>
+
+  <div style="flex:2 1 260px; min-width:260px;">
+    <div id="metaPanel" style="border:1px solid #e5e7eb; border-radius:10px; background:#fff; padding:10px 12px; max-height:380px; overflow:auto;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <strong>库 / 表 / 视图 目录</strong>
+        <button type="button" id="btnReloadMeta" class="btn-secondary" style="padding:2px 8px; font-size:12px;">刷新</button>
+      </div>
+      <div style="margin-bottom:6px;">
+        <input id="metaSearch" type="text" placeholder="搜索库 / 表 / 视图" style="width:100%; padding:4px 8px; border:1px solid #e5e7eb; border-radius:6px; font-size:12px;">
+      </div>
+      <div id="metaStatus" style="font-size:12px; color:#6b7280; margin-bottom:4px;">正在加载元数据...</div>
+      <ul id="metaTree" style="list-style:none; margin:0; padding:0; font-size:12px;"></ul>
+    </div>
+  </div>
+</div>
+
+<div id="error" class="error-box" style="display:none;"></div>
+<div id="result" class="result-box" style="display:none;"></div>
+
+<div id="tableWrap" style="margin-top: 14px; overflow:auto; border:1px solid #e5e7eb; border-radius: 10px; background:#fff; display:none;">
+  <table id="previewTable" style="width:100%; border-collapse: collapse; font-size: 13px;"></table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function(){
+  var base = {{ (base_path or '')|tojson }};
+  var sqlEl = document.getElementById('sql');
+  var btnPreview = document.getElementById('btnPreview');
+  var btnDownload = document.getElementById('btnDownload');
+  var errEl = document.getElementById('error');
+  var resEl = document.getElementById('result');
+  var tableWrap = document.getElementById('tableWrap');
+  var tableEl = document.getElementById('previewTable');
+  var metaTreeEl = document.getElementById('metaTree');
+  var metaStatusEl = document.getElementById('metaStatus');
+  var metaSearchEl = document.getElementById('metaSearch');
+  var btnReloadMeta = document.getElementById('btnReloadMeta');
+  var _metaRaw = [];
+
+  function showError(msg){
+    errEl.textContent = msg || '未知错误';
+    errEl.style.display = 'block';
+  }
+  function clearMsg(){
+    errEl.style.display = 'none';
+    resEl.style.display = 'none';
+    tableWrap.style.display = 'none';
+    tableEl.innerHTML = '';
+  }
+  function setBusy(b){
+    btnPreview.disabled = b;
+    btnDownload.disabled = b;
+    btnPreview.textContent = b ? '处理中...' : '预览（20 行）';
+    btnDownload.textContent = b ? '处理中...' : '下载 Excel（全量）';
+  }
+
+  function escapeHtml(str){
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  function buildMetaTree(filterText){
+    if (!metaTreeEl) return;
+    var kw = (filterText || '').trim().toLowerCase();
+    var dbMap = {};
+    (_metaRaw || []).forEach(function(r){
+      var db = r.db_name || r.table_schema || '';
+      var name = r.table_name || '';
+      var type = (r.table_type || '').toUpperCase();
+      var comment = r.table_comment || '';
+      if (!db || !name) return;
+      if (!dbMap[db]) dbMap[db] = { tables: [], views: [] };
+      var item = { name: name, type: type, comment: comment };
+      if (type === 'VIEW') {
+        dbMap[db].views.push(item);
+      } else {
+        dbMap[db].tables.push(item);
+      }
+    });
+
+    var html = '';
+    Object.keys(dbMap).sort().forEach(function(db){
+      var group = dbMap[db];
+      var children = group.tables.concat(group.views);
+      // 若有关键字，则判断当前库是否命中
+      if (kw) {
+        var matchAny = children.some(function(it){
+          return it.name.toLowerCase().indexOf(kw) !== -1 || (it.comment || '').toLowerCase().indexOf(kw) !== -1;
+        }) || db.toLowerCase().indexOf(kw) !== -1;
+        if (!matchAny) return;
+      }
+      var dbId = 'db-' + encodeURIComponent(db);
+      html += '<li style="margin-bottom:4px;">' +
+        '<div data-role="db-toggle" data-db="'+ escapeHtml(db) +'" style="cursor:pointer; font-weight:600; color:#111827; display:flex; align-items:center;">' +
+        '<span class="chevron" data-db="'+ escapeHtml(db) +'" style="display:inline-block; width:10px; margin-right:4px;">▶</span>' +
+        '<span title="'+ escapeHtml(db) +'">'+ escapeHtml(db) +'</span>' +
+        '</div>' +
+        '<ul id="'+ dbId +'" style="list-style:none; margin:2px 0 4px 14px; padding:0; display:none;">';
+
+      ['tables', 'views'].forEach(function(kind){
+        var list = group[kind];
+        if (!list || !list.length) return;
+        var label = kind === 'tables' ? '表' : '视图';
+        html += '<li style="margin:2px 0; color:#6b7280;">'+ label +'</li>';
+        list.sort(function(a,b){ return a.name.localeCompare(b.name); }).forEach(function(it){
+          var fullName = db + '.' + it.name;
+          var tip = fullName + (it.comment ? (' - ' + it.comment) : '');
+          html += '<li style="margin:1px 0 1px 10px;">' +
+            '<a href="javascript:void(0);" class="meta-item" ' +
+            'data-db="'+ escapeHtml(db) +'" ' +
+            'data-name="'+ escapeHtml(it.name) +'" ' +
+            'data-type="'+ escapeHtml(it.type) +'" ' +
+            'title="'+ escapeHtml(tip) +'" ' +
+            'style="color:#2563eb; text-decoration:none;">' +
+            escapeHtml(it.name) +
+            (it.comment ? '<span style="color:#9ca3af;">（'+ escapeHtml(it.comment) +'）</span>' : '') +
+            '</a>' +
+            '</li>';
+        });
+      });
+
+      html += '</ul></li>';
+    });
+
+    metaTreeEl.innerHTML = html || '<li style="color:#9ca3af;">无匹配库 / 表 / 视图</li>';
+  }
+
+  function loadMeta(){
+    if (!metaStatusEl) return;
+    metaStatusEl.textContent = '正在加载元数据...';
+    fetch(base + '/api/meta/tables', {
+      method: 'GET',
+      headers: {'Accept': 'application/json'}
+    }).then(function(r){ return r.json(); })
+      .then(function(data){
+        if (!data || !data.success) throw new Error((data && data.message) || '加载元数据失败');
+        _metaRaw = data.data || [];
+        metaStatusEl.textContent = '已加载 ' + (_metaRaw.length || 0) + ' 条表 / 视图信息';
+        buildMetaTree(metaSearchEl ? metaSearchEl.value : '');
+      })
+      .catch(function(e){
+        metaStatusEl.textContent = '加载失败：' + e.message;
+        _metaRaw = [];
+        if (metaTreeEl) metaTreeEl.innerHTML = '<li style="color:#ef4444;">加载失败</li>';
+      });
+  }
+
+  function renderTable(cols, rows){
+    var thead = '<thead><tr>' + cols.map(function(c){
+      return '<th style="text-align:left; padding:8px 10px; border-bottom:1px solid #e5e7eb; background:#f9fafb; white-space:nowrap;">' + (c||'') + '</th>';
+    }).join('') + '</tr></thead>';
+    var tbody = '<tbody>' + rows.map(function(r){
+      return '<tr>' + cols.map(function(c){
+        var v = (r && Object.prototype.hasOwnProperty.call(r, c)) ? r[c] : '';
+        if (v === null || v === undefined) v = '';
+        return '<td style="padding:8px 10px; border-bottom:1px solid #f1f5f9; white-space:nowrap; max-width:380px; overflow:hidden; text-overflow:ellipsis;" title="'+ String(v).replace(/"/g,'&quot;') +'">' + String(v) + '</td>';
+      }).join('') + '</tr>';
+    }).join('') + '</tbody>';
+    tableEl.innerHTML = thead + tbody;
+    tableWrap.style.display = 'block';
+  }
+
+  if (metaSearchEl) {
+    metaSearchEl.addEventListener('input', function(){
+      buildMetaTree(metaSearchEl.value);
+    });
+  }
+
+  if (btnReloadMeta) {
+    btnReloadMeta.addEventListener('click', function(){
+      loadMeta();
+    });
+  }
+
+  if (metaTreeEl) {
+    metaTreeEl.addEventListener('click', function(ev){
+      var target = ev.target;
+      if (!target) return;
+      // 展开/收起库
+      if (target.getAttribute('data-role') === 'db-toggle' || target.closest('[data-role="db-toggle"]')) {
+        var t = target.getAttribute('data-role') === 'db-toggle' ? target : target.closest('[data-role="db-toggle"]');
+        var db = t.getAttribute('data-db');
+        var ulId = 'db-' + encodeURIComponent(db);
+        var ul = document.getElementById(ulId);
+        var chevron = metaTreeEl.querySelector('.chevron[data-db="'+ db +'"]');
+        if (ul) {
+          var isHidden = ul.style.display === 'none' || !ul.style.display;
+          ul.style.display = isHidden ? 'block' : 'none';
+          if (chevron) chevron.textContent = isHidden ? '▼' : '▶';
+        }
+        return;
+      }
+      // 点击具体表/视图
+      var link = target.classList && target.classList.contains('meta-item') ? target : target.closest('.meta-item');
+      if (link) {
+        var dbName = link.getAttribute('data-db');
+        var objName = link.getAttribute('data-name');
+        var objType = (link.getAttribute('data-type') || '').toUpperCase();
+        if (!dbName || !objName || !sqlEl) return;
+        var fullName = '`' + dbName + '`.`' + objName + '`';
+        var tmpl = 'SELECT *\nFROM ' + fullName + '\nLIMIT 20;';
+        if (objType === 'VIEW') {
+          tmpl = '-- 视图查询示例\n' + tmpl;
+        } else {
+          tmpl = '-- 表查询示例\n' + tmpl;
+        }
+        sqlEl.value = tmpl;
+        sqlEl.focus();
+        // 光标移到末尾
+        if (typeof sqlEl.selectionStart === 'number') {
+          sqlEl.selectionStart = sqlEl.selectionEnd = sqlEl.value.length;
+        }
+        ev.preventDefault();
+      }
+    });
+  }
+
+  btnPreview.addEventListener('click', function(){
+    clearMsg();
+    var sql = (sqlEl.value || '').trim();
+    if(!sql){ showError('请先输入 SQL'); return; }
+    setBusy(true);
+    fetch(base + '/api/preview', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ sql: sql })
+    }).then(function(r){ return r.json(); })
+      .then(function(data){
+        if(!data || !data.success){ throw new Error((data && data.message) || '预览失败'); }
+        resEl.innerHTML = '预览成功：返回 ' + (data.rows ? data.rows.length : 0) + ' 行（最多 20 行）。';
+        resEl.className = 'result-box success';
+        resEl.style.display = 'block';
+        renderTable(data.columns || [], data.rows || []);
+      })
+      .catch(function(e){ showError(e.message); })
+      .finally(function(){ setBusy(false); });
+  });
+
+  btnDownload.addEventListener('click', function(){
+    clearMsg();
+    var sql = (sqlEl.value || '').trim();
+    if(!sql){ showError('请先输入 SQL'); return; }
+    setBusy(true);
+    fetch(base + '/api/export.xlsx', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ sql: sql })
+    }).then(function(r){
+      if(!r.ok){
+        return r.text().then(function(t){ throw new Error(t || '下载失败'); });
+      }
+      return r.blob();
+    }).then(function(blob){
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'sql_export.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }).catch(function(e){
+      showError(e.message);
+    }).finally(function(){
+      setBusy(false);
+    });
+  });
+
+  // 初始化加载元数据
+  loadMeta();
+})();
+</script>
+{% endblock %}
+

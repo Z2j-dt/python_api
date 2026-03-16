@@ -59,6 +59,14 @@ _dolphin_app = Flask(
 )
 _sr_store = None
 
+# SQL 导出 Excel 子应用
+_sql_app = Flask(
+    "sql_to_excel",
+    template_folder=str(_SUPPORT / "templates"),
+    static_folder=str(_SUPPORT / "static"),
+    static_url_path="/static",
+)
+
 
 @_dolphin_app.route("/")
 def dolphin_index():
@@ -244,6 +252,199 @@ def _get_hsgt_conn():
     )
 
 
+def _get_starrocks_conn():
+    """StarRocks 连接（执行只读 SQL 导出）。"""
+    return pymysql.connect(
+        host=os.environ.get("STARROCKS_HOST", DEFAULT_SR_CONF["host"]),
+        port=int(os.environ.get("STARROCKS_PORT", DEFAULT_SR_CONF["port"])),
+        user=os.environ.get("STARROCKS_USER", DEFAULT_SR_CONF["user"]),
+        password=os.environ.get("STARROCKS_PASSWORD", DEFAULT_SR_CONF["password"]),
+        database=os.environ.get("STARROCKS_DATABASE", DEFAULT_SR_CONF["database"]),
+        charset="utf8mb4",
+        cursorclass=pymysql.cursors.DictCursor,
+        connect_timeout=10,
+        read_timeout=60,
+        write_timeout=60,
+    )
+
+def _get_starrocks_meta_conn():
+    """
+    StarRocks 连接（专用于查询 information_schema 元数据）。
+    注意：这里不要依赖 STARROCKS_DATABASE（可能不存在，例如 test_db），否则会导致连接直接失败。
+    """
+    return pymysql.connect(
+        host=os.environ.get("STARROCKS_HOST", DEFAULT_SR_CONF["host"]),
+        port=int(os.environ.get("STARROCKS_PORT", DEFAULT_SR_CONF["port"])),
+        user=os.environ.get("STARROCKS_USER", DEFAULT_SR_CONF["user"]),
+        password=os.environ.get("STARROCKS_PASSWORD", DEFAULT_SR_CONF["password"]),
+        database="information_schema",
+        charset="utf8mb4",
+        cursorclass=pymysql.cursors.DictCursor,
+        connect_timeout=10,
+        read_timeout=60,
+        write_timeout=60,
+    )
+
+
+_SQL_FORBIDDEN = re.compile(r"\b(insert|update|delete|drop|alter|create|truncate|grant|revoke|set|use|call)\b", re.I)
+_SQL_HAS_LIMIT = re.compile(r"\blimit\s+\d+", re.I)
+
+
+def _normalize_sql(sql: str) -> str:
+    s = (sql or "").strip()
+    if not s:
+        raise ValueError("SQL 不能为空")
+    # 禁止多语句
+    if ";" in s.strip().rstrip(";"):
+        raise ValueError("不支持多语句（请只提交一条 SELECT/WITH 查询）")
+    # 允许前置注释（-- ... 或 /* ... */），忽略后再校验
+    head_sql = s.lstrip()
+    while True:
+        if head_sql.startswith("--"):
+            nl = head_sql.find("\n")
+            if nl == -1:
+                # 整条都是注释
+                raise ValueError("SQL 不能为空（仅包含注释）")
+            head_sql = head_sql[nl + 1 :].lstrip()
+            continue
+        if head_sql.startswith("/*"):
+            end = head_sql.find("*/")
+            if end == -1:
+                raise ValueError("SQL 注释不完整（缺少 */）")
+            head_sql = head_sql[end + 2 :].lstrip()
+            continue
+        break
+    head = head_sql.lower()
+    if not (head.startswith("select") or head.startswith("with")):
+        raise ValueError("仅支持 SELECT/WITH 查询")
+    if _SQL_FORBIDDEN.search(s):
+        raise ValueError("SQL 包含不允许的关键字（仅支持只读查询）")
+    return s
+
+
+@_sql_app.route("/api/meta/tables", methods=["GET"])
+def sql_to_excel_meta_tables():
+    """
+    查询 StarRocks 中的库/表/视图元数据，用于前端目录展示。
+    仅返回只读信息：库名、表名、类型、注释。
+    """
+    sql = """
+SELECT
+  table_schema AS db_name,
+  table_name,
+  table_type,
+  table_comment
+FROM information_schema.tables
+WHERE table_schema NOT IN ('information_schema', '_statistics_')
+  AND table_type IN ('TABLE', 'VIEW', 'BASE TABLE')
+ORDER BY table_schema, table_type, table_name
+""".strip()
+    try:
+        conn = _get_starrocks_meta_conn()
+        cur = conn.cursor()
+        cur.execute(sql)
+        rows = cur.fetchall() or []
+        # 统一类型名：BASE TABLE 也当作 TABLE
+        for r in rows:
+            t = (r.get("table_type") or "").upper()
+            if t == "BASE TABLE":
+                r["table_type"] = "TABLE"
+        cur.close()
+        conn.close()
+        return jsonify({"success": True, "data": rows, "count": len(rows)})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@_sql_app.route("/")
+def sql_to_excel_index():
+    base = (request.environ.get("SCRIPT_NAME") or "").rstrip("/")
+    return render_template("sql_to_excel.html", base_path=base)
+
+
+@_sql_app.route("/api/preview", methods=["POST"])
+def sql_to_excel_preview():
+    data = request.get_json(force=True, silent=True) or {}
+    try:
+        raw_sql = _normalize_sql(data.get("sql") or "")
+    except ValueError as e:
+        # 校验错误：返回 200 + JSON，避免上游改成 HTML 错误页
+        return jsonify({"success": False, "message": str(e)})
+    s = raw_sql.rstrip().rstrip(";")
+    # 若原 SQL 已带 LIMIT，则直接按原 SQL 执行；否则追加 LIMIT 20 作为预览
+    if _SQL_HAS_LIMIT.search(s):
+        preview_sql = s
+    else:
+        preview_sql = s + " LIMIT 20"
+    try:
+        conn = _get_starrocks_conn()
+        cur = conn.cursor()
+        cur.execute(preview_sql)
+        rows = cur.fetchall()
+        cols = [d[0] for d in (cur.description or [])]
+        cur.close()
+        conn.close()
+        return jsonify({"success": True, "columns": cols, "rows": rows})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@_sql_app.route("/api/export.xlsx", methods=["POST"])
+def sql_to_excel_export():
+    data = request.get_json(force=True, silent=True) or {}
+    try:
+        sql = _normalize_sql(data.get("sql") or "")
+    except ValueError as e:
+        # 与预览接口保持一致，返回 JSON 错误
+        return jsonify({"success": False, "message": str(e)}), 400
+    try:
+        from tempfile import NamedTemporaryFile
+        from flask import send_file, after_this_request
+        from openpyxl import Workbook
+
+        conn = _get_starrocks_conn()
+        cur = conn.cursor()
+        cur.execute(sql)
+        cols = [d[0] for d in (cur.description or [])]
+
+        wb = Workbook(write_only=True)
+        ws = wb.create_sheet("data")
+        if cols:
+            ws.append(cols)
+
+        while True:
+            batch = cur.fetchmany(2000)
+            if not batch:
+                break
+            for r in batch:
+                ws.append([r.get(c) for c in cols])
+
+        cur.close()
+        conn.close()
+
+        tmp = NamedTemporaryFile(delete=False, suffix=".xlsx")
+        tmp_path = tmp.name
+        tmp.close()
+        wb.save(tmp_path)
+
+        @after_this_request
+        def _cleanup(resp):
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+            return resp
+
+        return send_file(
+            tmp_path,
+            as_attachment=True,
+            download_name="sql_export.xlsx",
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    except Exception as e:
+        return str(e), 500
+
+
 @_dolphin_app.route("/api/hsgt-price-deliver", methods=["GET"])
 def hsgt_price_deliver():
     """
@@ -353,6 +554,7 @@ def _nav():
 app = DispatcherMiddleware(_main, {
     "/excel_to_hive": _excel_app,
     "/dolphin": _dolphin_app,
+    "/sql_to_excel": _sql_app,
 })
 app = auth_middleware(app, auth_cfg)
 
@@ -361,6 +563,7 @@ if __name__ == "__main__":
     base = os.environ.get("SUPPORT_BASE", "").rstrip("/") or ""
     print("技术支持（端口 %s）: http://127.0.0.1:%s%s" % (port, port, base or "/"))
     print("  - Excel 入库 Hive: http://127.0.0.1:%s%s/excel_to_hive/" % (port, base))
+    print("  - 数据导出: http://127.0.0.1:%s%s/sql_to_excel/" % (port, base))
     from werkzeug.serving import run_simple
     # 关闭 reloader：通过 run_support.py(runpy) 启动时 reloader 子进程会报 No module named app
     use_debug = os.environ.get("SUPPORT_DEBUG", os.environ.get("PORTAL_DEBUG", "0")).lower() in ("1", "true", "yes")

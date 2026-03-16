@@ -30,7 +30,7 @@ def _get_auth_users():
                     continue
                 out[name] = {
                     "password": u.get("password"),
-                    "modules": u.get("modules") or ["hive_metadata", "sql_lineage", "sr_api"],
+                    "modules": u.get("modules") or ["hive_metadata", "sql_lineage", "sql_to_excel", "sr_api"],
                     "readonly": bool(u.get("readonly")) if "readonly" in u else False,
                 }
             if out:
@@ -45,7 +45,7 @@ def _get_auth_users():
     return {
         "admin": {
             "password_hash": os.environ.get("PORTAL_ADMIN_PASSWORD_HASH", _DEFAULT_ADMIN_HASH),
-            "modules": ["hive_metadata", "sql_lineage", "sr_api"],
+            "modules": ["hive_metadata", "sql_lineage", "sql_to_excel", "sr_api"],
         },
     }
 

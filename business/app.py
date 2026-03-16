@@ -195,6 +195,7 @@ CONFIG_OPEN_CHANNEL_TABLE = "config_open_channel_tag"
 CONFIG_CHANNEL_STAFF_TABLE = "config_channel_staff"
 CONFIG_CODE_MAPPING_TABLE = "code_mapping"
 CONFIG_STOCK_POSITION_TABLE = "config_stock_position"
+CONFIG_OPPORTUNITY_LEAD_TABLE = "config_opportunity_lead"
 
 
 class OpenChannelTagBase(BaseModel):
@@ -235,6 +236,49 @@ class ChannelStaffOut(ChannelStaffBase):
     id: int
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+
+
+# -------------------- 配置表：客户中心-商机线索 --------------------
+
+class OpportunityLeadBase(BaseModel):
+    biz_category_big: Optional[str] = None   # 业务大类
+    biz_category_small: Optional[str] = None # 业务小类
+    clue_name: Optional[str] = None          # 线索名称
+    is_important: Optional[bool] = None      # 是否重要
+    remark: Optional[str] = None             # 备注
+    table_name: Optional[str] = None         # 表名
+
+
+class OpportunityLeadCreate(OpportunityLeadBase):
+    pass
+
+
+class OpportunityLeadUpdate(OpportunityLeadBase):
+    pass
+
+
+class OpportunityLeadOut(OpportunityLeadBase):
+    id: int
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+def _row_opportunity_lead_fix(row: Dict[str, Any]) -> Dict[str, Any]:
+    if not row:
+        return row
+    row = _row_config_time_fix(row)
+    if "is_important" in row:
+        v = row.get("is_important")
+        if v is None:
+            row["is_important"] = None
+        elif isinstance(v, bool):
+            row["is_important"] = v
+        else:
+            try:
+                row["is_important"] = bool(int(v))
+            except Exception:
+                row["is_important"] = bool(v)
+    return row
 
 
 _DT_FMT = "%Y-%m-%d %H:%M:%S"
@@ -312,6 +356,7 @@ class CodeMappingOut(CodeMappingBase):
 class StockPositionBase(BaseModel):
     product_name: Optional[str] = None
     trade_date: Optional[str] = None   # YYYY-MM-DD
+    row_id: Optional[int] = None       # 序号（同一产品+日期内从 1 开始递增）
     stock_code: Optional[str] = None
     stock_name: Optional[str] = None
     position_pct: Optional[float] = None
@@ -337,7 +382,7 @@ class StockPositionUpdate(BaseModel):
 
 
 class StockPositionOut(StockPositionBase):
-    id: int
+    id: Optional[int] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
@@ -356,6 +401,11 @@ def _row_stock_position_fix(row: Dict[str, Any]) -> Dict[str, Any]:
         row["created_at"] = _fmt_dt(row.get("created_at"))
     if "updated_at" in row:
         row["updated_at"] = _fmt_dt(row.get("updated_at"))
+    if "row_id" in row and row.get("row_id") is not None:
+        try:
+            row["row_id"] = int(row["row_id"])
+        except Exception:
+            pass
     for key in ("position_pct", "price"):
         if key in row and row.get(key) is not None:
             try:
@@ -389,6 +439,24 @@ def _next_config_id(cur, table_name: str) -> int:
     except Exception:
         nid = 1
     return nid if nid >= 1 else 1
+
+
+def _next_row_id_for_date(cur, product_name: str, trade_date: str) -> int:
+    """
+    返回同一产品+日期下下一个可用 row_id（从 1 开始递增）。
+    """
+    sql = (
+        f"SELECT MAX(row_id) AS max_id FROM `{CONFIG_STOCK_POSITION_TABLE}` "
+        f"WHERE product_name <=> %s AND trade_date = %s"
+    )
+    cur.execute(sql, (product_name or None, trade_date))
+    row = cur.fetchone() or {}
+    max_id = row.get("max_id")
+    try:
+        val = int(max_id)
+    except Exception:
+        val = 0
+    return val + 1 if val >= 0 else 1
 
 app = FastAPI(title="StarRocks MV 数据服务", description="查询 StarRocks 物化视图", version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
@@ -674,6 +742,134 @@ async def delete_channel_staff(item_id: int, request: Request) -> Dict[str, Any]
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# -------------------- API：客户中心-商机线索配置 --------------------
+
+@app.get("/api/config/opportunity-leads", response_model=List[OpportunityLeadOut])
+async def list_opportunity_leads() -> List[OpportunityLeadOut]:
+    try:
+        with _db_cursor() as cur:
+            cur.execute(
+                f"SELECT id, biz_category_big, biz_category_small, clue_name, is_important, remark, table_name, created_at, updated_at "
+                f"FROM `{CONFIG_OPPORTUNITY_LEAD_TABLE}` ORDER BY id ASC"
+            )
+            rows = cur.fetchall()
+        return [OpportunityLeadOut(**_row_opportunity_lead_fix(r)) for r in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/config/opportunity-leads", response_model=OpportunityLeadOut)
+async def create_opportunity_lead(body: OpportunityLeadCreate, request: Request) -> OpportunityLeadOut:
+    _reject_if_readonly(request)
+    try:
+        now_str = datetime.now().strftime(_DT_FMT)
+        with _db_cursor() as cur:
+            cur.execute(
+                f"INSERT INTO `{CONFIG_OPPORTUNITY_LEAD_TABLE}` "
+                f"(biz_category_big, biz_category_small, clue_name, is_important, remark, table_name, created_at, updated_at) "
+                f"VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                (
+                    (body.biz_category_big or "").strip() or None,
+                    (body.biz_category_small or "").strip() or None,
+                    (body.clue_name or "").strip() or None,
+                    (1 if body.is_important else 0) if body.is_important is not None else None,
+                    (body.remark or "").strip() or None,
+                    (body.table_name or "").strip() or None,
+                    now_str,
+                    now_str,
+                ),
+            )
+            # StarRocks 对 lastrowid 支持有限，这里用倒序取最新一条作为简单方案
+            cur.execute(
+                f"SELECT id, biz_category_big, biz_category_small, clue_name, is_important, remark, table_name, created_at, updated_at "
+                f"FROM `{CONFIG_OPPORTUNITY_LEAD_TABLE}` ORDER BY id DESC LIMIT 1"
+            )
+            row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=500, detail="创建失败")
+        return OpportunityLeadOut(**_row_opportunity_lead_fix(row))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/config/opportunity-leads/{item_id}", response_model=OpportunityLeadOut)
+async def update_opportunity_lead(item_id: int, body: OpportunityLeadUpdate, request: Request) -> OpportunityLeadOut:
+    _reject_if_readonly(request)
+    if (
+        body.biz_category_big is None
+        and body.biz_category_small is None
+        and body.clue_name is None
+        and body.is_important is None
+        and body.remark is None
+        and body.table_name is None
+    ):
+        raise HTTPException(status_code=400, detail="至少提供一个需要更新的字段")
+    try:
+        now_str = datetime.now().strftime(_DT_FMT)
+        with _db_cursor() as cur:
+            cur.execute(
+                f"SELECT id, biz_category_big, biz_category_small, clue_name, is_important, remark, table_name, created_at, updated_at "
+                f"FROM `{CONFIG_OPPORTUNITY_LEAD_TABLE}` WHERE id = %s",
+                (item_id,),
+            )
+            old = cur.fetchone()
+            if not old:
+                raise HTTPException(status_code=404, detail="记录不存在")
+
+            def _pick(key: str, new_val: Any):
+                return new_val if new_val is not None else old.get(key)
+
+            created_at = _fmt_dt(old.get("created_at")) or now_str
+            new_big = (str(_pick("biz_category_big", body.biz_category_big) or "").strip() or None)
+            new_small = (str(_pick("biz_category_small", body.biz_category_small) or "").strip() or None)
+            new_clue = (str(_pick("clue_name", body.clue_name) or "").strip() or None)
+            new_imp = _pick(
+                "is_important",
+                (1 if body.is_important else 0) if body.is_important is not None else None,
+            )
+            new_remark = (str(_pick("remark", body.remark) or "").strip() or None)
+            new_table = (str(_pick("table_name", body.table_name) or "").strip() or None)
+
+            # StarRocks 部分表不支持 UPDATE：用 DELETE + INSERT
+            cur.execute(f"DELETE FROM `{CONFIG_OPPORTUNITY_LEAD_TABLE}` WHERE id = %s", (item_id,))
+            cur.execute(
+                f"INSERT INTO `{CONFIG_OPPORTUNITY_LEAD_TABLE}` "
+                f"(id, biz_category_big, biz_category_small, clue_name, is_important, remark, table_name, created_at, updated_at) "
+                f"VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (item_id, new_big, new_small, new_clue, new_imp, new_remark, new_table, created_at, now_str),
+            )
+            cur.execute(
+                f"SELECT id, biz_category_big, biz_category_small, clue_name, is_important, remark, table_name, created_at, updated_at "
+                f"FROM `{CONFIG_OPPORTUNITY_LEAD_TABLE}` WHERE id = %s",
+                (item_id,),
+            )
+            row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="记录不存在")
+        return OpportunityLeadOut(**_row_opportunity_lead_fix(row))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/config/opportunity-leads/{item_id}")
+async def delete_opportunity_lead(item_id: int, request: Request) -> Dict[str, Any]:
+    _reject_if_readonly(request)
+    try:
+        with _db_cursor() as cur:
+            cur.execute(f"DELETE FROM `{CONFIG_OPPORTUNITY_LEAD_TABLE}` WHERE id = %s", (item_id,))
+            if cur.rowcount == 0:
+                raise HTTPException(status_code=404, detail="记录不存在")
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # -------------------- API：渠道映射/消耗（code_mapping） --------------------
 
 @app.get("/api/config/code-mapping", response_model=List[CodeMappingOut])
@@ -796,7 +992,8 @@ async def list_stock_position_products() -> List[str]:
         with _db_cursor() as cur:
             cur.execute(
                 f"SELECT DISTINCT product_name FROM `{CONFIG_STOCK_POSITION_TABLE}` "
-                f"WHERE product_name IS NOT NULL AND product_name != '' ORDER BY product_name"
+                f"WHERE product_name IS NOT NULL AND product_name != '' "
+                f"ORDER BY product_name"
             )
             return [r["product_name"] for r in cur.fetchall()]
     except Exception as e:
@@ -830,17 +1027,17 @@ async def list_stock_position(
             placeholders = ", ".join(["%s"] * len(names))
             count_sql = (
                 f"SELECT COUNT(*) AS cnt FROM `{CONFIG_STOCK_POSITION_TABLE}` "
-                f"WHERE product_name IN ({placeholders})"
+                f"WHERE TRIM(product_name) IN ({placeholders})"
             )
             cur.execute(count_sql, tuple(names))
             total = (cur.fetchone() or {}).get("cnt") or 0
 
             offset = (page - 1) * page_size
             list_sql = (
-                f"SELECT id, product_name, trade_date, stock_code, stock_name, "
+                f"SELECT id, product_name, trade_date, row_id, stock_code, stock_name, "
                 f"position_pct, side, price, created_at, updated_at "
                 f"FROM `{CONFIG_STOCK_POSITION_TABLE}` "
-                f"WHERE product_name IN ({placeholders}) "
+                f"WHERE TRIM(product_name) IN ({placeholders}) "
                 f"ORDER BY trade_date desc, created_at DESC, id DESC LIMIT %s OFFSET %s"
             )
             cur.execute(list_sql, tuple(names) + (page_size, offset))
@@ -867,7 +1064,7 @@ async def export_stock_position(
     try:
         with _db_cursor() as cur:
             cur.execute(
-                f"SELECT id, product_name, trade_date, stock_code, stock_name, "
+                f"SELECT id, product_name, trade_date, row_id, stock_code, stock_name, "
                 f"position_pct, side, price, created_at, updated_at "
                 f"FROM `{CONFIG_STOCK_POSITION_TABLE}` "
                 f"WHERE product_name = %s "
@@ -894,7 +1091,7 @@ async def export_stock_position_excel(
     try:
         with _db_cursor() as cur:
             cur.execute(
-                f"SELECT id, product_name, trade_date, stock_code, stock_name, "
+                f"SELECT id, product_name, trade_date, row_id, stock_code, stock_name, "
                 f"position_pct, side, price, created_at, updated_at "
                 f"FROM `{CONFIG_STOCK_POSITION_TABLE}` "
                 f"WHERE product_name = %s "
@@ -919,13 +1116,14 @@ async def export_stock_position_excel(
         # Sheet1: 当前页仓位明细
         ws1 = wb.active
         ws1.title = "仓位明细"
-        ws1.append(["ID", "产品名称", "日期", "股票代码", "个股", "仓位(%)", "买入/卖出", "成交价", "创建时间", "更新时间"])
+        ws1.append(["ID", "产品名称", "日期", "序号", "股票代码", "个股", "仓位(%)", "买入/卖出", "成交价", "创建时间", "更新时间"])
         for r in rows1:
             ws1.append(
                 [
                     r.get("id"),
                     r.get("product_name"),
                     _parse_date(r.get("trade_date")),
+                    r.get("row_id"),
                     r.get("stock_code"),
                     r.get("stock_name"),
                     float(r.get("position_pct") or 0) if r.get("position_pct") is not None else None,
@@ -1243,68 +1441,33 @@ async def create_stock_position(body: StockPositionCreate, request: Request) -> 
     try:
         now_str = datetime.now().strftime(_DT_FMT)
         with _db_cursor() as cur:
-            # 优先走数据库自增 id：不传 id
-            try:
-                cur.execute(
-                    f"INSERT INTO `{CONFIG_STOCK_POSITION_TABLE}` "
-                    # StarRocks: AUTO_INCREMENT 列若在 sort key 上，必须显式写入（用 DEFAULT），否则会触发 partial update 报错
-                    f"(id, product_name, trade_date, stock_code, stock_name, position_pct, side, price, created_at, updated_at) "
-                    f"VALUES (DEFAULT, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                    (
-                        (body.product_name or "").strip() or None,
-                        trade_date.strip(),
-                        (body.stock_code or "").strip(),
-                        (body.stock_name or "").strip() or None,
-                        body.position_pct,
-                        (body.side or "").strip(),
-                        body.price,
-                        now_str,
-                        now_str,
-                    ),
-                )
-                new_id = cur.lastrowid
-                if not new_id:
-                    # 某些引擎/驱动可能拿不到 lastrowid，用本次插入的字段精确查刚插入的那条，避免取到旧行
-                    cur.execute(
-                        f"SELECT id FROM `{CONFIG_STOCK_POSITION_TABLE}` "
-                        f"WHERE product_name <=> %s AND trade_date = %s AND stock_code = %s AND created_at = %s "
-                        f"ORDER BY id DESC LIMIT 1",
-                        (
-                            (body.product_name or "").strip() or None,
-                            trade_date.strip(),
-                            (body.stock_code or "").strip(),
-                            now_str,
-                        ),
-                    )
-                    r = cur.fetchone() or {}
-                    new_id = r.get("id")
-            except Exception:
-                # 若库不支持 AUTO_INCREMENT（或表仍为非自增），回退到后端生成 id
-                next_id = _next_config_id(cur, CONFIG_STOCK_POSITION_TABLE)
-                cur.execute(
-                    f"INSERT INTO `{CONFIG_STOCK_POSITION_TABLE}` "
-                    f"(id, product_name, trade_date, stock_code, stock_name, position_pct, side, price, created_at, updated_at) "
-                    f"VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                    (
-                        next_id,
-                        (body.product_name or "").strip() or None,
-                        trade_date.strip(),
-                        (body.stock_code or "").strip(),
-                        (body.stock_name or "").strip() or None,
-                        body.position_pct,
-                        (body.side or "").strip(),
-                        body.price,
-                        now_str,
-                        now_str,
-                    ),
-                )
-                new_id = next_id
+            product_name = (body.product_name or "").strip() or None
+            next_row_id = _next_row_id_for_date(cur, product_name or "", trade_date.strip())
+            next_id = _next_config_id(cur, CONFIG_STOCK_POSITION_TABLE)
+            cur.execute(
+                f"INSERT INTO `{CONFIG_STOCK_POSITION_TABLE}` "
+                f"(id, product_name, trade_date, row_id, stock_code, stock_name, position_pct, side, price, created_at, updated_at) "
+                f"VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (
+                    next_id,
+                    product_name,
+                    trade_date.strip(),
+                    next_row_id,
+                    (body.stock_code or "").strip(),
+                    (body.stock_name or "").strip() or None,
+                    body.position_pct,
+                    (body.side or "").strip(),
+                    body.price,
+                    now_str,
+                    now_str,
+                ),
+            )
 
             cur.execute(
-                f"SELECT id, product_name, trade_date, stock_code, stock_name, "
+                f"SELECT id, product_name, trade_date, row_id, stock_code, stock_name, "
                 f"position_pct, side, price, created_at, updated_at "
                 f"FROM `{CONFIG_STOCK_POSITION_TABLE}` WHERE id = %s",
-                (int(new_id),),
+                (int(next_id),),
             )
             row = cur.fetchone()
         if not row:
@@ -1325,7 +1488,7 @@ async def update_stock_position(item_id: int, body: StockPositionUpdate, request
         now_str = datetime.now().strftime(_DT_FMT)
         with _db_cursor() as cur:
             cur.execute(
-                f"SELECT id, product_name, trade_date, stock_code, stock_name, "
+                f"SELECT id, product_name, trade_date, row_id, stock_code, stock_name, "
                 f"position_pct, side, price, created_at, updated_at "
                 f"FROM `{CONFIG_STOCK_POSITION_TABLE}` WHERE id = %s",
                 (item_id,),
@@ -1345,6 +1508,7 @@ async def update_stock_position(item_id: int, body: StockPositionUpdate, request
 
             new_product = _v("product_name", body.product_name)
             new_product = (new_product or "").strip() or None
+            new_row_id = _v("row_id", None) or old.get("row_id")
             new_code = (_v("stock_code", body.stock_code) or "").strip()
             new_name = (_v("stock_name", body.stock_name) or "").strip() or None
             new_pct = _v("position_pct", body.position_pct)
@@ -1358,12 +1522,13 @@ async def update_stock_position(item_id: int, body: StockPositionUpdate, request
             )
             cur.execute(
                 f"INSERT INTO `{CONFIG_STOCK_POSITION_TABLE}` "
-                f"(id, product_name, trade_date, stock_code, stock_name, position_pct, side, price, created_at, updated_at) "
-                f"VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                f"(id, product_name, trade_date, row_id, stock_code, stock_name, position_pct, side, price, created_at, updated_at) "
+                f"VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                 (
                     item_id,
                     new_product,
                     trade_date or date.today().strftime("%Y-%m-%d"),
+                    new_row_id,
                     new_code,
                     new_name,
                     new_pct,

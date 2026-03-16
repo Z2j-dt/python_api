@@ -95,6 +95,18 @@ interface ChannelStaffItem {
   updated_at?: string
 }
 
+interface OpportunityLeadItem {
+  id: number
+  biz_category_big?: string | null
+  biz_category_small?: string | null
+  clue_name?: string | null
+  is_important?: boolean | null
+  remark?: string | null
+  table_name?: string | null
+  created_at?: string | null
+  updated_at?: string | null
+}
+
 interface CodeMappingItem {
   id: number
   code_value: string
@@ -108,6 +120,7 @@ interface StockPositionItem {
   id: number
   product_name?: string | null
   trade_date?: string | null
+  row_id?: number | null
   stock_code?: string | null
   stock_name?: string | null
   position_pct?: number | null
@@ -123,15 +136,22 @@ interface NavChartPoint {
   hs300_nav?: number | null
 }
 
-type ConfigTab = 'open_channel_tag' | 'channel_staff' | 'code_mapping' | 'stock_position'
+type ConfigTab = 'open_channel_tag' | 'channel_staff' | 'code_mapping' | 'stock_position' | 'opportunity_lead'
 
 type ViewMode = 'realtime' | 'open_channel_daily' | 'config'
 
+// const CONFIG_TAB_LABEL: Record<ConfigTab, string> = {
+//   open_channel_tag: '开户渠道 & 企微客户标签',
+//   channel_staff: '投流渠道承接员工',
+//   code_mapping: '[市场中心] 抖音投流账号',
+//   stock_position: '[投顾中心] 产品净值',
+// }
 const CONFIG_TAB_LABEL: Record<ConfigTab, string> = {
-  open_channel_tag: '开户渠道 & 企微客户标签',
-  channel_staff: '投流渠道承接员工',
-  code_mapping: '[市场中心] 抖音投流账号',
-  stock_position: '[投顾中心] 产品净值',
+  open_channel_tag: '',
+  channel_staff: '',
+  code_mapping:  '',
+  stock_position: '',
+  opportunity_lead: '',
 }
 
 function getViewFromLocation(): ViewMode {
@@ -151,6 +171,7 @@ function getConfigTabFromLocation(): ConfigTab {
     if (tab === 'stock_position') return 'stock_position'
     if (tab === 'code_mapping') return 'code_mapping'
     if (tab === 'channel_staff') return 'channel_staff'
+    if (tab === 'opportunity_lead') return 'opportunity_lead'
     return 'open_channel_tag'
   } catch {
     return 'open_channel_tag'
@@ -326,6 +347,26 @@ function App() {
   const [staffModal, setStaffModal] = useState<'add' | 'edit' | null>(null)
   const [staffModalError, setStaffModalError] = useState<string | null>(null)
 
+  // 客户中心：商机线索配置
+  const [opportunityLeadItems, setOpportunityLeadItems] = useState<OpportunityLeadItem[]>([])
+  const [editingOpportunityLead, setEditingOpportunityLead] = useState<OpportunityLeadItem | null>(null)
+  const [opportunityLeadModal, setOpportunityLeadModal] = useState<'add' | 'edit' | null>(null)
+  const [opportunityLeadForm, setOpportunityLeadForm] = useState<{
+    biz_category_big: string
+    biz_category_small: string
+    clue_name: string
+    is_important: '1' | '0'
+    remark: string
+    table_name: string
+  }>({
+    biz_category_big: '',
+    biz_category_small: '',
+    clue_name: '',
+    is_important: '0',
+    remark: '',
+    table_name: '',
+  })
+
   // code_mapping（新增在业务配置下方）
   const [codeMappingItems, setCodeMappingItems] = useState<CodeMappingItem[]>([])
   const [codeMappingLoading, setCodeMappingLoading] = useState(false)
@@ -453,6 +494,25 @@ function App() {
     }
   }, [])
 
+  const loadOpportunityLeads = useCallback(async () => {
+    setConfigLoading(true)
+    setConfigError(null)
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/config/opportunity-leads`)
+      if (!res.ok) throw new Error(await res.text())
+      const list: OpportunityLeadItem[] = await res.json()
+      setOpportunityLeadItems(list)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '加载商机线索配置失败'
+      const display = msg === 'The operation was aborted.' || msg.includes('fetch') || msg.includes('Failed')
+        ? '请求超时或网络不可达，请检查内网连接'
+        : msg
+      setConfigError(display)
+    } finally {
+      setConfigLoading(false)
+    }
+  }, [])
+
   const loadCodeMapping = useCallback(async () => {
     setCodeMappingLoading(true)
     setCodeMappingError(null)
@@ -507,6 +567,8 @@ function App() {
   const refreshCurrentConfig = () => {
     if (configTab === 'open_channel_tag') {
       void loadOpenChannelTags()
+    } else if (configTab === 'opportunity_lead') {
+      void loadOpportunityLeads()
     } else if (configTab === 'stock_position') {
       void loadStockPosition()
       void loadStockPositionProducts()
@@ -520,10 +582,12 @@ function App() {
     if (!isConfigMode) return
     if (configTab === 'open_channel_tag') {
       void loadOpenChannelTags()
+    } else if (configTab === 'opportunity_lead') {
+      void loadOpportunityLeads()
     } else {
       void loadChannelStaff()
     }
-  }, [isConfigMode, configTab, loadOpenChannelTags, loadChannelStaff])
+  }, [isConfigMode, configTab, loadOpenChannelTags, loadOpportunityLeads, loadChannelStaff])
 
   useEffect(() => {
     if (!isConfigMode) return
@@ -975,21 +1039,94 @@ function App() {
     }
   }
 
+  // -------------------- 客户中心：商机线索配置 --------------------
+
+  const openEditOpportunityLead = (item: OpportunityLeadItem) => {
+    setEditingOpportunityLead(item)
+    setOpportunityLeadForm({
+      biz_category_big: String(item.biz_category_big ?? ''),
+      biz_category_small: String(item.biz_category_small ?? ''),
+      clue_name: String(item.clue_name ?? ''),
+      is_important: item.is_important ? '1' : '0',
+      remark: String(item.remark ?? ''),
+      table_name: String(item.table_name ?? ''),
+    })
+    setOpportunityLeadModal('edit')
+  }
+
+  const saveOpportunityLead = async () => {
+    if (isConfigReadOnly) return
+    setConfigError(null)
+    try {
+      const isEdit = opportunityLeadModal === 'edit' && !!editingOpportunityLead
+      const url = isEdit
+        ? `${API_BASE}/api/config/opportunity-leads/${editingOpportunityLead!.id}`
+        : `${API_BASE}/api/config/opportunity-leads`
+      const method = isEdit ? 'PUT' : 'POST'
+      const payload = {
+        biz_category_big: opportunityLeadForm.biz_category_big.trim() || null,
+        biz_category_small: opportunityLeadForm.biz_category_small.trim() || null,
+        clue_name: opportunityLeadForm.clue_name.trim() || null,
+        is_important: opportunityLeadForm.is_important === '1',
+        remark: opportunityLeadForm.remark.trim() || null,
+        table_name: opportunityLeadForm.table_name.trim() || null,
+      }
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      await refreshCurrentConfig()
+      setEditingOpportunityLead(null)
+      setOpportunityLeadModal(null)
+    } catch (e) {
+      setConfigError(e instanceof Error ? e.message : '保存失败')
+    }
+  }
+
+  const deleteOpportunityLead = async (item: OpportunityLeadItem) => {
+    if (isConfigReadOnly) return
+    if (!window.confirm(`确定删除【${item.clue_name ?? '-'}】这条线索配置吗？`)) return
+    setConfigError(null)
+    try {
+      const res = await fetch(`${API_BASE}/api/config/opportunity-leads/${item.id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error(await res.text())
+      window.location.reload()
+    } catch {
+      window.location.reload()
+    }
+  }
+
   // -------------------- 渲染：顶部导航 --------------------
 
   const pageTitle = (() => {
     if (!isConfigMode) {
-      if (view === 'realtime') return '【市场中心】实时加微名单'
+      if (view === 'realtime') return '实时加微名单'
       if (view === 'open_channel_daily') return '自营渠道加微统计'
       return 'StarRocks 业务应用'
     }
     // 配置视图下按 tab 区分
-    if (configTab === 'code_mapping') return '[市场中心] 抖音投流账号'
+    if (configTab === 'code_mapping') return '抖音投流账号配置'
     if (configTab === 'open_channel_tag') return '渠道字典配置'
     if (configTab === 'channel_staff') return '承接人员配置'
     if (configTab === 'stock_position') return '产品净值'
+    if (configTab === 'opportunity_lead') return '商机线索配置'
     return 'StarRocks 业务应用'
   })()
+
+  const getTradeDateStripeClass = (tradeDate?: string | null) => {
+    const s = (tradeDate ?? '').trim()
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s)
+    if (!m) return ''
+    const y = Number(m[1])
+    const mo = Number(m[2]) - 1
+    const d = Number(m[3])
+    if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return ''
+    // 使用 UTC 计算“天”避免本地时区造成日期偏移
+    const epochDay = Math.floor(Date.UTC(y, mo, d) / 86400000)
+    return epochDay % 2 === 0 ? 'bg-sky-100/70' : ''
+  }
 
   return (
     <div className="min-h-screen bg-white text-slate-800 font-sans">
@@ -1002,7 +1139,7 @@ function App() {
             {!isConfigMode ? (
               <>
                 <p className="text-sm text-slate-500 mt-0.5">
-                  {isDailyStatsMode ? '自营渠道的每日加微数据' : '物化视图 · 近实时数据'} · 每 5 分钟自动刷新 · 上次刷新时间:{' '}
+                  {isDailyStatsMode ? '实时数据' : '实时数据'} · 每 5 分钟自动刷新 · 上次刷新时间:{' '}
                   {lastRefresh ? lastRefresh.toLocaleTimeString('zh-CN') : '-'}
                 </p>
                 {selectedTable && (
@@ -1013,7 +1150,7 @@ function App() {
               </>
             ) : (
               <p className="text-sm text-slate-500 mt-0.5">
-                配置界面 · {CONFIG_TAB_LABEL[configTab]}
+                {CONFIG_TAB_LABEL[configTab]}
               </p>
             )}
           </div>
@@ -1167,11 +1304,22 @@ function App() {
                         setEditingOpenItem(null)
                         setOpenForm({ open_channel: '', wechat_customer_tag: '' })
                         setOpenModal('add')
-                      } else {
+                      } else if (configTab === 'channel_staff') {
                         setEditingStaffItem(null)
                         setStaffForm({ branch_name: '', staff_name: '' })
                         setStaffModalError(null)
                         setStaffModal('add')
+                      } else if (configTab === 'opportunity_lead') {
+                        setEditingOpportunityLead(null)
+                        setOpportunityLeadForm({
+                          biz_category_big: '',
+                          biz_category_small: '',
+                          clue_name: '',
+                          is_important: '0',
+                          remark: '',
+                          table_name: '',
+                        })
+                        setOpportunityLeadModal('add')
                       }
                     }}
                     disabled={isConfigReadOnly}
@@ -1356,24 +1504,101 @@ function App() {
                   </div>
                 </div>
               </div>
+            ) : configTab === 'opportunity_lead' ? (
+              <div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    {configLoading && opportunityLeadItems.length === 0 ? (
+                      <div className="py-10 text-center text-slate-500">加载中...</div>
+                    ) : opportunityLeadItems.length === 0 ? (
+                      <div className="py-10 text-center text-slate-500">暂无配置数据</div>
+                    ) : (
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-200 bg-slate-100">
+                            <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">ID</th>
+                            <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">业务大类</th>
+                            <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">业务小类</th>
+                            <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">线索名称</th>
+                            <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">是否重要</th>
+                            <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">备注</th>
+                            <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">表名</th>
+                            <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">创建时间</th>
+                            <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">更新时间</th>
+                            <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">操作</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {opportunityLeadItems.map((item) => (
+                            <tr
+                              key={item.id}
+                              className="border-b border-slate-200 hover:bg-slate-100/80 transition-colors"
+                            >
+                              <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{item.id}</td>
+                              <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{item.biz_category_big ?? '-'}</td>
+                              <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{item.biz_category_small ?? '-'}</td>
+                              <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{item.clue_name ?? '-'}</td>
+                              <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{item.is_important ? '是' : '否'}</td>
+                              <td className="px-4 py-3 text-slate-700 whitespace-nowrap max-w-xs truncate" title={String(item.remark ?? '')}>
+                                {item.remark ?? '-'}
+                              </td>
+                              <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{item.table_name ?? '-'}</td>
+                              <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{item.created_at ?? '-'}</td>
+                              <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{item.updated_at ?? '-'}</td>
+                              <td className="px-4 py-3 text-slate-700 whitespace-nowrap">
+                                <button
+                                  onClick={() => openEditOpportunityLead(item)}
+                                  disabled={isConfigReadOnly}
+                                  className={`mr-2 px-3 py-1 text-xs font-medium ${
+                                    isConfigReadOnly ? 'text-slate-400 cursor-not-allowed' : 'text-sky-600 hover:text-sky-700'
+                                  }`}
+                                >
+                                  修改
+                                </button>
+                                <button
+                                  onClick={() => void deleteOpportunityLead(item)}
+                                  disabled={isConfigReadOnly}
+                                  className={`px-3 py-1 text-xs font-medium ${
+                                    isConfigReadOnly ? 'text-slate-300 cursor-not-allowed' : 'text-red-600 hover:text-red-700'
+                                  }`}
+                                >
+                                  删除
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </div>
+              </div>
             ) : configTab === 'stock_position' ? (
               <div className="mt-4">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-3 flex-wrap">
                     <label className="text-sm text-slate-600">产品名称筛选（默认 短线王）：</label>
-                    <input
-                      list="stock-position-products"
+                    <select
                       value={stockPositionFilter}
-                      onChange={(e) => setStockPositionFilter(e.target.value)}
+                      onChange={(e) => {
+                        setStockPositionFilter(e.target.value)
+                        setStockPositionPage(1)
+                      }}
                       onBlur={() => void loadStockPosition()}
-                      className="px-3 py-2 rounded-lg border border-slate-300 text-slate-800 text-sm w-48"
-                      placeholder="短线王"
-                    />
-                    <datalist id="stock-position-products">
-                      {stockPositionProducts.map((p) => (
-                        <option key={p} value={p} />
+                      className="px-3 py-2 rounded-lg border border-slate-300 text-slate-800 text-sm w-56 bg-white"
+                      title="选择产品名称"
+                    >
+                      {/* 兜底：如果当前值不在列表里，也要能展示出来 */}
+                      {stockPositionFilter.trim() &&
+                        stockPositionProducts.indexOf(stockPositionFilter.trim()) < 0 && (
+                          <option value={stockPositionFilter.trim()}>{stockPositionFilter.trim()}</option>
+                        )}
+                      {(stockPositionProducts.length ? stockPositionProducts : ['短线王']).map((p) => (
+                        <option key={p} value={p}>
+                          {p}
+                        </option>
                       ))}
-                    </datalist>
+                    </select>
                     <button
                       onClick={() => void loadStockPosition()}
                       disabled={stockPositionLoading}
@@ -1418,6 +1643,7 @@ function App() {
                         <tr className="border-b border-slate-200 bg-slate-100">
                           <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">产品名称</th>
                           <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">日期</th>
+                          <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">序号</th>
                           <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">股票代码</th>
                           <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">个股</th>
                           <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">仓位(%)</th>
@@ -1482,6 +1708,9 @@ function App() {
                               }`}
                               placeholder="YYYY-MM-DD，空=今天"
                             />
+                          </td>
+                          <td className="px-3 py-2 text-xs text-slate-400">
+                            自动
                           </td>
                           <td className="px-3 py-2">
                             <input
@@ -1623,9 +1852,9 @@ function App() {
                           </td>
                         </tr>
                         {stockPositionLoading && stockPositionItems.length === 0 ? (
-                          <tr><td colSpan={8} className="py-8 text-center text-slate-500">加载中...</td></tr>
+                          <tr><td colSpan={9} className="py-8 text-center text-slate-500">加载中...</td></tr>
                         ) : stockPositionItems.length === 0 ? (
-                          <tr><td colSpan={8} className="py-8 text-center text-slate-500">暂无数据（默认展示产品「短线王」）</td></tr>
+                          <tr><td colSpan={9} className="py-8 text-center text-slate-500">暂无数据（默认展示产品「短线王」）</td></tr>
                         ) : (
                           stockPositionItems.map((item) => (
                             editingStockPositionId === item.id ? (
@@ -1635,6 +1864,13 @@ function App() {
                                     value={editingStockPositionRow?.product_name ?? ''}
                                     readOnly
                                     className="w-full min-w-[80px] px-2 py-1.5 rounded border border-slate-200 text-xs bg-slate-100 text-slate-500 cursor-not-allowed"
+                                  />
+                                </td>
+                                <td className="px-3 py-2">
+                                  <input
+                                    value={editingStockPositionRow?.row_id ?? ''}
+                                    readOnly
+                                    className="w-full min-w-[40px] px-2 py-1.5 rounded border border-slate-200 text-xs bg-slate-100 text-slate-500 cursor-not-allowed text-center"
                                   />
                                 </td>
                                 <td className="px-3 py-2">
@@ -1690,9 +1926,13 @@ function App() {
                                 </td>
                               </tr>
                             ) : (
-                              <tr key={item.id} className="border-b border-slate-200 hover:bg-slate-100/80">
+                              <tr
+                                key={item.id}
+                                className={`${getTradeDateStripeClass(item.trade_date)} border-b border-slate-200 hover:bg-slate-100/80`}
+                              >
                                 <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{item.product_name ?? '-'}</td>
                                 <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{item.trade_date ?? '-'}</td>
+                                <td className="px-3 py-2 text-slate-700 text-center whitespace-nowrap">{item.row_id ?? '-'}</td>
                                 <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{item.stock_code ?? '-'}</td>
                                 <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{item.stock_name ?? '-'}</td>
                                 <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{item.position_pct != null ? `${item.position_pct}%` : '-'}</td>
@@ -2256,7 +2496,7 @@ function App() {
                 >
                   <div className="flex items-center justify-between mb-4">
                     <div className="text-base font-semibold text-slate-800">
-                      {codeMappingModal === 'edit' ? '修改[市场中心]抖音投流账号' : '新增[市场中心]抖音投流账号'}
+                      {/* {codeMappingModal === 'edit' ? '修改[市场中心]抖音投流账号' : '新增[市场中心]抖音投流账号'} */}
                     </div>
                     <button
                       onClick={() => {
@@ -2356,7 +2596,7 @@ function App() {
                   onClick={(e) => e.stopPropagation()}
                 >
                   <h2 className="text-sm font-semibold text-slate-800 mb-3">
-                    {openModal === 'edit' ? '修改配置' : '新增配置'} · 开户渠道 & 企微客户标签
+                    {/* {openModal === 'edit' ? '修改配置' : '新增配置'} · 开户渠道 & 企微客户标签 */}
                   </h2>
                   <div className="space-y-3">
                     <div
@@ -2429,7 +2669,7 @@ function App() {
                   onClick={(e) => e.stopPropagation()}
                 >
                   <h2 className="text-sm font-semibold text-slate-800 mb-3">
-                    {staffModal === 'edit' ? '修改配置' : '新增配置'} · 投流渠道承接员工
+                    {/* {staffModal === 'edit' ? '修改配置' : '新增配置'} · 投流渠道承接员工 */}
                   </h2>
                   <div className="space-y-3">
                     <div className="flex flex-col gap-0.5">
@@ -2474,6 +2714,108 @@ function App() {
                     </button>
                     <button
                       onClick={() => void handleSaveStaff()}
+                      disabled={isConfigReadOnly}
+                      className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-medium"
+                    >
+                      保存
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 客户中心-商机线索配置 弹窗 */}
+            {opportunityLeadModal && (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+                onClick={() => {
+                  setOpportunityLeadModal(null)
+                  setEditingOpportunityLead(null)
+                  setOpportunityLeadForm({
+                    biz_category_big: '',
+                    biz_category_small: '',
+                    clue_name: '',
+                    is_important: '0',
+                    remark: '',
+                    table_name: '',
+                  })
+                }}
+              >
+                <div
+                  className="rounded-xl border border-slate-200 bg-white p-4 shadow-xl w-full max-w-lg mx-4"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <h2 className="text-sm font-semibold text-slate-800 mb-3">商机线索配置</h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[11px] text-slate-500">业务大类</span>
+                      <input
+                        className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        value={opportunityLeadForm.biz_category_big}
+                        onChange={(e) => setOpportunityLeadForm((p) => ({ ...p, biz_category_big: e.target.value }))}
+                        placeholder="例如：直销/市场/投顾"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[11px] text-slate-500">业务小类</span>
+                      <input
+                        className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        value={opportunityLeadForm.biz_category_small}
+                        onChange={(e) => setOpportunityLeadForm((p) => ({ ...p, biz_category_small: e.target.value }))}
+                        placeholder="例如：渠道/活动"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-0.5 sm:col-span-2">
+                      <span className="text-[11px] text-slate-500">线索名称</span>
+                      <input
+                        className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        value={opportunityLeadForm.clue_name}
+                        onChange={(e) => setOpportunityLeadForm((p) => ({ ...p, clue_name: e.target.value }))}
+                        placeholder="请输入线索名称"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[11px] text-slate-500">是否重要</span>
+                      <select
+                        className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        value={opportunityLeadForm.is_important}
+                        onChange={(e) => setOpportunityLeadForm((p) => ({ ...p, is_important: e.target.value as '1' | '0' }))}
+                      >
+                        <option value="0">否</option>
+                        <option value="1">是</option>
+                      </select>
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[11px] text-slate-500">表名</span>
+                      <input
+                        className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        value={opportunityLeadForm.table_name}
+                        onChange={(e) => setOpportunityLeadForm((p) => ({ ...p, table_name: e.target.value }))}
+                        placeholder="例如：mv_xxx 或 ods_xxx"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-0.5 sm:col-span-2">
+                      <span className="text-[11px] text-slate-500">备注</span>
+                      <input
+                        className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        value={opportunityLeadForm.remark}
+                        onChange={(e) => setOpportunityLeadForm((p) => ({ ...p, remark: e.target.value }))}
+                        placeholder="可选"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 mt-4 justify-end">
+                    <button
+                      onClick={() => {
+                        setOpportunityLeadModal(null)
+                        setEditingOpportunityLead(null)
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-medium"
+                    >
+                      取消
+                    </button>
+                    <button
+                      onClick={() => void saveOpportunityLead()}
                       disabled={isConfigReadOnly}
                       className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-medium"
                     >

@@ -31,6 +31,9 @@ from portal.middleware import auth_middleware
 app = Flask(__name__)
 app.config.from_object(Config)
 
+# 用于前端静态资源 cache bust（避免浏览器/代理缓存导致“改了没生效”）
+PORTAL_BUILD_VERSION = os.environ.get("PORTAL_BUILD_VERSION") or datetime.now().strftime("%Y%m%d%H%M%S")
+
 # 独立运行 portal/app.py 时也要走鉴权中间件，否则 GET / 时拿不到 Cookie 会再次跳到登录
 _auth_config = {
     "AUTH_COOKIE_NAME": app.config["AUTH_COOKIE_NAME"],
@@ -241,6 +244,7 @@ _PATH_TO_MODULE = {
     "/data_map/sql_lineage_web": "sql_lineage",
     "/support/excel_to_hive": "excel_to_hive",
     "/support/dolphin": "dolphin_failed",
+    "/support/sql_to_excel": "sql_to_excel",
     "/business/realtime_mv": "sr_api",
 }
 _MODULE_TO_PATH = {v: k for k, v in _PATH_TO_MODULE.items()}
@@ -263,6 +267,8 @@ def _module_from_path(path):
         return "dolphin_failed"
     if p.startswith("/support/excel_to_hive"):
         return "excel_to_hive"
+    if p.startswith("/support/sql_to_excel"):
+        return "sql_to_excel"
     return None
 
 
@@ -276,6 +282,8 @@ def _module_url(module_id, data_map_base, support_base, business_base):
         return (support_base + "/excel_to_hive/") if support_base else "/support/excel_to_hive/"
     if module_id == "dolphin_failed":
         return (support_base + "/dolphin/") if support_base else "/support/dolphin/"
+    if module_id == "sql_to_excel":
+        return (support_base + "/sql_to_excel/") if support_base else "/support/sql_to_excel/"
     if module_id == "sr_api":
         return (business_base.rstrip("/") + "/realtime_mv/") if business_base else "/business/realtime_mv/"
     return "/data_map/hive_metadata/"
@@ -344,6 +352,7 @@ def _render_index(user, path_hint=None):
         is_readonly=is_readonly,
         first_module_url=first_module_url,
         initial_path=initial_path,
+        build_version=PORTAL_BUILD_VERSION,
     )
 
 
