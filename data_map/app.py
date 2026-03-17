@@ -138,6 +138,51 @@ def hive_index():
 def hive_schemas():
     return jsonify({'success':True,'schemas':HIVE_TARGET_SCHEMAS,'timestamp':datetime.now().isoformat()})
 
+@_hive_app.route('/api/meta/tables', methods=['GET'])
+def hive_meta_tables():
+    """
+    返回数据字典左侧目录树所需的表清单：dwd/dws/ads 的表名 + 表注释。
+    前端会在浏览器侧做模糊匹配过滤。
+    """
+    conn = _get_hive_conn()
+    try:
+        with conn.cursor() as cur:
+            # 只取表清单（不查字段），避免接口过重
+            sql = """
+SELECT
+  d.name AS schema_name,
+  t.tbl_name,
+  tp.param_value AS table_comment,
+  t.tbl_id
+FROM tbls t
+JOIN dbs d ON t.db_id = d.db_id
+LEFT JOIN table_params tp
+  ON t.tbl_id = tp.tbl_id AND tp.param_key = 'comment'
+WHERE d.name IN ('dwd','dws','ads')
+ORDER BY CASE d.name WHEN 'dwd' THEN 1 WHEN 'dws' THEN 2 WHEN 'ads' THEN 3 END, t.tbl_name
+""".strip()
+            cur.execute(sql)
+            rows = cur.fetchall() or []
+            result = []
+            for r in rows:
+                tn = (r.get('tbl_name') or '')
+                if not tn:
+                    continue
+                lower = tn.lower()
+                if any(kw in lower for kw in EXCLUDE_KW) or re.search(r'_20\d{2,}', tn):
+                    continue
+                result.append({
+                    'schema': r.get('schema_name') or '',
+                    'table_name': tn,
+                    'table_comment': r.get('table_comment') or '暂无注释',
+                    'table_id': r.get('tbl_id'),
+                })
+            return jsonify({'success': True, 'data': result, 'count': len(result), 'timestamp': datetime.now().isoformat()})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e), 'timestamp': datetime.now().isoformat()}), 500
+    finally:
+        conn.close()
+
 @_hive_app.route('/api/search-tables', methods=['POST'])
 def hive_search():
     try:
@@ -168,7 +213,21 @@ def hive_search():
                     tn = r['tbl_name'].lower()
                     if any(kw in tn for kw in EXCLUDE_KW) or re.search(r'_20\d{2,}', r['tbl_name']):
                         continue
-                    result.append({'table_name':r['tbl_name'],'table_comment':r.get('table_comment') or '暂无注释','schema':r['schema_name'],'table_id':r['tbl_id'],'search_type':search_type})
+                    item = {
+                        'table_name': r['tbl_name'],
+                        'table_comment': r.get('table_comment') or '暂无注释',
+                        'schema': r['schema_name'],
+                        'table_id': r['tbl_id'],
+                        'search_type': search_type,
+                    }
+                    # 字段搜索：补齐匹配字段信息（前端需要展示“匹配字段/字段注释/字段类型”）
+                    if search_type == 'field':
+                        item.update({
+                            'field_name': r.get('column_name') or '',
+                            'field_comment': r.get('field_comment') or '暂无注释',
+                            'field_type': r.get('field_type') or '',
+                        })
+                    result.append(item)
                 return jsonify({'success':True,'results':result,'count':len(result),'search_pattern':pattern,'search_type':search_type,'timestamp':datetime.now().isoformat()})
         finally:
             conn.close()

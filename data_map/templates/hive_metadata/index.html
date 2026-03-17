@@ -23,96 +23,230 @@
     <p style="margin-top: 10px;"><strong>搜索类型：</strong> 支持按表名/表注释搜索，也支持按字段名/字段注释搜索</p>
 </div>
 
-<div class="search-container">
-    <!-- 搜索类型选择 -->
-    <div class="search-type-selector">
-        <div class="search-type-label">搜索类型:</div>
-        <div class="search-type-buttons">
-            <button class="search-type-btn active" data-type="table" onclick="changeSearchType('table')">
-                <i class="fas fa-table"></i>
-                <span>按表搜索</span>
-            </button>
-            <button class="search-type-btn" data-type="field" onclick="changeSearchType('field')">
-                <i class="fas fa-columns"></i>
-                <span>按字段搜索</span>
-            </button>
+<div class="dict-split">
+    <aside class="dict-tree-panel" aria-label="表目录">
+        <div class="dict-tree-header">
+            <div class="dict-tree-title">目录树</div>
+            <div class="dict-tree-subtitle">DWD / DWS / ADS</div>
         </div>
-    </div>
+        <div class="dict-tree-search">
+            <input id="metaTreeSearch" type="text" placeholder="模糊搜索表名 / 表注释" autocomplete="off">
+        </div>
+        <div id="metaTreeStatus" class="dict-tree-status">正在加载目录...</div>
+        <ul id="metaTree" class="dict-tree"></ul>
+    </aside>
 
-    <!-- 搜索框 -->
-    <div class="search-box">
-        <div class="search-input-with-actions">
-            <div class="search-input-container">
-                <div class="search-icon">
-                    <i class="fas fa-search"></i>
+    <section class="dict-search-panel">
+        <div class="search-container">
+            <!-- 搜索类型选择 -->
+            <div class="search-type-selector">
+                <div class="search-type-label">搜索类型:</div>
+                <div class="search-type-buttons">
+                    <button class="search-type-btn active" data-type="table" onclick="changeSearchType('table')">
+                        <i class="fas fa-table"></i>
+                        <span>按表搜索</span>
+                    </button>
+                    <button class="search-type-btn" data-type="field" onclick="changeSearchType('field')">
+                        <i class="fas fa-columns"></i>
+                        <span>按字段搜索</span>
+                    </button>
                 </div>
-                <input type="text"
-                       id="tableSearch"
-                       placeholder="请输入表名关键词..."
-                       onkeypress="handleKeyPress(event)">
             </div>
-            <div class="search-actions">
-                <button id="searchBtn" onclick="searchTables()" class="primary-button">
-                    <i class="fas fa-search"></i> 搜索
-                </button>
-                <button onclick="clearSearch()" class="secondary-button">
-                    <i class="fas fa-times"></i> 清空
-                </button>
+
+            <!-- 搜索框 -->
+            <div class="search-box">
+                <div class="search-input-with-actions">
+                    <div class="search-input-container">
+                        <div class="search-icon">
+                            <i class="fas fa-search"></i>
+                        </div>
+                        <input type="text"
+                               id="tableSearch"
+                               placeholder="请输入表名关键词..."
+                               onkeypress="handleKeyPress(event)">
+                    </div>
+                    <div class="search-actions">
+                        <button id="searchBtn" onclick="searchTables()" class="primary-button">
+                            <i class="fas fa-search"></i> 搜索
+                        </button>
+                        <button onclick="clearSearch()" class="secondary-button">
+                            <i class="fas fa-times"></i> 清空
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 搜索结果统计信息（默认隐藏，搜索后再展示） -->
+            <div class="search-stats" id="searchStats" style="display:none;">
+                <!-- searchInfo 不再单独占一行，保留隐藏节点供 JS 兼容 -->
+                <div id="searchInfo" class="search-info" style="display:none;"></div>
+                <div id="layerFilters" class="layer-filters"></div>
             </div>
         </div>
-    </div>
 
-    <!-- 搜索结果统计信息 -->
-    <div class="search-stats" id="searchStats">
-        <div class="stats-header">
-            <div class="stats-title">
-                <i class="fas fa-chart-bar"></i>
-                <span id="resultCount">请选择搜索类型并输入关键词</span>
+        <div id="loading" class="loading" style="display: none;">
+            <div class="loading-content">
+                <i class="fas fa-spinner fa-spin"></i>
+                <span>正在搜索中，请稍候...</span>
             </div>
-            <div id="searchInfo" class="search-info"></div>
         </div>
-        <!-- 移除了 distribution-chart 部分，只保留 layer-filters -->
-        <div id="layerFilters" class="layer-filters"></div>
-    </div>
-</div>
 
-<div id="loading" class="loading" style="display: none;">
-    <div class="loading-content">
-        <i class="fas fa-spinner fa-spin"></i>
-        <span>正在搜索中，请稍候...</span>
-    </div>
-</div>
+        <div id="message" class="message" style="display: none;"></div>
 
-<div id="message" class="message" style="display: none;"></div>
-
-<div id="tablesContainer" class="tables-container">
-    <!-- 搜索结果将在这里显示 -->
-</div>
-
-<div id="noResults" class="no-results" style="display: none;">
-    <div class="empty-state">
-        <div class="empty-icon">
-            <i class="fas fa-search fa-3x"></i>
+        <div id="tablesContainer" class="tables-container">
+            <!-- 搜索结果将在这里显示 -->
         </div>
-        <h3>没有找到匹配的结果</h3>
-        <p>请尝试输入不同的关键词或切换搜索类型</p>
-        <div class="empty-tips">
-            <p class="tip">
-                <i class="fas fa-lightbulb"></i>
-                <span id="searchTip">提示：支持模糊匹配，如输入 "user" 会查找包含 "user" 的所有表</span>
-            </p>
-            <p class="tip">
-                <i class="fas fa-lightbulb"></i>
-                中文关键词会同时匹配中文注释
-            </p>
+
+        <div id="noResults" class="no-results" style="display: none;">
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <i class="fas fa-search fa-3x"></i>
+                </div>
+                <h3>没有找到匹配的结果</h3>
+                <p>请尝试输入不同的关键词或切换搜索类型</p>
+                <div class="empty-tips">
+                    <p class="tip">
+                        <i class="fas fa-lightbulb"></i>
+                        <span id="searchTip">提示：支持模糊匹配，如输入 "user" 会查找包含 "user" 的所有表</span>
+                    </p>
+                    <p class="tip">
+                        <i class="fas fa-lightbulb"></i>
+                        中文关键词会同时匹配中文注释
+                    </p>
+                </div>
+            </div>
         </div>
-    </div>
+    </section>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
     var BASE_PATH = "{{ base_path or '' }}";
+    // -------------------- 左侧目录树（与搜索并排） --------------------
+    (function(){
+        var treeEl = document.getElementById('metaTree');
+        var statusEl = document.getElementById('metaTreeStatus');
+        var searchEl = document.getElementById('metaTreeSearch');
+        var _raw = [];
+
+        function escapeHtml(str){
+            return String(str || '')
+                .replace(/&/g,'&amp;')
+                .replace(/</g,'&lt;')
+                .replace(/>/g,'&gt;')
+                .replace(/"/g,'&quot;')
+                .replace(/'/g,'&#39;');
+        }
+        function norm(s){ return String(s || '').toLowerCase(); }
+
+        function buildTree(filterText){
+            if (!treeEl) return;
+            var kw = norm((filterText || '').trim());
+
+            var groups = { dwd: [], dws: [], ads: [] };
+            (_raw || []).forEach(function(r){
+                var schema = (r && r.schema) ? String(r.schema).toLowerCase() : '';
+                if (!groups.hasOwnProperty(schema)) return;
+                groups[schema].push({
+                    table_name: r.table_name || '',
+                    table_comment: r.table_comment || '暂无注释'
+                });
+            });
+
+            function isMatch(it){
+                if (!kw) return true;
+                return norm(it.table_name).indexOf(kw) !== -1 || norm(it.table_comment).indexOf(kw) !== -1;
+            }
+
+            var html = '';
+            ['dwd','dws','ads'].forEach(function(schema){
+                var list = (groups[schema] || []).slice();
+                if (kw) list = list.filter(isMatch);
+                if (!list.length) return;
+                list.sort(function(a,b){ return String(a.table_name).localeCompare(String(b.table_name)); });
+
+                var upper = schema.toUpperCase();
+                var ulId = 'layer-' + schema;
+                var expanded = !!kw; // 搜索时自动展开，便于查看命中
+                html += ''
+                    + '<li class="meta-layer">'
+                    +   '<div class="meta-layer-header" data-role="layer-toggle" data-layer="'+ escapeHtml(schema) +'">'
+                    +     '<span class="meta-layer-chevron" data-layer="'+ escapeHtml(schema) +'">'+ (expanded ? '▼' : '▶') +'</span>'
+                    +     '<span class="meta-layer-name '+ escapeHtml(schema) +'">'+ escapeHtml(upper) +'</span>'
+                    +     '<span class="meta-layer-count">(' + list.length + ')</span>'
+                    +   '</div>'
+                    +   '<ul id="'+ ulId +'" class="meta-layer-list" style="display:'+ (expanded ? 'block' : 'none') +'">';
+
+                list.forEach(function(it){
+                    var tn = it.table_name || '';
+                    var tc = it.table_comment || '暂无注释';
+                    html += ''
+                        + '<li class="meta-table">'
+                        +   '<a class="meta-table-link" href="'+ BASE_PATH + '/table/' + encodeURIComponent(schema) + '/' + encodeURIComponent(tn) + '"'
+                        +      ' title="'+ escapeHtml(schema + '.' + tn + (tc ? (' - ' + tc) : '')) +'">'
+                        +     '<span class="meta-table-name">'+ escapeHtml(tn) +'</span>'
+                        +     '<span class="meta-table-comment">（'+ escapeHtml(tc) +'）</span>'
+                        +   '</a>'
+                        + '</li>';
+                });
+
+                html += '</ul></li>';
+            });
+
+            treeEl.innerHTML = html || '<li class="meta-empty">无匹配表</li>';
+        }
+
+        function toggleLayer(layer){
+            if (!layer) return;
+            var ul = document.getElementById('layer-' + layer);
+            var chev = treeEl ? treeEl.querySelector('.meta-layer-chevron[data-layer="'+ layer +'"]') : null;
+            if (!ul) return;
+            var hidden = ul.style.display === 'none' || !ul.style.display;
+            ul.style.display = hidden ? 'block' : 'none';
+            if (chev) chev.textContent = hidden ? '▼' : '▶';
+        }
+
+        function loadMeta(){
+            if (!statusEl) return;
+            statusEl.textContent = '正在加载目录...';
+            fetch(BASE_PATH + '/api/meta/tables', { method: 'GET', headers: { 'Accept': 'application/json' }})
+                .then(function(r){ return r.json(); })
+                .then(function(data){
+                    if (!data || !data.success) throw new Error((data && (data.error || data.message)) || '加载失败');
+                    _raw = data.data || [];
+                    statusEl.textContent = '已加载 ' + (_raw.length || 0) + ' 张表';
+                    buildTree(searchEl ? searchEl.value : '');
+                })
+                .catch(function(e){
+                    _raw = [];
+                    statusEl.textContent = '加载失败：' + (e && e.message ? e.message : '未知错误');
+                    if (treeEl) treeEl.innerHTML = '<li class="meta-empty">目录加载失败</li>';
+                });
+        }
+
+        if (searchEl) {
+            searchEl.addEventListener('input', function(){
+                buildTree(searchEl.value);
+            });
+        }
+
+        if (treeEl) {
+            treeEl.addEventListener('click', function(ev){
+                var t = ev.target;
+                if (!t) return;
+                var header = (t.getAttribute && t.getAttribute('data-role') === 'layer-toggle') ? t : (t.closest ? t.closest('[data-role="layer-toggle"]') : null);
+                if (header) {
+                    toggleLayer(header.getAttribute('data-layer'));
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function(){
+            loadMeta();
+        });
+    })();
+
     let currentSearchTerm = '';
     let currentSearchType = 'table';
     let searchResults = [];
@@ -159,12 +293,13 @@
         }
     }
 
-    function searchTables() {
+    function searchTables(opts) {
+        opts = opts || {};
         console.log("执行搜索函数");
         currentSearchTerm = document.getElementById('tableSearch').value.trim();
 
         if (!currentSearchTerm) {
-            showMessage('请输入关键词进行搜索', 'warning');
+            if (!opts.silentEmpty) showMessage('请输入关键词进行搜索', 'warning');
             return;
         }
 
@@ -194,6 +329,9 @@
             searchResults = data.results || [];
             displaySearchResults(searchResults);
             updateSearchStats(data);
+
+            // 保存状态：便于从详情页返回后恢复
+            saveSearchState();
         })
         .catch(error => {
             showLoading(false);
@@ -247,14 +385,9 @@
             if (currentSearchType === 'field') {
                 html += `
                 <div class="table-card" onclick="viewTableDetail('${schema}', '${(item && item.table_name) || ''}')">
-                    <div class="card-header">
-                        <div class="layer-indicator-small ${layerClass}">
-                            ${layerName}
-                        </div>
-                    </div>
                     <div class="card-body">
                         <div class="table-name">
-                            <i class="fas fa-table"></i>
+                            <span class="layer-indicator-inline ${layerClass}">${layerName}</span>
                             <span class="name-text">${highlightedTableName}</span>
                         </div>
                         <div class="field-match-section">
@@ -273,34 +406,19 @@
                             ${highlightedTableComment}
                         </div>
                     </div>
-                    <div class="card-footer">
-                        <div class="view-detail-btn">
-                            查看详情 <i class="fas fa-arrow-right"></i>
-                        </div>
-                    </div>
                 </div>
                 `;
             } else {
                 html += `
                 <div class="table-card" onclick="viewTableDetail('${schema}', '${(item && item.table_name) || ''}')">
-                    <div class="card-header">
-                        <div class="layer-indicator-small ${layerClass}">
-                            ${layerName}
-                        </div>
-                    </div>
                     <div class="card-body">
                         <div class="table-name">
-                            <i class="fas fa-table"></i>
+                            <span class="layer-indicator-inline ${layerClass}">${layerName}</span>
                             <span class="name-text">${highlightedTableName}</span>
                         </div>
                         <div class="table-comment">
                             <span class="comment-label">表注释：</span>
                             ${highlightedTableComment}
-                        </div>
-                    </div>
-                    <div class="card-footer">
-                        <div class="view-detail-btn">
-                            查看详情 <i class="fas fa-arrow-right"></i>
                         </div>
                     </div>
                 </div>
@@ -331,22 +449,23 @@
             activeLayerFilter = layer;
             displaySearchResults(searchResults);
         }
+        saveSearchState();
     }
 
     function updateSearchStats(data) {
         if (!data) return;
-        const resultCount = document.getElementById('resultCount');
         const layerFilters = document.getElementById('layerFilters');
-        const searchInfo = document.getElementById('searchInfo');
+        const searchStats = document.getElementById('searchStats');
 
         if (data.count > 0 && Array.isArray(data.results)) {
-            // 使用高亮显示搜索词
+            if (searchStats) searchStats.style.display = 'block';
+            // 使用高亮显示搜索词（会插入到筛选行最前面）
             const highlightedSearchPattern = highlightSearchTerm(data.search_pattern, data.search_pattern);
-            resultCount.innerHTML = `共找到 ${data.count} 个结果，搜索词: "${highlightedSearchPattern}"`;
+            const summaryHtml = `共找到 ${data.count} 个结果，搜索词: "${highlightedSearchPattern}"`;
 
             const searchTypeText = data.search_type === 'field' ? '字段搜索' : '表搜索';
             const searchModeText = String(data.search_mode || '模糊搜索').replace(/（/g, '(').replace(/）/g, ')');
-            searchInfo.innerHTML = `<i class="fas fa-info-circle"></i> ${searchTypeText} | ${searchModeText}`;
+            const metaHtml = `${searchTypeText} | ${searchModeText}`;
 
             // 统计各层数量
             const layerCounts = {};
@@ -357,7 +476,8 @@
 
             // 添加过滤按钮
             let filtersHtml = '<div class="filter-buttons">';
-            filtersHtml += '<span class="filter-label">筛选: </span>';
+            filtersHtml += `<span class="result-summary">${summaryHtml}</span>`;
+            filtersHtml += '<span class="filter-label">筛选</span>';
 
             const layers = ['DWD', 'DWS', 'ADS'];
             layers.forEach(layer => {
@@ -372,17 +492,18 @@
             });
 
             filtersHtml += '<button class="layer-filter-btn" onclick="filterByLayer(null)">全部</button>';
+            filtersHtml += `<span class="search-meta">${metaHtml}</span>`;
             filtersHtml += '</div>';
             layerFilters.innerHTML = filtersHtml;
         } else {
-            const highlightedSearchPattern = highlightSearchTerm(data.search_pattern, data.search_pattern);
-            resultCount.innerHTML = `未找到包含 "${highlightedSearchPattern}" 的${data.search_type === 'field' ? '字段' : '表'}`;
+            if (searchStats) searchStats.style.display = 'none';
             layerFilters.innerHTML = '';
-            searchInfo.innerHTML = '';
         }
     }
 
     function viewTableDetail(schema, tableName) {
+        // 进入详情前再保存一次，确保返回可恢复
+        saveSearchState();
         window.location.href = `${BASE_PATH}/table/${encodeURIComponent(schema)}/${encodeURIComponent(tableName)}`;
     }
 
@@ -390,18 +511,13 @@
         document.getElementById('tableSearch').value = '';
         document.getElementById('tablesContainer').innerHTML = '';
         document.getElementById('noResults').style.display = 'none';
-        document.getElementById('searchStats').innerHTML = `
-            <div class="stats-header">
-                <div class="stats-title">
-                    <i class="fas fa-chart-bar"></i>
-                    <span id="resultCount">请选择搜索类型并输入关键词</span>
-                </div>
-                <div id="searchInfo" class="search-info"></div>
-            </div>
-            <div id="layerFilters" class="layer-filters"></div>
-        `;
+        const searchStats = document.getElementById('searchStats');
+        if (searchStats) searchStats.style.display = 'none';
+        const layerFilters = document.getElementById('layerFilters');
+        if (layerFilters) layerFilters.innerHTML = '';
         showMessage('搜索已清空', 'info');
         activeLayerFilter = null;
+        clearSearchState();
     }
 
     function showLoading(show) {
@@ -419,10 +535,45 @@
         }, 3000);
     }
 
+    // ----------- 结果保留：从详情页返回时恢复搜索 -----------
+    const SEARCH_STATE_KEY = 'hive_meta_search_state_v1';
+
+    function saveSearchState() {
+        try {
+            const payload = {
+                term: currentSearchTerm || (document.getElementById('tableSearch') ? document.getElementById('tableSearch').value.trim() : ''),
+                type: currentSearchType || 'table',
+                layer: activeLayerFilter || null
+            };
+            sessionStorage.setItem(SEARCH_STATE_KEY, JSON.stringify(payload));
+        } catch (e) {}
+    }
+
+    function clearSearchState() {
+        try { sessionStorage.removeItem(SEARCH_STATE_KEY); } catch (e) {}
+    }
+
+    function loadSearchState() {
+        try {
+            const s = sessionStorage.getItem(SEARCH_STATE_KEY);
+            return s ? JSON.parse(s) : null;
+        } catch (e) { return null; }
+    }
+
     // 初始化
     document.addEventListener('DOMContentLoaded', function() {
         console.log("DOM已加载完成");
-        changeSearchType('table');
+        const st = loadSearchState();
+        if (st && st.term) {
+            changeSearchType(st.type || 'table');
+            const input = document.getElementById('tableSearch');
+            if (input) input.value = st.term;
+            activeLayerFilter = st.layer || null;
+            // 自动恢复搜索
+            searchTables({ silentEmpty: true });
+        } else {
+            changeSearchType('table');
+        }
     });
 </script>
 {% endblock %}

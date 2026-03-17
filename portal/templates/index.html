@@ -115,6 +115,9 @@
                         <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_opportunity_lead" href="#sr_api_config_opportunity_lead">
                             <span>商机线索配置</span>
                         </a>
+                        <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_morning_hot_stock_track" href="#sr_api_config_morning_hot_stock_track">
+                            <span>早盘人气股战绩追踪配置</span>
+                        </a>
                     </div>
                 </div>
                 {% endif %}
@@ -182,7 +185,8 @@
                 "sr_api_config_staff": { module: "sr_api", view: "config_staff" },
                 "sr_api_config_code_mapping": { module: "sr_api", view: "config_code_mapping" },
                 "sr_api_config_stock_position": { module: "sr_api", view: "config_stock_position" },
-                "sr_api_config_opportunity_lead": { module: "sr_api", view: "config_opportunity_lead" }
+                "sr_api_config_opportunity_lead": { module: "sr_api", view: "config_opportunity_lead" },
+                "sr_api_config_morning_hot_stock_track": { module: "sr_api", view: "config_morning_hot_stock_track" }
             };
             var config = {
                 hive_metadata: (dataMapBase ? dataMapBase + "/hive_metadata/" : "/data_map/hive_metadata/"),
@@ -283,6 +287,8 @@
                         title = "投顾中心-产品净值";
                     } else if (view === "config_opportunity_lead") {
                         title = "客户中心-商机线索配置";
+                    } else if (view === "config_morning_hot_stock_track") {
+                        title = "客户中心-早盘人气股战绩追踪配置";
                     } else {
                         title = "业务应用";
                     }
@@ -310,6 +316,8 @@
                         url = url + sep + "view=config&tab=stock_position";
                     } else if (view === "config_opportunity_lead") {
                         url = url + sep + "view=config&tab=opportunity_lead";
+                    } else if (view === "config_morning_hot_stock_track") {
+                        url = url + sep + "view=config&tab=morning_hot_stock_track";
                     }
                     // 只读账号：业务应用追加 readonly=1
                     if (isReadOnly) {
@@ -387,7 +395,7 @@
                         }
                     });
                     var v = (params.view || "realtime").trim();
-                    if (["realtime", "open_channel_daily", "config_open", "config_staff", "config_code_mapping", "config_stock_position", "config_opportunity_lead"].indexOf(v) >= 0) view = v;
+                    if (["realtime", "open_channel_daily", "config_open", "config_staff", "config_code_mapping", "config_stock_position", "config_opportunity_lead", "config_morning_hot_stock_track"].indexOf(v) >= 0) view = v;
                     else view = "realtime";
                 }
                 var item = findNavItem(moduleId, view);

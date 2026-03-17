@@ -196,6 +196,7 @@ CONFIG_CHANNEL_STAFF_TABLE = "config_channel_staff"
 CONFIG_CODE_MAPPING_TABLE = "code_mapping"
 CONFIG_STOCK_POSITION_TABLE = "config_stock_position"
 CONFIG_OPPORTUNITY_LEAD_TABLE = "config_opportunity_lead"
+CONFIG_MORNING_HOT_STOCK_TRACK_TABLE = "config_morning_hot_stock_track"
 
 
 class OpenChannelTagBase(BaseModel):
@@ -278,6 +279,42 @@ def _row_opportunity_lead_fix(row: Dict[str, Any]) -> Dict[str, Any]:
                 row["is_important"] = bool(int(v))
             except Exception:
                 row["is_important"] = bool(v)
+    return row
+
+
+# -------------------- 配置表：客户中心-早盘人气股战绩追踪 --------------------
+
+class MorningHotStockTrackBase(BaseModel):
+    tg_name: Optional[str] = None      # 投顾/老师名称
+    biz_date: Optional[str] = None     # YYYY-MM-DD
+    stock_name: Optional[str] = None   # 人气股
+    stock_code: Optional[str] = None   # 代码
+    remark: Optional[str] = None       # 备注
+
+
+class MorningHotStockTrackCreate(MorningHotStockTrackBase):
+    pass
+
+
+class MorningHotStockTrackUpdate(MorningHotStockTrackBase):
+    pass
+
+
+class MorningHotStockTrackOut(MorningHotStockTrackBase):
+    id: int
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+def _row_morning_hot_stock_track_fix(row: Dict[str, Any]) -> Dict[str, Any]:
+    if not row:
+        return row
+    row = dict(row)
+    # 时间字段
+    row = _row_config_time_fix(row)
+    # 日期字段
+    if "biz_date" in row and row.get("biz_date") is not None:
+        row["biz_date"] = _parse_date(row.get("biz_date"))
     return row
 
 
@@ -861,6 +898,150 @@ async def delete_opportunity_lead(item_id: int, request: Request) -> Dict[str, A
     try:
         with _db_cursor() as cur:
             cur.execute(f"DELETE FROM `{CONFIG_OPPORTUNITY_LEAD_TABLE}` WHERE id = %s", (item_id,))
+            if cur.rowcount == 0:
+                raise HTTPException(status_code=404, detail="记录不存在")
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# -------------------- API：客户中心-早盘人气股战绩追踪配置 --------------------
+
+@app.get("/api/config/morning-hot-stock-track/tg-names", response_model=List[str])
+async def list_morning_hot_stock_track_tg_names() -> List[str]:
+    """
+    返回老师列表（去重），用于前端下拉筛选。
+    """
+    try:
+        with _db_cursor() as cur:
+            cur.execute(
+                f"SELECT DISTINCT tg_name AS tg_name "
+                f"FROM `{CONFIG_MORNING_HOT_STOCK_TRACK_TABLE}` "
+                f"WHERE tg_name IS NOT NULL AND TRIM(tg_name) != '' "
+                f"ORDER BY tg_name"
+            )
+            rows = cur.fetchall() or []
+        return [str(r.get("tg_name") or "").strip() for r in rows if str(r.get("tg_name") or "").strip()]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/config/morning-hot-stock-track", response_model=List[MorningHotStockTrackOut])
+async def list_morning_hot_stock_track(tg_name: Optional[str] = None) -> List[MorningHotStockTrackOut]:
+    try:
+        with _db_cursor() as cur:
+            if tg_name and tg_name.strip():
+                cur.execute(
+                    f"SELECT id, tg_name, biz_date, stock_name, stock_code, remark, created_at, updated_at "
+                    f"FROM `{CONFIG_MORNING_HOT_STOCK_TRACK_TABLE}` "
+                    f"WHERE tg_name = %s "
+                    f"ORDER BY created_at DESC, id DESC",
+                    (tg_name.strip(),),
+                )
+            else:
+                cur.execute(
+                    f"SELECT id, tg_name, biz_date, stock_name, stock_code, remark, created_at, updated_at "
+                    f"FROM `{CONFIG_MORNING_HOT_STOCK_TRACK_TABLE}` "
+                    f"ORDER BY created_at DESC, id DESC"
+                )
+            rows = cur.fetchall()
+        return [MorningHotStockTrackOut(**_row_morning_hot_stock_track_fix(r)) for r in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/config/morning-hot-stock-track", response_model=MorningHotStockTrackOut)
+async def create_morning_hot_stock_track(body: MorningHotStockTrackCreate, request: Request) -> MorningHotStockTrackOut:
+    _reject_if_readonly(request)
+    try:
+        now_str = datetime.now().strftime(_DT_FMT)
+        with _db_cursor() as cur:
+            cur.execute(
+                f"INSERT INTO `{CONFIG_MORNING_HOT_STOCK_TRACK_TABLE}` "
+                f"(id, tg_name, biz_date, stock_name, stock_code, remark, created_at, updated_at) "
+                f"VALUES (DEFAULT, %s, %s, %s, %s, %s, %s, %s)",
+                (
+                    (body.tg_name or "").strip() or None,
+                    (body.biz_date or "").strip() or None,
+                    (body.stock_name or "").strip() or None,
+                    (body.stock_code or "").strip() or None,
+                    (body.remark or "").strip() or None,
+                    now_str,
+                    now_str,
+                ),
+            )
+            # 取最新一条（倒序）
+            cur.execute(
+                f"SELECT id, tg_name, biz_date, stock_name, stock_code, remark, created_at, updated_at "
+                f"FROM `{CONFIG_MORNING_HOT_STOCK_TRACK_TABLE}` ORDER BY id DESC LIMIT 1"
+            )
+            row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=500, detail="创建失败")
+        return MorningHotStockTrackOut(**_row_morning_hot_stock_track_fix(row))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/config/morning-hot-stock-track/{item_id}", response_model=MorningHotStockTrackOut)
+async def update_morning_hot_stock_track(item_id: int, body: MorningHotStockTrackUpdate, request: Request) -> MorningHotStockTrackOut:
+    _reject_if_readonly(request)
+    if body.tg_name is None and body.biz_date is None and body.stock_name is None and body.stock_code is None and body.remark is None:
+        raise HTTPException(status_code=400, detail="至少提供一个需要更新的字段")
+    try:
+        now_str = datetime.now().strftime(_DT_FMT)
+        with _db_cursor() as cur:
+            cur.execute(
+                f"SELECT id, tg_name, biz_date, stock_name, stock_code, remark, created_at, updated_at "
+                f"FROM `{CONFIG_MORNING_HOT_STOCK_TRACK_TABLE}` WHERE id = %s",
+                (item_id,),
+            )
+            old = cur.fetchone()
+            if not old:
+                raise HTTPException(status_code=404, detail="记录不存在")
+
+            def _pick(key: str, new_val: Any):
+                return new_val if new_val is not None else old.get(key)
+
+            created_at = _fmt_dt(old.get("created_at")) or now_str
+            new_tg_name = (str(_pick("tg_name", body.tg_name) or "").strip() or None)
+            new_biz_date = (str(_pick("biz_date", body.biz_date) or "").strip() or None)
+            new_name = (str(_pick("stock_name", body.stock_name) or "").strip() or None)
+            new_code = (str(_pick("stock_code", body.stock_code) or "").strip() or None)
+            new_remark = (str(_pick("remark", body.remark) or "").strip() or None)
+
+            # StarRocks 兼容：DELETE + INSERT
+            cur.execute(f"DELETE FROM `{CONFIG_MORNING_HOT_STOCK_TRACK_TABLE}` WHERE id = %s", (item_id,))
+            cur.execute(
+                f"INSERT INTO `{CONFIG_MORNING_HOT_STOCK_TRACK_TABLE}` "
+                f"(id, tg_name, biz_date, stock_name, stock_code, remark, created_at, updated_at) "
+                f"VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                (item_id, new_tg_name, new_biz_date, new_name, new_code, new_remark, created_at, now_str),
+            )
+            cur.execute(
+                f"SELECT id, tg_name, biz_date, stock_name, stock_code, remark, created_at, updated_at "
+                f"FROM `{CONFIG_MORNING_HOT_STOCK_TRACK_TABLE}` WHERE id = %s",
+                (item_id,),
+            )
+            row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="记录不存在")
+        return MorningHotStockTrackOut(**_row_morning_hot_stock_track_fix(row))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/config/morning-hot-stock-track/{item_id}")
+async def delete_morning_hot_stock_track(item_id: int, request: Request) -> Dict[str, Any]:
+    _reject_if_readonly(request)
+    try:
+        with _db_cursor() as cur:
+            cur.execute(f"DELETE FROM `{CONFIG_MORNING_HOT_STOCK_TRACK_TABLE}` WHERE id = %s", (item_id,))
             if cur.rowcount == 0:
                 raise HTTPException(status_code=404, detail="记录不存在")
         return {"success": True}

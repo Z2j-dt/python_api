@@ -112,24 +112,33 @@
     var html = '';
     Object.keys(dbMap).sort().forEach(function(db){
       var group = dbMap[db];
-      var children = group.tables.concat(group.views);
-      // 若有关键字，则判断当前库是否命中
-      if (kw) {
-        var matchAny = children.some(function(it){
-          return it.name.toLowerCase().indexOf(kw) !== -1 || (it.comment || '').toLowerCase().indexOf(kw) !== -1;
-        }) || db.toLowerCase().indexOf(kw) !== -1;
-        if (!matchAny) return;
+      var dbLower = db.toLowerCase();
+      var dbMatch = kw ? (dbLower.indexOf(kw) !== -1) : false;
+      function isMatch(it){
+        if (!kw) return true;
+        var n = (it && it.name) ? String(it.name).toLowerCase() : '';
+        var c = (it && it.comment) ? String(it.comment).toLowerCase() : '';
+        return n.indexOf(kw) !== -1 || c.indexOf(kw) !== -1;
+      }
+      // 关键字筛选：按库分组，仅展示命中的表/视图
+      var tablesToShow = group.tables;
+      var viewsToShow = group.views;
+      if (kw && !dbMatch) {
+        tablesToShow = (group.tables || []).filter(isMatch);
+        viewsToShow = (group.views || []).filter(isMatch);
+        if ((!tablesToShow || !tablesToShow.length) && (!viewsToShow || !viewsToShow.length)) return;
       }
       var dbId = 'db-' + encodeURIComponent(db);
+      var defaultExpanded = !!kw; // 有关键字时默认展开，直接看命中项
       html += '<li style="margin-bottom:4px;">' +
         '<div data-role="db-toggle" data-db="'+ escapeHtml(db) +'" style="cursor:pointer; font-weight:600; color:#111827; display:flex; align-items:center;">' +
-        '<span class="chevron" data-db="'+ escapeHtml(db) +'" style="display:inline-block; width:10px; margin-right:4px;">▶</span>' +
+        '<span class="chevron" data-db="'+ escapeHtml(db) +'" style="display:inline-block; width:10px; margin-right:4px;">' + (defaultExpanded ? '▼' : '▶') + '</span>' +
         '<span title="'+ escapeHtml(db) +'">'+ escapeHtml(db) +'</span>' +
         '</div>' +
-        '<ul id="'+ dbId +'" style="list-style:none; margin:2px 0 4px 14px; padding:0; display:none;">';
+        '<ul id="'+ dbId +'" style="list-style:none; margin:2px 0 4px 14px; padding:0; display:' + (defaultExpanded ? 'block' : 'none') + ';">';
 
       ['tables', 'views'].forEach(function(kind){
-        var list = group[kind];
+        var list = kind === 'tables' ? tablesToShow : viewsToShow;
         if (!list || !list.length) return;
         var label = kind === 'tables' ? '表' : '视图';
         html += '<li style="margin:2px 0; color:#6b7280;">'+ label +'</li>';

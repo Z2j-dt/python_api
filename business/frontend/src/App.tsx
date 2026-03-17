@@ -136,7 +136,24 @@ interface NavChartPoint {
   hs300_nav?: number | null
 }
 
-type ConfigTab = 'open_channel_tag' | 'channel_staff' | 'code_mapping' | 'stock_position' | 'opportunity_lead'
+interface MorningHotStockTrackItem {
+  id: number
+  tg_name?: string | null
+  biz_date?: string | null
+  stock_name?: string | null
+  stock_code?: string | null
+  remark?: string | null
+  created_at?: string | null
+  updated_at?: string | null
+}
+
+type ConfigTab =
+  | 'open_channel_tag'
+  | 'channel_staff'
+  | 'code_mapping'
+  | 'stock_position'
+  | 'opportunity_lead'
+  | 'morning_hot_stock_track'
 
 type ViewMode = 'realtime' | 'open_channel_daily' | 'config'
 
@@ -152,6 +169,7 @@ const CONFIG_TAB_LABEL: Record<ConfigTab, string> = {
   code_mapping:  '',
   stock_position: '',
   opportunity_lead: '',
+  morning_hot_stock_track: '',
 }
 
 function getViewFromLocation(): ViewMode {
@@ -172,6 +190,7 @@ function getConfigTabFromLocation(): ConfigTab {
     if (tab === 'code_mapping') return 'code_mapping'
     if (tab === 'channel_staff') return 'channel_staff'
     if (tab === 'opportunity_lead') return 'opportunity_lead'
+    if (tab === 'morning_hot_stock_track') return 'morning_hot_stock_track'
     return 'open_channel_tag'
   } catch {
     return 'open_channel_tag'
@@ -367,6 +386,28 @@ function App() {
     table_name: '',
   })
 
+  // 客户中心：早盘人气股战绩追踪配置
+  const [morningHotStockTrackItems, setMorningHotStockTrackItems] = useState<MorningHotStockTrackItem[]>([])
+  const [editingMorningHotStockTrack, setEditingMorningHotStockTrack] = useState<MorningHotStockTrackItem | null>(null)
+  const [morningHotStockTrackModal, setMorningHotStockTrackModal] = useState<'add' | 'edit' | null>(null)
+  const [morningHotStockTrackTgName, setMorningHotStockTrackTgName] = useState<string>('胡晶翔')
+  const [morningHotStockTrackTgNames, setMorningHotStockTrackTgNames] = useState<string[]>([])
+  const MORNING_HOT_STOCK_TRACK_PAGE_SIZE = 30
+  const [morningHotStockTrackPage, setMorningHotStockTrackPage] = useState<number>(1)
+  const [morningHotStockTrackForm, setMorningHotStockTrackForm] = useState<{
+    tg_name: string
+    biz_date: string
+    stock_name: string
+    stock_code: string
+    remark: string
+  }>({
+    tg_name: '胡晶翔',
+    biz_date: '',
+    stock_name: '',
+    stock_code: '',
+    remark: '',
+  })
+
   // code_mapping（新增在业务配置下方）
   const [codeMappingItems, setCodeMappingItems] = useState<CodeMappingItem[]>([])
   const [codeMappingLoading, setCodeMappingLoading] = useState(false)
@@ -513,6 +554,43 @@ function App() {
     }
   }, [])
 
+  const loadMorningHotStockTrack = useCallback(async () => {
+    setConfigLoading(true)
+    setConfigError(null)
+    try {
+      const params = new URLSearchParams()
+      if (morningHotStockTrackTgName.trim()) params.set('tg_name', morningHotStockTrackTgName.trim())
+      const res = await fetchWithTimeout(`${API_BASE}/api/config/morning-hot-stock-track?${params}`)
+      if (!res.ok) throw new Error(await res.text())
+      const list: MorningHotStockTrackItem[] = await res.json()
+      setMorningHotStockTrackItems(list)
+      setMorningHotStockTrackPage(1)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '加载早盘人气股战绩追踪配置失败'
+      const display =
+        msg === 'The operation was aborted.' || msg.includes('fetch') || msg.includes('Failed')
+          ? '请求超时或网络不可达，请检查内网连接'
+          : msg
+      setConfigError(display)
+    } finally {
+      setConfigLoading(false)
+    }
+  }, [morningHotStockTrackTgName])
+
+  const loadMorningHotStockTrackTgNames = useCallback(async () => {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/config/morning-hot-stock-track/tg-names`)
+      if (!res.ok) throw new Error(await res.text())
+      const list: string[] = await res.json()
+      setMorningHotStockTrackTgNames(list)
+      if (list.length > 0 && list.indexOf(morningHotStockTrackTgName) < 0) {
+        setMorningHotStockTrackTgName(list[0])
+      }
+    } catch {
+      setMorningHotStockTrackTgNames([])
+    }
+  }, [morningHotStockTrackTgName])
+
   const loadCodeMapping = useCallback(async () => {
     setCodeMappingLoading(true)
     setCodeMappingError(null)
@@ -569,6 +647,8 @@ function App() {
       void loadOpenChannelTags()
     } else if (configTab === 'opportunity_lead') {
       void loadOpportunityLeads()
+    } else if (configTab === 'morning_hot_stock_track') {
+      void loadMorningHotStockTrack()
     } else if (configTab === 'stock_position') {
       void loadStockPosition()
       void loadStockPositionProducts()
@@ -584,10 +664,19 @@ function App() {
       void loadOpenChannelTags()
     } else if (configTab === 'opportunity_lead') {
       void loadOpportunityLeads()
+    } else if (configTab === 'morning_hot_stock_track') {
+      void loadMorningHotStockTrackTgNames()
+      void loadMorningHotStockTrack()
     } else {
       void loadChannelStaff()
     }
-  }, [isConfigMode, configTab, loadOpenChannelTags, loadOpportunityLeads, loadChannelStaff])
+  }, [isConfigMode, configTab, loadOpenChannelTags, loadOpportunityLeads, loadMorningHotStockTrackTgNames, loadMorningHotStockTrack, loadChannelStaff])
+
+  useEffect(() => {
+    if (!isConfigMode) return
+    if (configTab !== 'morning_hot_stock_track') return
+    void loadMorningHotStockTrack()
+  }, [isConfigMode, configTab, morningHotStockTrackTgName, loadMorningHotStockTrack])
 
   useEffect(() => {
     if (!isConfigMode) return
@@ -1098,6 +1187,82 @@ function App() {
     }
   }
 
+  // -------------------- 客户中心：早盘人气股战绩追踪配置 --------------------
+
+  const openEditMorningHotStockTrack = (item: MorningHotStockTrackItem) => {
+    setEditingMorningHotStockTrack(item)
+    setMorningHotStockTrackForm({
+      tg_name: String(item.tg_name ?? morningHotStockTrackTgName ?? ''),
+      biz_date: String(item.biz_date ?? ''),
+      stock_name: String(item.stock_name ?? ''),
+      stock_code: String(item.stock_code ?? ''),
+      remark: String(item.remark ?? ''),
+    })
+    setMorningHotStockTrackModal('edit')
+  }
+
+  const saveMorningHotStockTrack = async () => {
+    if (isConfigReadOnly) return
+    setConfigError(null)
+    try {
+      const isEdit = morningHotStockTrackModal === 'edit' && !!editingMorningHotStockTrack
+      const url = isEdit
+        ? `${API_BASE}/api/config/morning-hot-stock-track/${editingMorningHotStockTrack!.id}`
+        : `${API_BASE}/api/config/morning-hot-stock-track`
+      const method = isEdit ? 'PUT' : 'POST'
+      const payload = {
+        tg_name: morningHotStockTrackForm.tg_name.trim() || null,
+        biz_date: morningHotStockTrackForm.biz_date.trim() || null,
+        stock_name: morningHotStockTrackForm.stock_name.trim() || null,
+        stock_code: morningHotStockTrackForm.stock_code.trim() || null,
+        remark: morningHotStockTrackForm.remark.trim() || null,
+      }
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) throw new Error(await res.text())
+
+      // 新增后立即置顶（后端也会按 created_at DESC 排序兜底）
+      if (!isEdit) {
+        try {
+          const created: MorningHotStockTrackItem = await res.json()
+          // 只要是当前老师的数据，就置顶；否则刷新让筛选生效
+          if ((created.tg_name ?? '').trim() === morningHotStockTrackTgName.trim()) {
+            setMorningHotStockTrackItems((prev) => [created, ...prev])
+          } else {
+            await refreshCurrentConfig()
+          }
+          setMorningHotStockTrackModal(null)
+          setEditingMorningHotStockTrack(null)
+          return
+        } catch {
+          // fallback：走刷新
+        }
+      }
+
+      await refreshCurrentConfig()
+      setEditingMorningHotStockTrack(null)
+      setMorningHotStockTrackModal(null)
+    } catch (e) {
+      setConfigError(e instanceof Error ? e.message : '保存失败')
+    }
+  }
+
+  const deleteMorningHotStockTrack = async (item: MorningHotStockTrackItem) => {
+    if (isConfigReadOnly) return
+    if (!window.confirm(`确定删除【${item.stock_name ?? '-'} ${item.stock_code ?? ''}】这条记录吗？`)) return
+    setConfigError(null)
+    try {
+      const res = await fetch(`${API_BASE}/api/config/morning-hot-stock-track/${item.id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error(await res.text())
+      window.location.reload()
+    } catch {
+      window.location.reload()
+    }
+  }
+
   // -------------------- 渲染：顶部导航 --------------------
 
   const pageTitle = (() => {
@@ -1112,6 +1277,7 @@ function App() {
     if (configTab === 'channel_staff') return '承接人员配置'
     if (configTab === 'stock_position') return '产品净值'
     if (configTab === 'opportunity_lead') return '商机线索配置'
+    if (configTab === 'morning_hot_stock_track') return '早盘人气股战绩追踪配置'
     return 'StarRocks 业务应用'
   })()
 
@@ -1320,6 +1486,16 @@ function App() {
                           table_name: '',
                         })
                         setOpportunityLeadModal('add')
+                      } else if (configTab === 'morning_hot_stock_track') {
+                        setEditingMorningHotStockTrack(null)
+                        setMorningHotStockTrackForm({
+                          tg_name: morningHotStockTrackTgName.trim() || '胡晶翔',
+                          biz_date: '',
+                          stock_name: '',
+                          stock_code: '',
+                          remark: '',
+                        })
+                        setMorningHotStockTrackModal('add')
                       }
                     }}
                     disabled={isConfigReadOnly}
@@ -1569,6 +1745,137 @@ function App() {
                           ))}
                         </tbody>
                       </table>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : configTab === 'morning_hot_stock_track' ? (
+              <div>
+                <div className="mb-3 flex flex-wrap items-center gap-3">
+                  <label className="text-sm text-slate-600 whitespace-nowrap">老师：</label>
+                  <select
+                    value={morningHotStockTrackTgName}
+                    onChange={(e) => {
+                      setMorningHotStockTrackTgName(e.target.value)
+                      setMorningHotStockTrackPage(1)
+                    }}
+                    className="px-3 py-2 rounded-lg border border-slate-300 text-slate-800 text-sm bg-white w-56"
+                    title="选择老师"
+                  >
+                    {(morningHotStockTrackTgNames.length ? morningHotStockTrackTgNames : ['胡晶翔']).map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => void loadMorningHotStockTrack()}
+                    disabled={configLoading}
+                    className="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed text-slate-800 font-medium transition-colors"
+                  >
+                    {configLoading ? '查询中...' : '查询'}
+                  </button>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    {configLoading && morningHotStockTrackItems.length === 0 ? (
+                      <div className="py-10 text-center text-slate-500">加载中...</div>
+                    ) : morningHotStockTrackItems.length === 0 ? (
+                      <div className="py-10 text-center text-slate-500">暂无配置数据</div>
+                    ) : (
+                      <>
+                        {(() => {
+                          const total = morningHotStockTrackItems.length
+                          const totalPages = Math.max(1, Math.ceil(total / MORNING_HOT_STOCK_TRACK_PAGE_SIZE))
+                          const page = Math.min(Math.max(1, morningHotStockTrackPage), totalPages)
+                          const start = (page - 1) * MORNING_HOT_STOCK_TRACK_PAGE_SIZE
+                          const end = Math.min(start + MORNING_HOT_STOCK_TRACK_PAGE_SIZE, total)
+                          const pageItems = morningHotStockTrackItems.slice(start, end)
+                          return (
+                            <>
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="border-b border-slate-200 bg-slate-100">
+                                    <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">ID</th>
+                                    <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">老师</th>
+                                    <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">日期</th>
+                                    <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">人气股</th>
+                                    <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">代码</th>
+                                    <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">备注</th>
+                                    <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">创建时间</th>
+                                    <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">更新时间</th>
+                                    <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">操作</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {pageItems.map((item) => (
+                                    <tr
+                                      key={item.id}
+                                      className="border-b border-slate-200 hover:bg-slate-100/80 transition-colors"
+                                    >
+                                      <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{item.id}</td>
+                                      <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{item.tg_name ?? '-'}</td>
+                                      <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{item.biz_date ?? '-'}</td>
+                                      <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{item.stock_name ?? '-'}</td>
+                                      <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{item.stock_code ?? '-'}</td>
+                                      <td className="px-4 py-3 text-slate-700 whitespace-nowrap max-w-xs truncate" title={String(item.remark ?? '')}>
+                                        {item.remark ?? '-'}
+                                      </td>
+                                      <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{item.created_at ?? '-'}</td>
+                                      <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{item.updated_at ?? '-'}</td>
+                                      <td className="px-4 py-3 text-slate-700 whitespace-nowrap">
+                                        <button
+                                          onClick={() => openEditMorningHotStockTrack(item)}
+                                          disabled={isConfigReadOnly}
+                                          className={`mr-2 px-3 py-1 text-xs font-medium ${
+                                            isConfigReadOnly ? 'text-slate-400 cursor-not-allowed' : 'text-sky-600 hover:text-sky-700'
+                                          }`}
+                                        >
+                                          修改
+                                        </button>
+                                        <button
+                                          onClick={() => void deleteMorningHotStockTrack(item)}
+                                          disabled={isConfigReadOnly}
+                                          className={`px-3 py-1 text-xs font-medium ${
+                                            isConfigReadOnly ? 'text-slate-300 cursor-not-allowed' : 'text-red-600 hover:text-red-700'
+                                          }`}
+                                        >
+                                          删除
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+
+                              <div className="px-4 py-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 bg-white">
+                                <span className="text-slate-600 text-sm">
+                                  第 {total ? start + 1 : 0}-{end} 条 / 共 {total} 条
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => setMorningHotStockTrackPage((p) => Math.max(1, p - 1))}
+                                    disabled={page <= 1}
+                                    className="px-3 py-1 rounded bg-slate-200 hover:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 text-sm"
+                                  >
+                                    上一页
+                                  </button>
+                                  <span className="text-slate-500 text-sm">
+                                    {page} / {totalPages}
+                                  </span>
+                                  <button
+                                    onClick={() => setMorningHotStockTrackPage((p) => Math.min(totalPages, p + 1))}
+                                    disabled={page >= totalPages}
+                                    className="px-3 py-1 rounded bg-slate-200 hover:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 text-sm"
+                                  >
+                                    下一页
+                                  </button>
+                                </div>
+                              </div>
+                            </>
+                          )
+                        })()}
+                      </>
                     )}
                   </div>
                 </div>
@@ -2816,6 +3123,100 @@ function App() {
                     </button>
                     <button
                       onClick={() => void saveOpportunityLead()}
+                      disabled={isConfigReadOnly}
+                      className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-medium"
+                    >
+                      保存
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 客户中心-早盘人气股战绩追踪配置 弹窗 */}
+            {morningHotStockTrackModal && (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+                onClick={() => {
+                  setMorningHotStockTrackModal(null)
+                  setEditingMorningHotStockTrack(null)
+                  setMorningHotStockTrackForm({
+                    tg_name: morningHotStockTrackTgName.trim() || '胡晶翔',
+                    biz_date: '',
+                    stock_name: '',
+                    stock_code: '',
+                    remark: '',
+                  })
+                }}
+              >
+                <div
+                  className="rounded-xl border border-slate-200 bg-white p-4 shadow-xl w-full max-w-lg mx-4"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <h2 className="text-sm font-semibold text-slate-800 mb-3">早盘人气股战绩追踪配置</h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[11px] text-slate-500">老师</span>
+                      <input
+                        disabled
+                        className={`px-2.5 py-1.5 rounded-lg border text-xs focus:outline-none focus:ring-2 focus:ring-sky-500 ${
+                          'bg-slate-100 border-slate-300 text-slate-400 cursor-not-allowed pointer-events-none'
+                        }`}
+                        value={morningHotStockTrackForm.tg_name}
+                        onChange={(e) => setMorningHotStockTrackForm((p) => ({ ...p, tg_name: e.target.value }))}
+                        placeholder="例如：胡晶翔"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[11px] text-slate-500">日期</span>
+                      <input
+                        type="date"
+                        className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        value={morningHotStockTrackForm.biz_date}
+                        onChange={(e) => setMorningHotStockTrackForm((p) => ({ ...p, biz_date: e.target.value }))}
+                        placeholder="YYYY-MM-DD"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[11px] text-slate-500">代码</span>
+                      <input
+                        className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        value={morningHotStockTrackForm.stock_code}
+                        onChange={(e) => setMorningHotStockTrackForm((p) => ({ ...p, stock_code: e.target.value }))}
+                        placeholder="例如：000001 / 600000"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-0.5 sm:col-span-2">
+                      <span className="text-[11px] text-slate-500">人气股</span>
+                      <input
+                        className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        value={morningHotStockTrackForm.stock_name}
+                        onChange={(e) => setMorningHotStockTrackForm((p) => ({ ...p, stock_name: e.target.value }))}
+                        placeholder="请输入股票名称"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-0.5 sm:col-span-2">
+                      <span className="text-[11px] text-slate-500">备注</span>
+                      <input
+                        className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        value={morningHotStockTrackForm.remark}
+                        onChange={(e) => setMorningHotStockTrackForm((p) => ({ ...p, remark: e.target.value }))}
+                        placeholder="可选"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 mt-4 justify-end">
+                    <button
+                      onClick={() => {
+                        setMorningHotStockTrackModal(null)
+                        setEditingMorningHotStockTrack(null)
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-medium"
+                    >
+                      取消
+                    </button>
+                    <button
+                      onClick={() => void saveMorningHotStockTrack()}
                       disabled={isConfigReadOnly}
                       className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-medium"
                     >
