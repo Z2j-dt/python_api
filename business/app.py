@@ -5,6 +5,7 @@ business 下仅 app.py，frontend、sql 为资产目录。
 """
 import os
 import io
+import csv
 from pathlib import Path
 from urllib.parse import quote
 
@@ -14,7 +15,7 @@ from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from typing import List, Dict, Any, Optional
 import pymysql
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, date, timedelta
 
 from pydantic import BaseModel
 
@@ -949,6 +950,129 @@ async def list_morning_hot_stock_track(tg_name: Optional[str] = None) -> List[Mo
         return [MorningHotStockTrackOut(**_row_morning_hot_stock_track_fix(r)) for r in rows]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/config/morning-hot-stock-track/performance")
+async def morning_hot_stock_track_performance(
+    tg_name: str,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    客户中心-早盘人气股：战绩统计（来自 mv_morning_hot_stock_track）
+
+    - 默认日期范围：上个月（自然月）
+    - 胜率口径：
+      - 次日涨跌幅胜率：highprice_next_date > openprice 记为涨（1），否则 0；空值不计胜
+      - T+3 日内最高涨跌幅胜率：highprice_third_next_date > openprice 记为涨（1），否则 0；空值不计胜
+    """
+    name = (tg_name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="tg_name 必填")
+
+    # 默认上个月自然月
+    if not start_date or not start_date.strip() or not end_date or not end_date.strip():
+        today = date.today()
+        first_this_month = today.replace(day=1)
+        last_prev_month = first_this_month - timedelta(days=1)
+        first_prev_month = last_prev_month.replace(day=1)
+        start_date = first_prev_month.strftime("%Y-%m-%d")
+        end_date = last_prev_month.strftime("%Y-%m-%d")
+    else:
+        start_date = start_date.strip()
+        end_date = end_date.strip()
+
+    try:
+        with _db_cursor() as cur:
+            sql = (
+                "SELECT "
+                "  biz_date, stock_name, stock_code, openprice, "
+                "  highprice_next_date, highprice_third_next_date, "
+                "  next_day_high_chg_pct, t3_high_chg_pct, "
+                "  CASE "
+                "    WHEN openprice IS NULL OR openprice = 0 OR highprice_next_date IS NULL THEN NULL "
+                "    WHEN highprice_next_date > openprice THEN 1 ELSE 0 "
+                "  END AS next_win, "
+                "  CASE "
+                "    WHEN openprice IS NULL OR openprice = 0 OR highprice_third_next_date IS NULL THEN NULL "
+                "    WHEN highprice_third_next_date > openprice THEN 1 ELSE 0 "
+                "  END AS t3_win "
+                "FROM mv_morning_hot_stock_track "
+                "WHERE tg_name = %s AND biz_date BETWEEN %s AND %s "
+                "ORDER BY biz_date ASC, stock_code ASC"
+            )
+            cur.execute(sql, (name, start_date, end_date))
+            rows = cur.fetchall() or []
+
+        total = len(rows)
+        next_wins = sum(1 for r in rows if (r.get("next_win") == 1 or str(r.get("next_win") or "") == "1"))
+        t3_wins = sum(1 for r in rows if (r.get("t3_win") == 1 or str(r.get("t3_win") or "") == "1"))
+
+        def _pct(w: int, n: int) -> Optional[str]:
+            if n <= 0:
+                return None
+            return f"{round((w / n) * 100, 2)}%"
+
+        # 明细：日期统一为 YYYY-MM-DD（避免前端 GMT 展示）
+        items = []
+        for r in rows:
+            d = _parse_date(r.get("biz_date"))
+            items.append(
+                {
+                    "biz_date": d,
+                    "stock_name": r.get("stock_name"),
+                    "stock_code": r.get("stock_code"),
+                    "openprice": r.get("openprice"),
+                    "t1_pct": r.get("next_day_high_chg_pct"),
+                    "t3_pct": r.get("t3_high_chg_pct"),
+                }
+            )
+
+        return {
+            "tg_name": name,
+            "start_date": start_date,
+            "end_date": end_date,
+            "push_count": total,
+            "next_win_rate": _pct(next_wins, total),
+            "t3_win_rate": _pct(t3_wins, total),
+            "items": items,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/config/morning-hot-stock-track/performance/export.csv")
+async def morning_hot_stock_track_performance_export_csv(
+    tg_name: str,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+):
+    """
+    导出“战绩”明细（CSV）。
+    字段与前端明细表一致：日期（买入）、人气股、开盘价、T+1涨幅、T+3最高涨幅。
+    """
+    data = await morning_hot_stock_track_performance(tg_name=tg_name, start_date=start_date, end_date=end_date)
+    items = data.get("items") or []
+
+    sio = io.StringIO()
+    w = csv.writer(sio)
+    w.writerow(["日期（买入）", "人气股", "开盘价", "T+1涨幅", "T+3最高涨幅"])
+    for r in items:
+        w.writerow(
+            [
+                r.get("biz_date") or "",
+                r.get("stock_name") or "",
+                r.get("openprice") if r.get("openprice") is not None else "",
+                r.get("t1_pct") or "",
+                r.get("t3_pct") or "",
+            ]
+        )
+
+    # Excel 兼容：UTF-8 with BOM
+    payload = ("\ufeff" + sio.getvalue()).encode("utf-8")
+    fname = f"{data.get('tg_name')}_早评人气股_{data.get('start_date')}~{data.get('end_date')}.csv"
+    headers = {"Content-Disposition": f"attachment; filename*=UTF-8''{quote(fname)}"}
+    return StreamingResponse(io.BytesIO(payload), media_type="text/csv; charset=utf-8", headers=headers)
 
 
 @app.post("/api/config/morning-hot-stock-track", response_model=MorningHotStockTrackOut)

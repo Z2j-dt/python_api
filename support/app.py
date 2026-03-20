@@ -7,7 +7,7 @@ import os
 import re
 import time
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, date
 
 import pymysql
 from flask import Flask, request, jsonify, render_template, redirect
@@ -322,6 +322,30 @@ def _normalize_sql(sql: str) -> str:
     return s
 
 
+def _json_safe_value(v):
+    """
+    Flask jsonify 默认会把 datetime/date 转成 RFC1123（GMT）字符串；
+    数据中心预览希望“表里是什么就展示什么”，这里统一转成更直观的字符串：
+    - date -> YYYY-MM-DD
+    - datetime -> YYYY-MM-DD HH:MM:SS
+    """
+    if v is None:
+        return None
+    if isinstance(v, datetime):
+        return v.strftime("%Y-%m-%d %H:%M:%S")
+    if isinstance(v, date):
+        return v.strftime("%Y-%m-%d")
+    if isinstance(v, dict):
+        return {k: _json_safe_value(val) for k, val in v.items()}
+    if isinstance(v, (list, tuple)):
+        return [_json_safe_value(x) for x in v]
+    return v
+
+
+def _json_safe_rows(rows):
+    return [_json_safe_value(r) for r in (rows or [])]
+
+
 @_sql_app.route("/api/meta/tables", methods=["GET"])
 def sql_to_excel_meta_tables():
     """
@@ -380,7 +404,7 @@ def sql_to_excel_preview():
         conn = _get_starrocks_conn()
         cur = conn.cursor()
         cur.execute(preview_sql)
-        rows = cur.fetchall()
+        rows = _json_safe_rows(cur.fetchall())
         cols = [d[0] for d in (cur.description or [])]
         cur.close()
         conn.close()

@@ -218,6 +218,26 @@ def load_prices_and_names(
     return price_map, name_map
 
 
+def get_latest_price_date(cur, min_d: date) -> Optional[date]:
+    """
+    从价格表取 >= min_d 的最新 biz_date。
+    用于解决“当日无交易但有行情/净值”的场景：也要生成当日净值。
+    """
+    sql = f"""
+        SELECT MAX(biz_date) AS max_d
+        FROM {HSGT_PRICE_TABLE}
+        WHERE biz_date IS NOT NULL
+          AND biz_date >= %s
+          AND last_price IS NOT NULL
+    """
+    try:
+        cur.execute(sql, (min_d,))
+        row = cur.fetchone() or {}
+        return _parse_date(row.get("max_d"))
+    except Exception:
+        return None
+
+
 def compute_daily_detail(product_name: str, cur) -> List[Dict[str, Any]]:
     trades = load_trades(cur, product_name)
     if not trades:
@@ -231,7 +251,12 @@ def compute_daily_detail(product_name: str, cur) -> List[Dict[str, Any]]:
             trade_dates.add(d)
     if not trade_dates:
         return []
-    min_d, max_d = min(trade_dates), max(trade_dates)
+    min_d, max_d_trade = min(trade_dates), max(trade_dates)
+    # 关键修复：当日无交易但价格表已有当日数据时，也要把区间延伸到最新价格日（通常=今天）
+    max_price_d = get_latest_price_date(cur, min_d)
+    max_d = max_d_trade
+    if max_price_d and max_price_d > max_d:
+        max_d = max_price_d
 
     # 价格 + 股票名称（名称优先用价格表，若缺失再用交易配置表）
     price_map, price_name_map = load_prices_and_names(cur, min_d, max_d)

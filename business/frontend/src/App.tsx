@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import * as XLSX from 'xlsx'
 
 // 挂载在统一门户时为 /sr_api；单独起后端时用 ''。后端可注入 window.__API_BASE__，无需重新构建
@@ -145,6 +145,24 @@ interface MorningHotStockTrackItem {
   remark?: string | null
   created_at?: string | null
   updated_at?: string | null
+}
+
+interface MorningHotStockTrackPerfItem {
+  biz_date: string | null
+  stock_name?: string | null
+  openprice?: number | null
+  t1_pct?: string | null
+  t3_pct?: string | null
+}
+
+interface MorningHotStockTrackPerfResp {
+  tg_name: string
+  start_date: string
+  end_date: string
+  push_count: number
+  next_win_rate?: string | null
+  t3_win_rate?: string | null
+  items: MorningHotStockTrackPerfItem[]
 }
 
 type ConfigTab =
@@ -394,6 +412,24 @@ function App() {
   const [morningHotStockTrackTgNames, setMorningHotStockTrackTgNames] = useState<string[]>([])
   const MORNING_HOT_STOCK_TRACK_PAGE_SIZE = 30
   const [morningHotStockTrackPage, setMorningHotStockTrackPage] = useState<number>(1)
+  const [morningHotStockPerfOpen, setMorningHotStockPerfOpen] = useState(false)
+  const [morningHotStockPerfLoading, setMorningHotStockPerfLoading] = useState(false)
+  const [morningHotStockPerfError, setMorningHotStockPerfError] = useState<string | null>(null)
+  const [morningHotStockPerfData, setMorningHotStockPerfData] = useState<MorningHotStockTrackPerfResp | null>(null)
+  const [morningHotStockPerfStart, setMorningHotStockPerfStart] = useState<string>(() => {
+    const d = new Date()
+    d.setDate(1) // 本月 1 号
+    const lastPrev = new Date(d.getTime() - 24 * 60 * 60 * 1000)
+    const firstPrev = new Date(lastPrev)
+    firstPrev.setDate(1)
+    return firstPrev.toISOString().slice(0, 10)
+  })
+  const [morningHotStockPerfEnd, setMorningHotStockPerfEnd] = useState<string>(() => {
+    const d = new Date()
+    d.setDate(1)
+    const lastPrev = new Date(d.getTime() - 24 * 60 * 60 * 1000)
+    return lastPrev.toISOString().slice(0, 10)
+  })
   const [morningHotStockTrackForm, setMorningHotStockTrackForm] = useState<{
     tg_name: string
     biz_date: string
@@ -495,6 +531,16 @@ function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [navModalOpen])
 
+  // ESC 关闭战绩弹窗
+  useEffect(() => {
+    if (!morningHotStockPerfOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMorningHotStockPerfOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [morningHotStockPerfOpen])
+
   // -------------------- 配置界面：请求 --------------------
 
   const loadOpenChannelTags = useCallback(async () => {
@@ -576,6 +622,59 @@ function App() {
       setConfigLoading(false)
     }
   }, [morningHotStockTrackTgName])
+
+  const loadMorningHotStockPerf = useCallback(async () => {
+    const name = (morningHotStockTrackTgName || '').trim()
+    if (!name) return
+    setMorningHotStockPerfLoading(true)
+    setMorningHotStockPerfError(null)
+    try {
+      const params = new URLSearchParams()
+      params.set('tg_name', name)
+      if (morningHotStockPerfStart.trim()) params.set('start_date', morningHotStockPerfStart.trim())
+      if (morningHotStockPerfEnd.trim()) params.set('end_date', morningHotStockPerfEnd.trim())
+      const res = await fetchWithTimeout(`${API_BASE}/api/config/morning-hot-stock-track/performance?${params}`)
+      if (!res.ok) throw new Error(await res.text())
+      const data: MorningHotStockTrackPerfResp = await res.json()
+      setMorningHotStockPerfData(data)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '加载战绩失败'
+      const display =
+        msg === 'The operation was aborted.' || msg.includes('fetch') || msg.includes('Failed')
+          ? '请求超时或网络不可达，请检查内网连接'
+          : msg
+      setMorningHotStockPerfError(display)
+    } finally {
+      setMorningHotStockPerfLoading(false)
+    }
+  }, [morningHotStockTrackTgName, morningHotStockPerfStart, morningHotStockPerfEnd])
+
+  const downloadMorningHotStockPerfCsv = useCallback(async () => {
+    const name = (morningHotStockTrackTgName || '').trim()
+    if (!name) return
+    try {
+      const params = new URLSearchParams()
+      params.set('tg_name', name)
+      if (morningHotStockPerfStart.trim()) params.set('start_date', morningHotStockPerfStart.trim())
+      if (morningHotStockPerfEnd.trim()) params.set('end_date', morningHotStockPerfEnd.trim())
+      const res = await fetchWithTimeout(`${API_BASE}/api/config/morning-hot-stock-track/performance/export.csv?${params}`, {}, 60000)
+      if (!res.ok) throw new Error(await res.text())
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const start = morningHotStockPerfStart.trim() || ''
+      const end = morningHotStockPerfEnd.trim() || ''
+      a.download = `${name}_早评人气股_${start}~${end}.csv`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '下载失败'
+      setMorningHotStockPerfError(msg)
+    }
+  }, [morningHotStockTrackTgName, morningHotStockPerfStart, morningHotStockPerfEnd])
 
   const loadMorningHotStockTrackTgNames = useCallback(async () => {
     try {
@@ -1281,17 +1380,29 @@ function App() {
     return 'StarRocks 业务应用'
   })()
 
+  // 行底色：按“当前列表里实际出现的日期块”交替，而不是按自然日奇偶。
+  // 例如 12/12 有数据、12/13 没数据、12/14 有数据：12/12=浅蓝，12/14=白色。
+  const stockPositionStripeByTradeDate = useMemo(() => {
+    const normalize = (v?: string | null) => (v ?? '').trim().slice(0, 10)
+    const m = new Map<string, boolean>()
+    let lastDate = ''
+    let isBlue = true // 第一块日期默认浅蓝
+    for (const it of stockPositionItems) {
+      const d = normalize(it.trade_date)
+      if (!d) continue
+      if (d !== lastDate) {
+        if (!m.has(d)) m.set(d, isBlue)
+        isBlue = !isBlue
+        lastDate = d
+      }
+    }
+    return m
+  }, [stockPositionItems])
+
   const getTradeDateStripeClass = (tradeDate?: string | null) => {
-    const s = (tradeDate ?? '').trim()
-    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s)
-    if (!m) return ''
-    const y = Number(m[1])
-    const mo = Number(m[2]) - 1
-    const d = Number(m[3])
-    if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return ''
-    // 使用 UTC 计算“天”避免本地时区造成日期偏移
-    const epochDay = Math.floor(Date.UTC(y, mo, d) / 86400000)
-    return epochDay % 2 === 0 ? 'bg-sky-100/70' : ''
+    const d = (tradeDate ?? '').trim().slice(0, 10)
+    if (!d) return ''
+    return stockPositionStripeByTradeDate.get(d) ? 'bg-sky-100/70' : ''
   }
 
   return (
@@ -1751,30 +1862,42 @@ function App() {
               </div>
             ) : configTab === 'morning_hot_stock_track' ? (
               <div>
-                <div className="mb-3 flex flex-wrap items-center gap-3">
-                  <label className="text-sm text-slate-600 whitespace-nowrap">老师：</label>
-                  <select
-                    value={morningHotStockTrackTgName}
-                    onChange={(e) => {
-                      setMorningHotStockTrackTgName(e.target.value)
-                      setMorningHotStockTrackPage(1)
-                    }}
-                    className="px-3 py-2 rounded-lg border border-slate-300 text-slate-800 text-sm bg-white w-56"
-                    title="选择老师"
-                  >
-                    {(morningHotStockTrackTgNames.length ? morningHotStockTrackTgNames : ['胡晶翔']).map((n) => (
-                      <option key={n} value={n}>
-                        {n}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={() => void loadMorningHotStockTrack()}
-                    disabled={configLoading}
-                    className="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed text-slate-800 font-medium transition-colors"
-                  >
-                    {configLoading ? '查询中...' : '查询'}
-                  </button>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label className="text-sm text-slate-600 whitespace-nowrap">老师：</label>
+                    <select
+                      value={morningHotStockTrackTgName}
+                      onChange={(e) => {
+                        setMorningHotStockTrackTgName(e.target.value)
+                        setMorningHotStockTrackPage(1)
+                      }}
+                      className="px-3 py-2 rounded-lg border border-slate-300 text-slate-800 text-sm bg-white w-56"
+                      title="选择老师"
+                    >
+                      {(morningHotStockTrackTgNames.length ? morningHotStockTrackTgNames : ['胡晶翔']).map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => void loadMorningHotStockTrack()}
+                      disabled={configLoading}
+                      className="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed text-slate-800 font-medium transition-colors"
+                    >
+                      {configLoading ? '查询中...' : '查询'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setMorningHotStockPerfOpen(true)
+                        void loadMorningHotStockPerf()
+                      }}
+                      className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-medium transition-colors"
+                      title="查看战绩（默认上个月）"
+                    >
+                      战绩
+                    </button>
+                  </div>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
                   <div className="overflow-x-auto">
@@ -1879,6 +2002,162 @@ function App() {
                     )}
                   </div>
                 </div>
+
+                {/* 战绩弹窗 */}
+                {morningHotStockPerfOpen && (
+                  <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+                    onClick={() => setMorningHotStockPerfOpen(false)}
+                  >
+                    <div
+                      className="w-full max-w-4xl bg-white rounded-xl shadow-lg border border-slate-200 p-4 mx-4 max-h-[85vh] overflow-y-auto"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-start justify-end">
+                        <button
+                          onClick={() => setMorningHotStockPerfOpen(false)}
+                          className="text-slate-500 hover:text-slate-700"
+                          aria-label="关闭"
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
+                        <div className="flex flex-col gap-2">
+                          <div className="text-xs text-slate-500 -mt-1">默认展示上个月，可按日期筛选</div>
+                          <div className="flex flex-wrap items-end gap-3">
+                            <div>
+                              <div className="text-xs text-slate-600 mb-1">开始日期</div>
+                              <input
+                                type="date"
+                                value={morningHotStockPerfStart}
+                                onChange={(e) => setMorningHotStockPerfStart(e.target.value)}
+                                className="px-2 py-1.5 rounded-lg border border-slate-300 text-slate-700 text-xs bg-white"
+                              />
+                            </div>
+                            <div>
+                              <div className="text-xs text-slate-600 mb-1">结束日期</div>
+                              <input
+                                type="date"
+                                value={morningHotStockPerfEnd}
+                                onChange={(e) => setMorningHotStockPerfEnd(e.target.value)}
+                                className="px-2 py-1.5 rounded-lg border border-slate-300 text-slate-700 text-xs bg-white"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => void loadMorningHotStockPerf()}
+                              disabled={morningHotStockPerfLoading}
+                              className="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 disabled:opacity-50 text-slate-800 font-medium text-xs"
+                            >
+                              {morningHotStockPerfLoading ? '加载中...' : '查询'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void downloadMorningHotStockPerfCsv()}
+                              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs"
+                              title="下载当前展示明细（CSV）"
+                            >
+                              下载
+                            </button>
+                          </div>
+                        </div>
+                        <div className="hidden sm:block max-w-[460px] border border-red-300 bg-red-50/60 rounded-lg px-3 py-2 text-[11px] text-slate-600 leading-snug self-end">
+                          <div className="text-slate-700 font-medium mb-0.5">说明</div>
+                          <div>T+1最高涨幅=([T+1当日最高价-推送当日开盘价)/推送当日开盘价</div>
+                          <div>T+3日内最高涨幅=([T+3日内最高价-推送当日开盘价)/推送当日开盘价</div>
+                        </div>
+                      </div>
+
+                      {morningHotStockPerfError && (
+                        <div className="mt-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+                          {morningHotStockPerfError}
+                        </div>
+                      )}
+
+                      <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
+                        <div className="p-3 bg-yellow-100 border-b border-slate-200">
+                          <div className="text-center mb-2">
+                            <div className="text-lg font-semibold text-red-600">
+                              {(morningHotStockTrackTgName || '').trim() || '老师'}老师早评人气股
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                            <div>
+                              <div className="text-xs text-slate-500">时间</div>
+                              <div className="text-red-600 font-medium">
+                                {(morningHotStockPerfData?.start_date || morningHotStockPerfStart) +
+                                  ' ~ ' +
+                                  (morningHotStockPerfData?.end_date || morningHotStockPerfEnd)}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-slate-500">推送个股</div>
+                              <div className="text-red-600 font-medium">{morningHotStockPerfData?.push_count ?? 0}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-slate-500">次日涨跌幅胜率</div>
+                              <div className="text-red-600 font-medium">{morningHotStockPerfData?.next_win_rate ?? '-'}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-slate-500">T+3日涨跌幅胜率</div>
+                              <div className="text-red-600 font-medium">{morningHotStockPerfData?.t3_win_rate ?? '-'}</div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="overflow-x-auto bg-sky-50">
+                          <table className="w-full text-[11px]">
+                            <thead>
+                              <tr className="border-b border-slate-200 bg-sky-100">
+                                <th className="px-2 py-1.5 text-left font-medium text-slate-700 whitespace-nowrap">日期（买入）</th>
+                                <th className="px-2 py-1.5 text-left font-medium text-slate-700 whitespace-nowrap">人气股</th>
+                                <th className="px-2 py-1.5 text-left font-medium text-slate-700 whitespace-nowrap">开盘价</th>
+                                <th className="px-2 py-1.5 text-left font-medium text-slate-700 whitespace-nowrap">T+1涨幅</th>
+                                <th className="px-2 py-1.5 text-left font-medium text-slate-700 whitespace-nowrap">T+3最高涨幅</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {morningHotStockPerfLoading && (!morningHotStockPerfData || morningHotStockPerfData.items.length === 0) ? (
+                                <tr>
+                                  <td colSpan={5} className="px-2 py-8 text-center text-slate-500">
+                                    加载中...
+                                  </td>
+                                </tr>
+                              ) : !morningHotStockPerfData || morningHotStockPerfData.items.length === 0 ? (
+                                <tr>
+                                  <td colSpan={5} className="px-2 py-8 text-center text-slate-500">
+                                    暂无数据
+                                  </td>
+                                </tr>
+                              ) : (
+                                morningHotStockPerfData.items.map((it, idx) => (
+                                  <tr key={`${it.biz_date || 'd'}-${idx}`} className="border-b border-slate-200 hover:bg-sky-100/70 transition-colors">
+                                    {(() => {
+                                      const t1 = (it.t1_pct ?? '').toString()
+                                      const t3 = (it.t3_pct ?? '').toString()
+                                      const t1Cls = t1.startsWith('-') ? 'text-blue-600' : 'text-red-600'
+                                      const t3Cls = t3.startsWith('-') ? 'text-blue-600' : 'text-red-600'
+                                      return (
+                                        <>
+                                          <td className="px-2 py-1.5 text-slate-700 whitespace-nowrap">{it.biz_date ?? '-'}</td>
+                                          <td className="px-2 py-1.5 text-slate-700 whitespace-nowrap">{it.stock_name ?? '-'}</td>
+                                          <td className="px-2 py-1.5 text-slate-700 whitespace-nowrap">{it.openprice ?? '-'}</td>
+                                          <td className={`px-2 py-1.5 whitespace-nowrap ${it.t1_pct ? t1Cls : 'text-slate-700'}`}>{it.t1_pct ?? '-'}</td>
+                                          <td className={`px-2 py-1.5 whitespace-nowrap ${it.t3_pct ? t3Cls : 'text-slate-700'}`}>{it.t3_pct ?? '-'}</td>
+                                        </>
+                                      )
+                                    })()}
+                                  </tr>
+                                ))
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : configTab === 'stock_position' ? (
               <div className="mt-4">
@@ -2343,7 +2622,7 @@ function App() {
                             {navChartLoading ? '加载中...' : '查询'}
                           </button>
                         </div>
-                        <div className="flex flex-wrap items-center gap-4 text-sm">
+                        <div className="flex flex-wrap items-center justify-end gap-4 text-sm">
                           <div className="flex items-center gap-2">
                             <span className="inline-block text-xs text-slate-500">缩放：</span>
                             <button
@@ -2380,14 +2659,6 @@ function App() {
                               全部
                             </button>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="inline-block w-3 h-3 rounded bg-red-500" />
-                            <span className="text-slate-600">组合净值</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="inline-block w-3 h-3 rounded bg-amber-500" />
-                            <span className="text-slate-600">沪深300净值</span>
-                          </div>
                         </div>
                       </div>
 
@@ -2420,7 +2691,8 @@ function App() {
                               const w = 1000
                               const h = 360
                               const padL = 56
-                              const padR = 16
+                              // 右侧留白要足够：最后一个点的数值标签向右展开时避免被 SVG 裁剪
+                              const padR = 72
                               const padT = 28 // 顶部留白：放标题
                               const padB = 36
 
@@ -2513,6 +2785,44 @@ function App() {
                                   .sort((a, b) => a - b)
                               }
                               const labelIdxSet = new Set<number>([...peaks, visible.length - 1])
+
+                              const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
+                              const findPrevFinite = (arr: number[], idx: number) => {
+                                for (let i = idx - 1; i >= 0; i--) if (Number.isFinite(arr[i])) return i
+                                return -1
+                              }
+                              const findNextFinite = (arr: number[], idx: number) => {
+                                for (let i = idx + 1; i < arr.length; i++) if (Number.isFinite(arr[i])) return i
+                                return -1
+                              }
+                              // 标签必须在点上方：根据局部走向做“额外上移 + 水平错位”，尽量不挡线段
+                              const labelPosFor = (arr: number[], idx: number, x: number, y: number) => {
+                                const prev = findPrevFinite(arr, idx)
+                                const next = findNextFinite(arr, idx)
+                                const v = arr[idx]
+                                if (!Number.isFinite(v)) return { x, y: clamp(y - 12, padT + 14, h - padB - 6) }
+                                const prevV = prev >= 0 ? arr[prev] : NaN
+                                const nextV = next >= 0 ? arr[next] : NaN
+                                const inUp = Number.isFinite(prevV) ? v > prevV : false
+                                const outUp = Number.isFinite(nextV) ? nextV > v : false
+
+                                // 基础：向上抬起一点，保证在点上方
+                                let dy = -12
+                                // 若右侧线段向上（从该点出发上升），上方更容易被线段“擦到”，则多抬一点
+                                if (outUp) dy -= 10
+                                // 若两侧都向上（深 V 底部），再额外抬一点
+                                if (inUp && outUp) dy -= 6
+
+                                // 水平错位：右侧向上时向左挪，左侧向上时向右挪，减少与斜线重叠概率
+                                let dx = 0
+                                if (outUp && !inUp) dx = -10
+                                else if (inUp && !outUp) dx = 10
+                                else if (inUp && outUp) dx = -8
+
+                                const yy = clamp(y + dy, padT + 14, h - padB - 6)
+                                const xx = clamp(x + dx, padL + 6, w - padR - 6)
+                                return { x: xx, y: yy }
+                              }
 
                               const handleSvgMouseMove = (evt: React.MouseEvent<SVGSVGElement>) => {
                                 const rect = (evt.currentTarget as SVGSVGElement).getBoundingClientRect()
@@ -2610,16 +2920,19 @@ function App() {
                                         const x = xOf(idx)
                                         const y = yOf(v)
                                         const isLast = idx === visible.length - 1
-                                        const anchor = isLast ? 'end' : 'middle'
-                                        const dx = isLast ? -6 : 0
-                                        const textY = Math.max(padT + 12, y - 10)
+                                        const anchor = 'middle'
+                                        const edgeDx = 0
+                                        // 最右端：放到点的右上方，利用右侧留白，避免压到左侧线段
+                                        const navPos = isLast
+                                          ? { x, y: clamp(y - 24, padT + 14, h - padB - 6) }
+                                          : labelPosFor(navNums, idx, x, y)
                                         return (
                                           <g key={`nav-label-${idx}`}>
                                             <circle cx={x} cy={y} r={3} fill="#ef4444" stroke="#ffffff" strokeWidth={1.5} />
                                             <text
-                                              x={x}
-                                              y={textY}
-                                              dx={dx}
+                                              x={navPos.x}
+                                              y={navPos.y}
+                                              dx={edgeDx}
                                               textAnchor={anchor}
                                               fontSize="12"
                                               fill="#111827"
@@ -2627,6 +2940,33 @@ function App() {
                                             >
                                               {fmt4(v)}
                                             </text>
+                                            {/* 最后一天：同时标注沪深300，且避免与组合净值标签互相遮挡/挡线 */}
+                                            {isLast && lastHs != null ? (() => {
+                                              const hv = lastHs
+                                              if (!Number.isFinite(hv)) return null
+                                              const hy = yOf(hv)
+                                              let hsPos = { x, y: clamp(hy - 24, padT + 14, h - padB - 6) }
+                                              // 与组合净值标签过近时，强制上下错开（都在上方，所以只能“再上移”一条）
+                                              if (Math.abs(hsPos.y - navPos.y) < 14) {
+                                                hsPos = { ...hsPos, y: clamp(hsPos.y - 16, padT + 14, h - padB - 6) }
+                                              }
+                                              return (
+                                                <g>
+                                                  <circle cx={x} cy={hy} r={3} fill="#f59e0b" stroke="#ffffff" strokeWidth={1.5} />
+                                                  <text
+                                                    x={hsPos.x}
+                                                    y={hsPos.y}
+                                                    dx={edgeDx}
+                                                    textAnchor={anchor}
+                                                    fontSize="12"
+                                                    fill="#111827"
+                                                    style={{ paintOrder: 'stroke', stroke: '#ffffff', strokeWidth: 3 }}
+                                                  >
+                                                    {fmt4(hv)}
+                                                  </text>
+                                                </g>
+                                              )
+                                            })() : null}
                                           </g>
                                         )
                                       })}
@@ -2669,17 +3009,45 @@ function App() {
                                         </g>
                                       )}
                                     </svg>
-                                    <div className="mt-2 text-sm text-slate-600 flex flex-wrap gap-x-6 gap-y-1">
-                                      <div>
-                                        最新日期：{last.date}（右端） 组合净值：{lastNav == null ? '-' : fmt4(lastNav)} 沪深300净值：
-                                        {lastHs == null ? '-' : fmt4(lastHs)}
-                                      </div>
-                                      {hover && (
-                                        <div className="text-slate-700">
-                                          当前点：日期 {hover.date} · 组合净值 {fmt4(Number(hover.nav))}
-                                          {hover.hs300_nav != null ? ` · 沪深300净值 ${fmt4(Number(hover.hs300_nav))}` : ''}
+                                  </div>
+                                  {/* 右下角（不遮挡折线）：图例 + 最新/浮动数据（浮动放在最新日期下面） */}
+                                  <div className="mt-2 flex justify-end">
+                                    <div className="bg-white/90 backdrop-blur rounded-lg border border-slate-200 shadow-sm px-3 py-2 text-xs text-slate-700 max-w-[560px] min-w-[520px]">
+                                      <div className="flex items-center justify-end gap-3">
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="inline-block w-2.5 h-2.5 rounded bg-red-500" />
+                                          <span>组合净值</span>
                                         </div>
-                                      )}
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="inline-block w-2.5 h-2.5 rounded bg-amber-500" />
+                                          <span>沪深300净值</span>
+                                        </div>
+                                      </div>
+                                      {/* 固定两列，避免 hover 时卡片尺寸变化 */}
+                                      <div className="mt-1 grid grid-cols-2 gap-x-4 gap-y-1">
+                                        {/* 左列：当前点 */}
+                                        <div className="text-right pr-3">
+                                          <div className="text-slate-500 text-[11px] whitespace-nowrap">当前日期：{hover?.date ?? '-'}</div>
+                                          <div className="mt-0.5 whitespace-nowrap">
+                                            <span className="text-slate-500">组合：</span>
+                                            <span className="font-medium text-slate-800">{hover ? fmt4(Number(hover.nav)) : '-'}</span>
+                                            <span className="ml-2 text-slate-500">沪深300：</span>
+                                            <span className="font-medium text-slate-800">
+                                              {hover && hover.hs300_nav != null && Number.isFinite(Number(hover.hs300_nav)) ? fmt4(Number(hover.hs300_nav)) : '-'}
+                                            </span>
+                                          </div>
+                                        </div>
+                                        {/* 右列：最新点（固定展示） */}
+                                        <div className="text-right border-l border-slate-200/70 pl-3">
+                                          <div className="text-slate-500 text-[11px] whitespace-nowrap">最新日期：{last.date}</div>
+                                          <div className="mt-0.5 whitespace-nowrap">
+                                            <span className="text-slate-500">组合：</span>
+                                            <span className="font-medium text-slate-800">{lastNav == null ? '-' : fmt4(lastNav)}</span>
+                                            <span className="ml-2 text-slate-500">沪深300：</span>
+                                            <span className="font-medium text-slate-800">{lastHs == null ? '-' : fmt4(lastHs)}</span>
+                                          </div>
+                                        </div>
+                                      </div>
                                     </div>
                                   </div>
                                 </div>

@@ -502,8 +502,9 @@
     }
 
     function viewTableDetail(schema, tableName) {
-        // 进入详情前再保存一次，确保返回可恢复
+        // 进入详情前保存一次，并设置“返回才恢复”的一次性标记
         saveSearchState();
+        markRestoreOnce();
         window.location.href = `${BASE_PATH}/table/${encodeURIComponent(schema)}/${encodeURIComponent(tableName)}`;
     }
 
@@ -535,8 +536,9 @@
         }, 3000);
     }
 
-    // ----------- 结果保留：从详情页返回时恢复搜索 -----------
+    // ----------- 结果保留：仅“从详情返回”时恢复一次 -----------
     const SEARCH_STATE_KEY = 'hive_meta_search_state_v1';
+    const SEARCH_RESTORE_FLAG_KEY = 'hive_meta_search_restore_flag_v1';
 
     function saveSearchState() {
         try {
@@ -549,8 +551,23 @@
         } catch (e) {}
     }
 
+    function markRestoreOnce() {
+        try { sessionStorage.setItem(SEARCH_RESTORE_FLAG_KEY, '1'); } catch (e) {}
+    }
+
+    function consumeRestoreFlag() {
+        try {
+            const v = sessionStorage.getItem(SEARCH_RESTORE_FLAG_KEY);
+            sessionStorage.removeItem(SEARCH_RESTORE_FLAG_KEY);
+            return v === '1';
+        } catch (e) { return false; }
+    }
+
     function clearSearchState() {
-        try { sessionStorage.removeItem(SEARCH_STATE_KEY); } catch (e) {}
+        try {
+            sessionStorage.removeItem(SEARCH_STATE_KEY);
+            sessionStorage.removeItem(SEARCH_RESTORE_FLAG_KEY);
+        } catch (e) {}
     }
 
     function loadSearchState() {
@@ -563,7 +580,9 @@
     // 初始化
     document.addEventListener('DOMContentLoaded', function() {
         console.log("DOM已加载完成");
-        const st = loadSearchState();
+        // 刷新不恢复：仅当存在一次性标记时才恢复
+        const shouldRestore = consumeRestoreFlag();
+        const st = shouldRestore ? loadSearchState() : null;
         if (st && st.term) {
             changeSearchType(st.type || 'table');
             const input = document.getElementById('tableSearch');
@@ -572,6 +591,8 @@
             // 自动恢复搜索
             searchTables({ silentEmpty: true });
         } else {
+            // 非返回场景：清掉历史，避免刷新保留
+            clearSearchState();
             changeSearchType('table');
         }
     });
