@@ -65,6 +65,217 @@ function maskPhone(v?: string | null) {
   return s.length >= 11 ? `${s.slice(0, 3)}****${s.slice(-4)}` : (s || '-')
 }
 
+function getCurrentYearMonthValue(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+function formatYearMonthLabel(ymValue: string): string {
+  // ymValue: YYYY-MM
+  const m = ymValue.trim().match(/^(\d{4})-(\d{2})$/)
+  if (!m) return ymValue
+  return `${m[1]}年${m[2]}月`
+}
+
+function buildYearMonthRange(centerYm: string, beforeMonths: number, afterMonths: number): string[] {
+  const m = centerYm.match(/^(\d{4})-(\d{2})$/)
+  if (!m) return [centerYm]
+  const year = Number(m[1])
+  const monthIndex0 = Number(m[2]) - 1
+  const base = new Date(year, monthIndex0, 1)
+  const out: string[] = []
+  for (let i = -beforeMonths; i <= afterMonths; i++) {
+    const d = new Date(base.getFullYear(), base.getMonth() + i, 1)
+    out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+  }
+  return out
+}
+
+type MonthWheelPickerProps = {
+  value: string // YYYY-MM
+  onChange: (value: string) => void
+  onPick?: (value: string) => void
+  disabled?: boolean
+}
+
+type MonthDropdownWheelPickerProps = {
+  value: string // YYYY-MM
+  onChange: (value: string) => void
+  disabled?: boolean
+}
+
+function MonthDropdownWheelPicker({ value, onChange, disabled }: MonthDropdownWheelPickerProps) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDocMouseDown = (e: MouseEvent) => {
+      const el = rootRef.current
+      if (!el) return
+      const target = e.target as Node | null
+      if (target && el.contains(target)) return
+      setOpen(false)
+    }
+    document.addEventListener('mousedown', onDocMouseDown)
+    return () => document.removeEventListener('mousedown', onDocMouseDown)
+  }, [open])
+
+  const hasValue = !!(value && /^\d{4}-\d{2}$/.test(value))
+  const displayValue = hasValue ? value : ''
+  // 只用于“滚轮中间默认定位”：当未填写时仍定位到当前年月，方便用户滚动选择
+  const wheelSafeValue = hasValue ? (value as string) : getCurrentYearMonthValue()
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => {
+          if (disabled) return
+          setOpen((p) => !p)
+        }}
+        className={`w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg border text-left ${
+          disabled ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-white border-slate-300 text-slate-800'
+        }`}
+      >
+        <span className={`text-sm ${hasValue ? 'text-slate-800' : 'text-slate-400'}`}>
+          {hasValue ? formatYearMonthLabel(displayValue) : '不填'}
+        </span>
+        <span className="text-slate-500 text-sm">{open ? '▲' : '▼'}</span>
+      </button>
+
+      {open && (
+        <div className="absolute z-50 left-0 right-0 mt-1">
+          <div className="rounded-lg border border-slate-200 bg-white shadow-lg p-2">
+            <button
+              type="button"
+              className={`w-full px-2 py-2 rounded-md text-sm ${
+                !hasValue ? 'bg-sky-50 text-sky-700 font-semibold' : 'text-slate-700 hover:bg-slate-50'
+              }`}
+              onClick={() => {
+                onChange('')
+                setOpen(false)
+              }}
+              disabled={disabled}
+            >
+              不填
+            </button>
+            <div className="h-2" />
+            <MonthWheelPicker
+              value={wheelSafeValue}
+              onChange={(v) => {
+                onChange(v)
+              }}
+              onPick={() => setOpen(false)}
+              disabled={disabled}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MonthWheelPicker({ value, onChange, onPick, disabled }: MonthWheelPickerProps) {
+  const ITEM_HEIGHT = 30
+  const VISIBLE_COUNT = 5
+  const wheelHeight = ITEM_HEIGHT * VISIBLE_COUNT
+
+  const initialSelectedValue = value && /^\d{4}-\d{2}$/.test(value) ? value : getCurrentYearMonthValue()
+  // baseCenter 锁定为组件挂载时的初始值：避免用户滚动时列表“跟着选中项重置”
+  const baseCenter = useMemo(() => initialSelectedValue, [])
+  const selectedValue = value && /^\d{4}-\d{2}$/.test(value) ? value : baseCenter
+  const months = useMemo(() => buildYearMonthRange(baseCenter, 120, 120), [baseCenter])
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const rafRef = useRef<number | null>(null)
+  const userScrollingRef = useRef(false)
+  const scrollEndTimerRef = useRef<number | null>(null)
+
+  const selectedIndex = Math.max(0, months.indexOf(selectedValue))
+
+  // 初始化/更新滚动位置
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    if (userScrollingRef.current) return
+    el.scrollTo({ top: selectedIndex * ITEM_HEIGHT, behavior: 'auto' })
+  }, [selectedIndex, selectedValue])
+
+  const handleScroll = () => {
+    const el = scrollRef.current
+    if (!el) return
+    if (disabled) return
+    if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    rafRef.current = requestAnimationFrame(() => {
+      const idx = Math.round(el.scrollTop / ITEM_HEIGHT)
+      const safeIdx = Math.min(months.length - 1, Math.max(0, idx))
+      const v = months[safeIdx]
+      if (v && v !== value) onChange(v)
+      userScrollingRef.current = true
+      if (scrollEndTimerRef.current) window.clearTimeout(scrollEndTimerRef.current)
+      scrollEndTimerRef.current = window.setTimeout(() => {
+        userScrollingRef.current = false
+      }, 120)
+    })
+  }
+
+  return (
+    <div className="w-full">
+      <div className="relative">
+        {/* 中间对齐线：让用户感知当前选中月份 */}
+        <div
+          className="pointer-events-none absolute left-0 right-0"
+          style={{
+            top: (wheelHeight - ITEM_HEIGHT) / 2,
+            height: ITEM_HEIGHT,
+            borderTop: '1px solid rgba(56, 189, 248, 0.6)',
+            borderBottom: '1px solid rgba(56, 189, 248, 0.6)',
+          }}
+        />
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className={`overflow-y-auto rounded-lg border border-slate-300 bg-white ${disabled ? 'opacity-60' : ''}`}
+          style={{
+            height: wheelHeight,
+            scrollSnapType: 'y mandatory',
+          }}
+        >
+          {months.map((m) => {
+            const isActive = m === selectedValue
+            return (
+              <div
+                key={m}
+                className={`flex items-center justify-center px-2 text-sm scroll-snap-align-start ${
+                  isActive ? 'text-sky-700 font-semibold bg-sky-50/70' : 'text-slate-700'
+                }`}
+                style={{ height: ITEM_HEIGHT }}
+                role="button"
+                tabIndex={0}
+                onClick={() => {
+                  if (disabled) return
+                  onChange(m)
+                  onPick?.(m)
+                }}
+                onKeyDown={(e) => {
+                  if (disabled) return
+                  if (e.key !== 'Enter' && e.key !== ' ') return
+                  e.preventDefault()
+                  onChange(m)
+                  onPick?.(m)
+                }}
+              >
+                {formatYearMonthLabel(m)}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 interface TableDataResponse {
   table: string
   count: number
@@ -974,8 +1185,10 @@ function App() {
   const openSalesOrderEdit = useCallback((row: SalesOrderConfigItem) => {
     setSalesOrderEditError(null)
     setSalesOrderEditRow(row)
+    const nowYm = getCurrentYearMonthValue()
+    const inMonthValue = row.in_month && /^\d{4}-\d{2}$/.test(row.in_month) ? row.in_month : nowYm
     setSalesOrderEditForm({
-      in_month: row.in_month ?? '',
+      in_month: inMonthValue,
       channel: row.channel ?? '',
       wechat_nick: row.wechat_nick ?? '',
       sales_owner: row.sales_owner ?? '',
@@ -3864,10 +4077,9 @@ function App() {
                         </div>
                         <div>
                           <div className="text-xs text-slate-600 mb-1">进线月份</div>
-                          <input
+                          <MonthDropdownWheelPicker
                             value={salesOrderEditForm.in_month}
-                            onChange={(e) => setSalesOrderEditForm((p) => ({ ...p, in_month: e.target.value }))}
-                            className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800"
+                            onChange={(v) => setSalesOrderEditForm((p) => ({ ...p, in_month: v }))}
                           />
                         </div>
                         <div>
