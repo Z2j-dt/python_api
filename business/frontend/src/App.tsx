@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import * as XLSX from 'xlsx'
 
 // 挂载在统一门户时为 /sr_api；单独起后端时用 ''。后端可注入 window.__API_BASE__，无需重新构建
@@ -58,6 +58,11 @@ function getColumnLabel(key: string) {
   if (lower === 'shujin_add_cnt') return '数金加微数'
   if (lower === 'douyin_use_amt') return '抖音消耗值'
   return k
+}
+
+function maskPhone(v?: string | null) {
+  const s = String(v || '').trim()
+  return s.length >= 11 ? `${s.slice(0, 3)}****${s.slice(-4)}` : (s || '-')
 }
 
 interface TableDataResponse {
@@ -501,6 +506,7 @@ function App() {
   const [signCustomerGroupTotal, setSignCustomerGroupTotal] = useState<number>(0)
   const [signCustomerGroupItems, setSignCustomerGroupItems] = useState<SignCustomerGroupItem[]>([])
   const [signRowSaving, setSignRowSaving] = useState<Record<string, boolean>>({})
+  const signCustomerGroupReqTokenRef = useRef(0)
 
   const [editingOpenItem, setEditingOpenItem] = useState<OpenChannelTagItem | null>(null)
   const [openForm, setOpenForm] = useState<{ open_channel: string; wechat_customer_tag: string }>({
@@ -1047,7 +1053,8 @@ function App() {
     }
   }, [salesOrderMonth, salesOrderSummaryMonthFilter])
 
-  const loadSignCustomerGroup = useCallback(async (page: number = signCustomerGroupPage) => {
+  const loadSignCustomerGroup = useCallback(async (page: number = 1) => {
+    const reqToken = ++signCustomerGroupReqTokenRef.current
     setSignCustomerGroupLoading(true)
     setSignCustomerGroupError(null)
     try {
@@ -1064,18 +1071,21 @@ function App() {
         throw new Error(`接口未返回 JSON（可能跳转到登录/门户页）：${snippet}`)
       }
       const data: SignCustomerGroupListResp = await res.json()
+      // 避免并发请求：只处理“最后一次触发”的响应
+      if (reqToken !== signCustomerGroupReqTokenRef.current) return
       setSignCustomerGroupItems(Array.isArray(data.items) ? data.items : [])
       setSignCustomerGroupTotal(Number(data.total || 0))
       setSignCustomerGroupPage(page)
     } catch (e) {
+      if (reqToken !== signCustomerGroupReqTokenRef.current) return
       const msg = e instanceof Error ? e.message : '加载签约客户群管理配置失败'
       setSignCustomerGroupError(msg === 'The operation was aborted.' ? '请求超时' : msg)
       setSignCustomerGroupItems([])
       setSignCustomerGroupTotal(0)
     } finally {
-      setSignCustomerGroupLoading(false)
+      if (reqToken === signCustomerGroupReqTokenRef.current) setSignCustomerGroupLoading(false)
     }
-  }, [signCustomerGroupMonth, signCustomerGroupPage])
+  }, [signCustomerGroupMonth])
 
   const saveSignCustomerGroupRow = useCallback(async (row: SignCustomerGroupItem, inGroupValue: number) => {
     const sole = String(row.sole_code || '').trim()
@@ -4120,6 +4130,7 @@ function App() {
             {configTab === 'sign_customer_group' && (
               <div className="mt-4">
                 <div className="mb-3 flex items-center gap-2">
+                  <span className="text-sm text-slate-600">到期月份</span>
                   <input
                     type="month"
                     value={signCustomerGroupMonth}
@@ -4127,10 +4138,18 @@ function App() {
                     className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
                   />
                   <button
+                    type="button"
                     onClick={() => void loadSignCustomerGroup(1)}
-                    className="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 text-sm"
+                    className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-sm"
                   >
                     查询
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void loadSignCustomerGroup(signCustomerGroupPage)}
+                    className="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 text-sm"
+                  >
+                    刷新
                   </button>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
@@ -4145,13 +4164,17 @@ function App() {
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b border-slate-200 bg-slate-100">
-                            <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">订单编号</th>
+                            <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">订单支付日期</th>
                             <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">姓名</th>
                             <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">资金账号</th>
                             <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">手机号</th>
+                            <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">微信名称</th>
+                            <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">订单编号</th>
+                            <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">升佣/现金</th>
+                            <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">总资产</th>
                             <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">到期日期</th>
+                            <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">退订金额</th>
                             <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">是否进群</th>
-                            <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">操作</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -4159,32 +4182,34 @@ function App() {
                             const key = `${String(it.sole_code || '')}__${String(it.customer_account || '')}`
                             return (
                               <tr key={`sign-${key}-${idx}`} className="border-b border-slate-100 hover:bg-slate-100/70">
-                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.sole_code || '-'}</td>
+                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.pay_time || '-'}</td>
                                 <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.customer_name || '-'}</td>
                                 <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.customer_account || '-'}</td>
-                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.customer_phone || '-'}</td>
+                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{maskPhone(it.customer_phone)}</td>
+                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.wechat_nick || '-'}</td>
+                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.sole_code || '-'}</td>
+                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.sign_type || '-'}</td>
+                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap text-right">
+                                  {it.curr_total_asset == null || !Number.isFinite(Number(it.curr_total_asset)) ? '-' : Number(it.curr_total_asset).toFixed(2)}
+                                </td>
                                 <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.pay_time_end || '-'}</td>
+                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap text-right">
+                                  {it.refund_amount == null || !Number.isFinite(Number(it.refund_amount)) ? '-' : Number(it.refund_amount).toFixed(2)}
+                                </td>
                                 <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
                                   <select
                                     className="px-2 py-1 border border-slate-300 rounded"
                                     value={String(it.in_group ?? 0)}
+                                    disabled={!!signRowSaving[key]}
                                     onChange={(e) => {
                                       const v = Number(e.target.value)
                                       setSignCustomerGroupItems((prev) => prev.map((r, i) => (i === idx ? { ...r, in_group: v } : r)))
+                                      void saveSignCustomerGroupRow({ ...it, in_group: v }, v)
                                     }}
                                   >
                                     <option value="0">否</option>
                                     <option value="1">是</option>
                                   </select>
-                                </td>
-                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
-                                  <button
-                                    onClick={() => void saveSignCustomerGroupRow(it, Number(it.in_group ?? 0))}
-                                    disabled={!!signRowSaving[key]}
-                                    className="px-3 py-1 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs"
-                                  >
-                                    {signRowSaving[key] ? '保存中...' : '保存'}
-                                  </button>
                                 </td>
                               </tr>
                             )
@@ -4198,14 +4223,16 @@ function App() {
                   <div>共 {signCustomerGroupTotal} 条</div>
                   <div className="flex items-center gap-2">
                     <button
+                      type="button"
                       onClick={() => void loadSignCustomerGroup(Math.max(1, signCustomerGroupPage - 1))}
                       disabled={signCustomerGroupPage <= 1 || signCustomerGroupLoading}
                       className="px-3 py-1 rounded border border-slate-300 disabled:opacity-50"
                     >
                       上一页
                     </button>
-                    <span>第 {signCustomerGroupPage} 页</span>
+                    <span>第 {signCustomerGroupPage} / {Math.max(1, Math.ceil(signCustomerGroupTotal / SIGN_CUSTOMER_GROUP_PAGE_SIZE))} 页</span>
                     <button
+                      type="button"
                       onClick={() => void loadSignCustomerGroup(signCustomerGroupPage + 1)}
                       disabled={signCustomerGroupLoading || signCustomerGroupPage * SIGN_CUSTOMER_GROUP_PAGE_SIZE >= signCustomerGroupTotal}
                       className="px-3 py-1 rounded border border-slate-300 disabled:opacity-50"
