@@ -136,6 +136,20 @@ interface NavChartPoint {
   hs300_nav?: number | null
 }
 
+interface NavDetailRow {
+  biz_date: string
+  stock_name?: string | null
+  stock_code?: string | null
+  position_after?: number | null
+}
+
+interface NavDetailResp {
+  product_name: string
+  biz_date?: string | null
+  total: number
+  items: NavDetailRow[]
+}
+
 interface MorningHotStockTrackItem {
   id: number
   tg_name?: string | null
@@ -165,6 +179,80 @@ interface MorningHotStockTrackPerfResp {
   items: MorningHotStockTrackPerfItem[]
 }
 
+interface SalesOrderConfigItem {
+  sole_code: string
+  customer_account: string
+  product_name: string
+  pay_time?: string | null
+  in_month?: string | null
+  channel?: string | null
+  wechat_nick?: string | null
+  sales_owner?: string | null
+}
+
+interface SalesOrderConfigResp {
+  date: string
+  total: number
+  items: SalesOrderConfigItem[]
+}
+
+interface SalesOrderDetailItem {
+  pay_time?: string | null
+  pay_time_end?: string | null
+  customer_name?: string | null
+  customer_account?: string | null
+  customer_phone?: string | null
+  sole_code?: string | null
+  product_name?: string | null
+  product_type?: string | null
+  product_class?: string | null
+  sign_method?: string | null
+  sign_type?: string | null
+  pay_amount?: number | null
+  pay_amount_display?: number | null
+  pay_commission?: number | null
+  sign_attr?: string | null
+  refund_amount?: number | null
+  curr_total_asset?: number | null
+  customer_layer?: string | null
+  in_month?: string | null
+  channel?: string | null
+  sales_owner?: string | null
+  wechat_nick?: string | null
+}
+
+interface SalesOrderSummaryItem {
+  sales_owner?: string | null
+  commission_count?: number | null
+  cash_count?: number | null
+  total_count?: number | null
+  cash_amount?: number | null
+  new_count?: number | null
+  renew_count?: number | null
+  repurchase_count?: number | null
+}
+
+interface SignCustomerGroupItem {
+  sole_code: string
+  customer_name?: string | null
+  customer_phone?: string | null
+  customer_account?: string | null
+  wechat_nick?: string | null
+  pay_time?: string | null
+  sign_type?: string | null
+  curr_total_asset?: number | null
+  pay_time_end?: string | null
+  refund_amount?: number | null
+  in_group?: number | null
+  updated_time?: string | null
+}
+
+interface SignCustomerGroupListResp {
+  month: string
+  total: number
+  items: SignCustomerGroupItem[]
+}
+
 type ConfigTab =
   | 'open_channel_tag'
   | 'channel_staff'
@@ -172,6 +260,8 @@ type ConfigTab =
   | 'stock_position'
   | 'opportunity_lead'
   | 'morning_hot_stock_track'
+  | 'sales_order'
+  | 'sign_customer_group'
 
 type ViewMode = 'realtime' | 'open_channel_daily' | 'config'
 
@@ -188,6 +278,8 @@ const CONFIG_TAB_LABEL: Record<ConfigTab, string> = {
   stock_position: '',
   opportunity_lead: '',
   morning_hot_stock_track: '',
+  sales_order: '',
+  sign_customer_group: '',
 }
 
 function getViewFromLocation(): ViewMode {
@@ -209,6 +301,8 @@ function getConfigTabFromLocation(): ConfigTab {
     if (tab === 'channel_staff') return 'channel_staff'
     if (tab === 'opportunity_lead') return 'opportunity_lead'
     if (tab === 'morning_hot_stock_track') return 'morning_hot_stock_track'
+    if (tab === 'sales_order') return 'sales_order'
+    if (tab === 'sign_customer_group') return 'sign_customer_group'
     return 'open_channel_tag'
   } catch {
     return 'open_channel_tag'
@@ -368,6 +462,45 @@ function App() {
   const [channelStaffItems, setChannelStaffItems] = useState<ChannelStaffItem[]>([])
   const [configLoading, setConfigLoading] = useState(false)
   const [configError, setConfigError] = useState<string | null>(null)
+  const [salesOrderLoading, setSalesOrderLoading] = useState(false)
+  const [salesOrderError, setSalesOrderError] = useState<string | null>(null)
+  const [salesOrderItems, setSalesOrderItems] = useState<SalesOrderConfigItem[]>([])
+  // 用于销售订单配置筛选的“成交日期（YYYY-MM-DD）”
+  const [salesOrderMonth, setSalesOrderMonth] = useState<string>('') // 兼容旧变量名
+  const [salesOrderPage, setSalesOrderPage] = useState<number>(1)
+  const SALES_ORDER_PAGE_SIZE = 500
+  const [salesOrderTotal, setSalesOrderTotal] = useState<number>(0)
+  const [salesOrderSaving, setSalesOrderSaving] = useState<Record<string, boolean>>({})
+  const [salesOrderDetailOpen, setSalesOrderDetailOpen] = useState(false)
+  const [salesOrderDetailLoading, setSalesOrderDetailLoading] = useState(false)
+  const [salesOrderDetailItems, setSalesOrderDetailItems] = useState<SalesOrderDetailItem[]>([])
+  // 明细浮框内的月份筛选（YYYY-MM），默认跟随主页面“成交日期”的月份
+  const [salesOrderDetailMonthFilter, setSalesOrderDetailMonthFilter] = useState<string>('')
+  const [salesOrderSummaryOpen, setSalesOrderSummaryOpen] = useState(false)
+  const [salesOrderSummaryLoading, setSalesOrderSummaryLoading] = useState(false)
+  const [salesOrderSummaryItems, setSalesOrderSummaryItems] = useState<SalesOrderSummaryItem[]>([])
+  // 汇总浮框内的月份筛选（YYYY-MM），默认跟随主页面“成交日期”的月份
+  const [salesOrderSummaryMonthFilter, setSalesOrderSummaryMonthFilter] = useState<string>('')
+  const [salesOrderEditOpen, setSalesOrderEditOpen] = useState(false)
+  const [salesOrderEditRow, setSalesOrderEditRow] = useState<SalesOrderConfigItem | null>(null)
+  const [salesOrderEditError, setSalesOrderEditError] = useState<string | null>(null)
+  const [salesOrderEditForm, setSalesOrderEditForm] = useState<{
+    in_month: string
+    channel: string
+    wechat_nick: string
+    sales_owner: string
+  }>({ in_month: '', channel: '', wechat_nick: '', sales_owner: '' })
+  const [signCustomerGroupLoading, setSignCustomerGroupLoading] = useState(false)
+  const [signCustomerGroupError, setSignCustomerGroupError] = useState<string | null>(null)
+  const [signCustomerGroupMonth, setSignCustomerGroupMonth] = useState<string>(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  })
+  const [signCustomerGroupPage, setSignCustomerGroupPage] = useState<number>(1)
+  const SIGN_CUSTOMER_GROUP_PAGE_SIZE = 20
+  const [signCustomerGroupTotal, setSignCustomerGroupTotal] = useState<number>(0)
+  const [signCustomerGroupItems, setSignCustomerGroupItems] = useState<SignCustomerGroupItem[]>([])
+  const [signRowSaving, setSignRowSaving] = useState<Record<string, boolean>>({})
 
   const [editingOpenItem, setEditingOpenItem] = useState<OpenChannelTagItem | null>(null)
   const [openForm, setOpenForm] = useState<{ open_channel: string; wechat_customer_tag: string }>({
@@ -480,6 +613,20 @@ function App() {
   const [navChartError, setNavChartError] = useState<string | null>(null)
   const [navSeries, setNavSeries] = useState<NavChartPoint[]>([])
   const [navHoverIndex, setNavHoverIndex] = useState<number | null>(null)
+  // 净值明细（浮框 Tab 共用数据）
+  const [navDetailLoading, setNavDetailLoading] = useState(false)
+  const [navDetailError, setNavDetailError] = useState<string | null>(null)
+  const [navDetailItems, setNavDetailItems] = useState<NavDetailRow[]>([])
+
+  // 产品净值预览（浮框，仓位明细/净值/净值明细）
+  const [stockPositionPreviewOpen, setStockPositionPreviewOpen] = useState(false)
+  const [stockPositionPreviewTab, setStockPositionPreviewTab] = useState<'position' | 'nav' | 'nav_detail'>('position')
+  const [stockPositionPreviewPositionLoading, setStockPositionPreviewPositionLoading] = useState(false)
+  const [stockPositionPreviewPositionError, setStockPositionPreviewPositionError] = useState<string | null>(null)
+  const [stockPositionPreviewPositionItems, setStockPositionPreviewPositionItems] = useState<StockPositionItem[]>([])
+  const [stockPositionPreviewNavLoading, setStockPositionPreviewNavLoading] = useState(false)
+  const [stockPositionPreviewNavError, setStockPositionPreviewNavError] = useState<string | null>(null)
+  const [stockPositionPreviewNavItems, setStockPositionPreviewNavItems] = useState<NavChartPoint[]>([])
   const [navStartDate, setNavStartDate] = useState<string>(() => {
     const d = new Date()
     d.setDate(d.getDate() - 90)
@@ -741,9 +888,232 @@ function App() {
     }
   }, [stockPositionFilter, stockPositionPage])
 
+  const loadSalesOrderConfig = useCallback(async (page: number = salesOrderPage, overrideDate?: string) => {
+    setSalesOrderLoading(true)
+    setSalesOrderError(null)
+    try {
+      const params = new URLSearchParams()
+      const targetDate = (overrideDate ?? salesOrderMonth).trim()
+      if (targetDate) params.set('date', targetDate)
+      params.set('page', String(page))
+      params.set('page_size', String(SALES_ORDER_PAGE_SIZE))
+      const res = await fetchWithTimeout(`${API_BASE}/api/config/sales-order?${params}`)
+      if (!res.ok) throw new Error(await res.text())
+      const ct = (res.headers.get('content-type') || '').toLowerCase()
+      if (!ct.includes('application/json')) {
+        const raw = await res.text()
+        const snippet = raw.replace(/\s+/g, ' ').slice(0, 120)
+        throw new Error(`接口未返回 JSON（可能跳转到登录/门户页）：${snippet}`)
+      }
+      const data: SalesOrderConfigResp = await res.json()
+      setSalesOrderItems(Array.isArray(data.items) ? data.items : [])
+      setSalesOrderTotal(Number(data.total || 0))
+      if (data.date) setSalesOrderMonth(data.date)
+      setSalesOrderPage(page)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '加载销售订单配置失败'
+      setSalesOrderError(msg === 'The operation was aborted.' ? '请求超时' : msg)
+      setSalesOrderItems([])
+      setSalesOrderTotal(0)
+    } finally {
+      setSalesOrderLoading(false)
+    }
+  }, [salesOrderMonth, salesOrderPage])
+
+  const saveSalesOrderRow = useCallback(async (row: SalesOrderConfigItem): Promise<boolean> => {
+    const sole = String(row.sole_code || '').trim()
+    const acct = String(row.customer_account || '').trim()
+    const prod = String(row.product_name || '').trim()
+    if (!sole || !acct || !prod) return false
+    const key = `${sole}__${acct}__${prod}`
+    setSalesOrderSaving((prev) => ({ ...prev, [key]: true }))
+    try {
+      const res = await fetchWithTimeout(
+        `${API_BASE}/api/config/sales-order/${encodeURIComponent(sole)}/${encodeURIComponent(acct)}/${encodeURIComponent(prod)}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            in_month: row.in_month ?? '',
+            channel: row.channel ?? '',
+            wechat_nick: row.wechat_nick ?? '',
+            sales_owner: row.sales_owner ?? '',
+          }),
+        },
+      )
+      if (!res.ok) throw new Error(await res.text())
+      setSalesOrderItems((prev) =>
+        prev.map((it) =>
+          String(it.sole_code) === sole && String(it.customer_account || '') === acct && String(it.product_name || '') === prod
+            ? {
+                ...it,
+                in_month: row.in_month ?? it.in_month ?? '',
+                channel: row.channel ?? it.channel ?? '',
+                wechat_nick: row.wechat_nick ?? it.wechat_nick ?? '',
+                sales_owner: row.sales_owner ?? it.sales_owner ?? '',
+              }
+            : it,
+        ),
+      )
+      return true
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '保存失败'
+      setSalesOrderError(msg)
+      return false
+    } finally {
+      setSalesOrderSaving((prev) => ({ ...prev, [key]: false }))
+    }
+  }, [])
+
+  const openSalesOrderEdit = useCallback((row: SalesOrderConfigItem) => {
+    setSalesOrderEditError(null)
+    setSalesOrderEditRow(row)
+    setSalesOrderEditForm({
+      in_month: row.in_month ?? '',
+      channel: row.channel ?? '',
+      wechat_nick: row.wechat_nick ?? '',
+      sales_owner: row.sales_owner ?? '',
+    })
+    setSalesOrderEditOpen(true)
+  }, [])
+
+  const closeSalesOrderEdit = useCallback(() => {
+    setSalesOrderEditOpen(false)
+    setSalesOrderEditRow(null)
+    setSalesOrderEditError(null)
+  }, [])
+
+  const loadSalesOrderLatestDate = useCallback(async (): Promise<string | null> => {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/config/sales-order/latest-date`)
+      if (!res.ok) throw new Error(await res.text())
+      const data: { date?: string } = await res.json()
+      if (data?.date) setSalesOrderMonth(data.date)
+      return data?.date ? String(data.date) : null
+    } catch (e) {
+      // latest-date 失败不阻断页面，仅保留现有筛选值
+      return null
+    }
+  }, [])
+
+  const loadSalesOrderDetail = useCallback(async (monthOverride?: string) => {
+    setSalesOrderDetailLoading(true)
+    setSalesOrderError(null)
+    try {
+      const params = new URLSearchParams()
+      const base = (monthOverride ?? salesOrderDetailMonthFilter ?? salesOrderMonth ?? '').trim()
+      const m = base ? (base.length >= 7 ? base.slice(0, 7) : base) : ''
+      if (m) {
+        params.set('month', m)
+        // 同步到浮框内的月份筛选状态，保证输入框显示的是本次查询的月份
+        setSalesOrderDetailMonthFilter(m)
+      }
+      const res = await fetchWithTimeout(`${API_BASE}/api/config/sales-order/detail?${params}`, {}, 60000)
+      if (!res.ok) throw new Error(await res.text())
+      const list: SalesOrderDetailItem[] = await res.json()
+      setSalesOrderDetailItems(Array.isArray(list) ? list : [])
+      setSalesOrderDetailOpen(true)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '加载明细失败'
+      setSalesOrderError(msg)
+      setSalesOrderDetailItems([])
+    } finally {
+      setSalesOrderDetailLoading(false)
+    }
+  }, [salesOrderMonth, salesOrderDetailMonthFilter])
+
+  const loadSalesOrderSummary = useCallback(async (monthOverride?: string) => {
+    setSalesOrderSummaryLoading(true)
+    setSalesOrderError(null)
+    try {
+      const params = new URLSearchParams()
+      const base = (monthOverride ?? salesOrderSummaryMonthFilter ?? salesOrderMonth ?? '').trim()
+      const m = base ? (base.length >= 7 ? base.slice(0, 7) : base) : ''
+      if (m) {
+        params.set('month', m)
+        setSalesOrderSummaryMonthFilter(m)
+      }
+      const res = await fetchWithTimeout(`${API_BASE}/api/config/sales-order/summary?${params}`, {}, 60000)
+      if (!res.ok) throw new Error(await res.text())
+      const list: SalesOrderSummaryItem[] = await res.json()
+      setSalesOrderSummaryItems(Array.isArray(list) ? list : [])
+      setSalesOrderSummaryOpen(true)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '加载汇总失败'
+      setSalesOrderError(msg)
+      setSalesOrderSummaryItems([])
+    } finally {
+      setSalesOrderSummaryLoading(false)
+    }
+  }, [salesOrderMonth, salesOrderSummaryMonthFilter])
+
+  const loadSignCustomerGroup = useCallback(async (page: number = signCustomerGroupPage) => {
+    setSignCustomerGroupLoading(true)
+    setSignCustomerGroupError(null)
+    try {
+      const params = new URLSearchParams()
+      if (signCustomerGroupMonth.trim()) params.set('month', signCustomerGroupMonth.trim())
+      params.set('page', String(page))
+      params.set('page_size', String(SIGN_CUSTOMER_GROUP_PAGE_SIZE))
+      const res = await fetchWithTimeout(`${API_BASE}/api/config/sign-customer-group?${params}`)
+      if (!res.ok) throw new Error(await res.text())
+      const ct = (res.headers.get('content-type') || '').toLowerCase()
+      if (!ct.includes('application/json')) {
+        const raw = await res.text()
+        const snippet = raw.replace(/\s+/g, ' ').slice(0, 120)
+        throw new Error(`接口未返回 JSON（可能跳转到登录/门户页）：${snippet}`)
+      }
+      const data: SignCustomerGroupListResp = await res.json()
+      setSignCustomerGroupItems(Array.isArray(data.items) ? data.items : [])
+      setSignCustomerGroupTotal(Number(data.total || 0))
+      setSignCustomerGroupPage(page)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '加载签约客户群管理配置失败'
+      setSignCustomerGroupError(msg === 'The operation was aborted.' ? '请求超时' : msg)
+      setSignCustomerGroupItems([])
+      setSignCustomerGroupTotal(0)
+    } finally {
+      setSignCustomerGroupLoading(false)
+    }
+  }, [signCustomerGroupMonth, signCustomerGroupPage])
+
+  const saveSignCustomerGroupRow = useCallback(async (row: SignCustomerGroupItem, inGroupValue: number) => {
+    const sole = String(row.sole_code || '').trim()
+    const acct = String(row.customer_account || '').trim()
+    if (!sole || !acct) return
+    const key = `${sole}__${acct}`
+    setSignRowSaving((prev) => ({ ...prev, [key]: true }))
+    try {
+      const res = await fetchWithTimeout(
+        `${API_BASE}/api/config/sign-customer-group/${encodeURIComponent(sole)}/${encodeURIComponent(acct)}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ in_group: inGroupValue }),
+        },
+      )
+      if (!res.ok) throw new Error(await res.text())
+      setSignCustomerGroupItems((prev) =>
+        prev.map((it) => (String(it.sole_code) === sole && String(it.customer_account || '') === acct ? { ...it, in_group: inGroupValue } : it)),
+      )
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '保存失败'
+      setSignCustomerGroupError(msg)
+    } finally {
+      setSignRowSaving((prev) => ({ ...prev, [key]: false }))
+    }
+  }, [])
+
   const refreshCurrentConfig = () => {
     if (configTab === 'open_channel_tag') {
       void loadOpenChannelTags()
+    } else if (configTab === 'sales_order') {
+      void (async () => {
+        const latest = salesOrderMonth.trim() ? salesOrderMonth.trim() : await loadSalesOrderLatestDate()
+        await loadSalesOrderConfig(1, latest || undefined)
+      })()
+    } else if (configTab === 'sign_customer_group') {
+      void loadSignCustomerGroup(signCustomerGroupPage)
     } else if (configTab === 'opportunity_lead') {
       void loadOpportunityLeads()
     } else if (configTab === 'morning_hot_stock_track') {
@@ -761,6 +1131,13 @@ function App() {
     if (!isConfigMode) return
     if (configTab === 'open_channel_tag') {
       void loadOpenChannelTags()
+    } else if (configTab === 'sales_order') {
+      void (async () => {
+        const latest = salesOrderMonth.trim() ? salesOrderMonth.trim() : await loadSalesOrderLatestDate()
+        await loadSalesOrderConfig(1, latest || undefined)
+      })()
+    } else if (configTab === 'sign_customer_group') {
+      void loadSignCustomerGroup(1)
     } else if (configTab === 'opportunity_lead') {
       void loadOpportunityLeads()
     } else if (configTab === 'morning_hot_stock_track') {
@@ -769,7 +1146,7 @@ function App() {
     } else {
       void loadChannelStaff()
     }
-  }, [isConfigMode, configTab, loadOpenChannelTags, loadOpportunityLeads, loadMorningHotStockTrackTgNames, loadMorningHotStockTrack, loadChannelStaff])
+  }, [isConfigMode, configTab, loadOpenChannelTags, loadSalesOrderConfig, loadSalesOrderLatestDate, loadSignCustomerGroup, loadOpportunityLeads, loadMorningHotStockTrackTgNames, loadMorningHotStockTrack, loadChannelStaff])
 
   useEffect(() => {
     if (!isConfigMode) return
@@ -1090,6 +1467,75 @@ function App() {
     await loadNavSeries()
   }
 
+  const loadStockPositionPreviewPositionDetail = useCallback(async () => {
+    const productName = getFirstProductName(stockPositionFilter)
+    setStockPositionPreviewPositionLoading(true)
+    setStockPositionPreviewPositionError(null)
+    try {
+      const res = await fetchWithTimeout(
+        `${API_BASE}/api/config/stock-position/export?product_name=${encodeURIComponent(productName)}`,
+        {},
+        60000,
+      )
+      if (!res.ok) throw new Error(await res.text())
+      const list: StockPositionItem[] = await res.json()
+      setStockPositionPreviewPositionItems(Array.isArray(list) ? list : [])
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '加载失败'
+      setStockPositionPreviewPositionError(msg === 'The operation was aborted.' ? '请求超时' : msg)
+      setStockPositionPreviewPositionItems([])
+    } finally {
+      setStockPositionPreviewPositionLoading(false)
+    }
+  }, [getFirstProductName, stockPositionFilter])
+
+  const loadStockPositionPreviewNav = useCallback(async () => {
+    const productName = getFirstProductName(stockPositionFilter)
+    setStockPositionPreviewNavLoading(true)
+    setStockPositionPreviewNavError(null)
+    try {
+      const params = new URLSearchParams()
+      params.set('product_name', productName)
+      const res = await fetchWithTimeout(`${API_BASE}/api/config/stock-position/nav-chart?${params}`, {}, 60000)
+      if (!res.ok) throw new Error(await res.text())
+      const list: NavChartPoint[] = await res.json()
+      setStockPositionPreviewNavItems(Array.isArray(list) ? list : [])
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '加载失败'
+      setStockPositionPreviewNavError(msg === 'The operation was aborted.' ? '请求超时' : msg)
+      setStockPositionPreviewNavItems([])
+    } finally {
+      setStockPositionPreviewNavLoading(false)
+    }
+  }, [getFirstProductName, stockPositionFilter])
+
+  const loadNavDetail = useCallback(async () => {
+    const productName = getFirstProductName(stockPositionFilter)
+    setNavDetailLoading(true)
+    setNavDetailError(null)
+    try {
+      const params = new URLSearchParams()
+      params.set('product_name', productName)
+      const res = await fetchWithTimeout(`${API_BASE}/api/config/stock-position/nav-detail?${params}`, {}, 60000)
+      if (!res.ok) throw new Error(await res.text())
+      const data: NavDetailResp = await res.json()
+      setNavDetailItems(Array.isArray(data.items) ? data.items : [])
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '加载失败'
+      setNavDetailError(msg === 'The operation was aborted.' ? '请求超时' : msg)
+      setNavDetailItems([])
+    } finally {
+      setNavDetailLoading(false)
+    }
+  }, [getFirstProductName, stockPositionFilter])
+
+  const openStockPositionPreview = useCallback(async () => {
+    setStockPositionPreviewOpen(true)
+    setStockPositionPreviewTab('position')
+    // 默认加载全部 Tab 数据（位置明细/净值/净值明细），保证切 Tab 不卡
+    await Promise.all([loadStockPositionPreviewPositionDetail(), loadStockPositionPreviewNav(), loadNavDetail()])
+  }, [loadStockPositionPreviewPositionDetail, loadStockPositionPreviewNav, loadNavDetail])
+
   // 新增 / 保存：开户渠道 & 标签
   const handleSaveOpenChannel = async () => {
     if (isConfigReadOnly) {
@@ -1375,6 +1821,8 @@ function App() {
     if (configTab === 'open_channel_tag') return '渠道字典配置'
     if (configTab === 'channel_staff') return '承接人员配置'
     if (configTab === 'stock_position') return '产品净值'
+    if (configTab === 'sales_order') return '销售订单配置'
+    if (configTab === 'sign_customer_group') return '签约客户群管理配置'
     if (configTab === 'opportunity_lead') return '商机线索配置'
     if (configTab === 'morning_hot_stock_track') return '早盘人气股战绩追踪配置'
     return 'StarRocks 业务应用'
@@ -1571,7 +2019,7 @@ function App() {
               </div>
             )}
 
-            {configTab !== 'code_mapping' && configTab !== 'stock_position' && (
+            {configTab !== 'code_mapping' && configTab !== 'stock_position' && configTab !== 'sales_order' && configTab !== 'sign_customer_group' && (
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <button
@@ -2202,11 +2650,11 @@ function App() {
                       净值图
                     </button>
                     <button
-                      onClick={() => void downloadStockPositionExcel()}
+                      onClick={() => void openStockPositionPreview()}
                       className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition-colors"
-                      title="导出当前产品全部数据"
+                      title="预览：仓位明细 / 净值 / 净值明细"
                     >
-                      下载 Excel
+                      预览
                     </button>
                     <button
                       onClick={() => void loadStockPosition()}
@@ -3062,7 +3510,713 @@ function App() {
               </div>
             ) : null}
 
-            {/* 追加：code_mapping 配置表 */}
+            {/* 产品净值预览浮框（仓位明细 / 净值 / 净值明细） */}
+            {stockPositionPreviewOpen && (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+                onClick={() => setStockPositionPreviewOpen(false)}
+              >
+                <div
+                  className="w-full max-w-6xl bg-white rounded-xl shadow-lg border border-slate-200 p-5 mx-4 max-h-[85vh] overflow-y-auto"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-base font-semibold text-slate-800">
+                        产品净值预览 · {getFirstProductName(stockPositionFilter)}
+                      </div>
+                      <div className="text-sm text-slate-500 mt-0.5">
+                        共
+                        {stockPositionPreviewTab === 'position'
+                          ? stockPositionPreviewPositionItems.length
+                          : stockPositionPreviewTab === 'nav'
+                            ? stockPositionPreviewNavItems.length
+                            : navDetailItems.length}
+                        条
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setStockPositionPreviewOpen(false)}
+                      className="text-slate-500 hover:text-slate-700"
+                      aria-label="关闭"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setStockPositionPreviewTab('position')}
+                        className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+                          stockPositionPreviewTab === 'position'
+                            ? 'bg-sky-600 border-sky-600 text-white'
+                            : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        仓位明细
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setStockPositionPreviewTab('nav')}
+                        className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+                          stockPositionPreviewTab === 'nav'
+                            ? 'bg-sky-600 border-sky-600 text-white'
+                            : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        净值
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setStockPositionPreviewTab('nav_detail')}
+                        className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+                          stockPositionPreviewTab === 'nav_detail'
+                            ? 'bg-sky-600 border-sky-600 text-white'
+                            : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
+                        }`}
+                        title="取 product_nav_daily_detail row_type=2 的最新 biz_date 明细"
+                      >
+                        净值明细
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => void downloadStockPositionExcel()}
+                      className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-sm transition-colors"
+                    >
+                      下载 Excel
+                    </button>
+                  </div>
+
+                  {stockPositionPreviewTab === 'position' && (
+                    <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
+                      <div className="overflow-x-auto">
+                        {stockPositionPreviewPositionLoading && stockPositionPreviewPositionItems.length === 0 ? (
+                          <div className="py-12 text-center text-slate-500">加载中...</div>
+                        ) : stockPositionPreviewPositionError ? (
+                          <div className="py-12 text-center text-red-600 text-sm">{stockPositionPreviewPositionError}</div>
+                        ) : stockPositionPreviewPositionItems.length === 0 ? (
+                          <div className="py-12 text-center text-slate-500">暂无数据</div>
+                        ) : (
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-slate-200 bg-slate-100">
+                                <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">日期</th>
+                                <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">序号</th>
+                                <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">股票代码</th>
+                                <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">个股</th>
+                                <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">仓位(%)</th>
+                                <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">买入/卖出</th>
+                                <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">成交价</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {stockPositionPreviewPositionItems.map((it, idx) => (
+                                <tr key={`${it.id}-${idx}`} className="border-b border-slate-100 hover:bg-slate-100/70">
+                                  <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.trade_date ?? '-'}</td>
+                                  <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.row_id ?? '-'}</td>
+                                  <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.stock_code ?? '-'}</td>
+                                  <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.stock_name ?? '-'}</td>
+                                  <td className="px-3 py-2 text-right text-slate-700 whitespace-nowrap">
+                                    {it.position_pct != null ? `${it.position_pct}%` : '-'}
+                                  </td>
+                                  <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.side ?? '-'}</td>
+                                  <td className="px-3 py-2 text-right text-slate-700 whitespace-nowrap">
+                                    {it.price == null || !Number.isFinite(Number(it.price)) ? '-' : Number(it.price).toFixed(2)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {stockPositionPreviewTab === 'nav' && (
+                    <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
+                      <div className="overflow-x-auto">
+                        {stockPositionPreviewNavLoading && stockPositionPreviewNavItems.length === 0 ? (
+                          <div className="py-12 text-center text-slate-500">加载中...</div>
+                        ) : stockPositionPreviewNavError ? (
+                          <div className="py-12 text-center text-red-600 text-sm">{stockPositionPreviewNavError}</div>
+                        ) : stockPositionPreviewNavItems.length === 0 ? (
+                          <div className="py-12 text-center text-slate-500">暂无数据</div>
+                        ) : (
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-slate-200 bg-slate-100">
+                                <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">日期</th>
+                                <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">组合净值</th>
+                                <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">沪深300净值</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {stockPositionPreviewNavItems.map((it, idx) => (
+                                <tr key={`${it.date}-${idx}`} className="border-b border-slate-100 hover:bg-slate-100/70">
+                                  <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.date ?? '-'}</td>
+                                  <td className="px-3 py-2 text-right text-slate-700 whitespace-nowrap">
+                                    {Number.isFinite(Number(it.nav)) ? Number(it.nav).toFixed(4) : '-'}
+                                  </td>
+                                  <td className="px-3 py-2 text-right text-slate-700 whitespace-nowrap">
+                                    {it.hs300_nav == null || !Number.isFinite(Number(it.hs300_nav)) ? '-' : Number(it.hs300_nav).toFixed(4)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {stockPositionPreviewTab === 'nav_detail' && (
+                    <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
+                      <div className="overflow-x-auto">
+                        {navDetailError ? (
+                          <div className="py-12 text-center text-red-600 text-sm">{navDetailError}</div>
+                        ) : navDetailLoading && navDetailItems.length === 0 ? (
+                          <div className="py-12 text-center text-slate-500">加载中...</div>
+                        ) : navDetailItems.length === 0 ? (
+                          <div className="py-12 text-center text-slate-500">暂无数据</div>
+                        ) : (
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-slate-200 bg-slate-100">
+                                <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">日期</th>
+                                <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">个股</th>
+                                <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">股票代码</th>
+                                <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">持仓数量</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {navDetailItems.map((it, idx) => (
+                                <tr key={`${it.biz_date ?? 'd'}-${it.stock_code ?? 'c'}-${idx}`} className="border-b border-slate-100 hover:bg-slate-100/70">
+                                  <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.biz_date ?? '-'}</td>
+                                  <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.stock_name ?? '-'}</td>
+                                  <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.stock_code ?? '-'}</td>
+                                  <td className="px-3 py-2 text-right text-slate-700 whitespace-nowrap">
+                                    {it.position_after == null ? '-' : Number(it.position_after).toFixed(4)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {configTab === 'sales_order' && (
+              <div className="mt-4">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm text-slate-600">成交日期</span>
+                    <input
+                      type="date"
+                      value={salesOrderMonth}
+                      onChange={(e) => setSalesOrderMonth(e.target.value)}
+                      className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white"
+                    />
+                    <button
+                      onClick={() => void loadSalesOrderConfig(1)}
+                      className="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 text-sm"
+                    >
+                      查询
+                    </button>
+                    <button onClick={() => void loadSalesOrderConfig(1, '')} className="hidden" aria-hidden="true" />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        const m = salesOrderMonth.trim() ? salesOrderMonth.trim().slice(0, 7) : ''
+                        void loadSalesOrderDetail(m)
+                      }}
+                      className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-sm"
+                    >
+                      明细
+                    </button>
+                    <button
+                      onClick={() => {
+                        const m = salesOrderMonth.trim() ? salesOrderMonth.trim().slice(0, 7) : ''
+                        void loadSalesOrderSummary(m)
+                      }}
+                      className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm"
+                    >
+                      汇总
+                    </button>
+                    <button onClick={() => refreshCurrentConfig()} className="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 text-sm">
+                      刷新
+                    </button>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    {salesOrderError ? (
+                      <div className="py-10 text-center text-red-600">{salesOrderError}</div>
+                    ) : salesOrderLoading && salesOrderItems.length === 0 ? (
+                      <div className="py-10 text-center text-slate-500">加载中...</div>
+                    ) : salesOrderItems.length === 0 ? (
+                      <div className="py-10 text-center text-slate-500">暂无配置数据</div>
+                    ) : (
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-200 bg-slate-100">
+                            <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">订单编号</th>
+                            <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">资金账号</th>
+                            <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">产品名称</th>
+                            <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">成交时间</th>
+                            <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">进线月份</th>
+                            <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">渠道</th>
+                            <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">微信昵称</th>
+                            <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">销售归属</th>
+                            <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">操作</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {salesOrderItems.map((it, idx) => {
+                            const key = `${it.sole_code}__${it.customer_account}__${it.product_name}`
+                            return (
+                              <tr key={`sales-${key}-${idx}`} className="border-b border-slate-100 hover:bg-slate-100/70">
+                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.sole_code}</td>
+                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.customer_account}</td>
+                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.product_name}</td>
+                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.pay_time || '-'}</td>
+                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.in_month || '-'}</td>
+                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.channel || '-'}</td>
+                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.wechat_nick || '-'}</td>
+                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.sales_owner || '-'}</td>
+                                <td className="px-3 py-2">
+                                  <button
+                                    onClick={() => openSalesOrderEdit(it)}
+                                    disabled={!!salesOrderSaving[key]}
+                                    className="px-3 py-1 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs"
+                                  >
+                                    修改
+                                  </button>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </div>
+                <div className="mt-2 px-4 text-sm text-slate-600">共 {salesOrderTotal} 条</div>
+
+                {salesOrderEditOpen && salesOrderEditRow && (
+                  <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+                    onClick={() => closeSalesOrderEdit()}
+                  >
+                    <div
+                      className="w-full max-w-3xl bg-white rounded-xl shadow-lg border border-slate-200 p-4 mx-4 max-h-[85vh] overflow-y-auto"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div className="font-semibold text-slate-800">销售订单配置 · 修改</div>
+                        <button onClick={() => closeSalesOrderEdit()} className="text-slate-500 hover:text-slate-700">
+                          ✕
+                        </button>
+                      </div>
+
+                      {salesOrderEditError && (
+                        <div className="mb-3 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+                          {salesOrderEditError}
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <div className="text-xs text-slate-600 mb-1">订单编号</div>
+                          <input disabled value={salesOrderEditRow.sole_code} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed" />
+                        </div>
+                        <div>
+                          <div className="text-xs text-slate-600 mb-1">资金账号</div>
+                          <input disabled value={salesOrderEditRow.customer_account} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed" />
+                        </div>
+                        <div>
+                          <div className="text-xs text-slate-600 mb-1">产品名称</div>
+                          <input disabled value={salesOrderEditRow.product_name} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed" />
+                        </div>
+                        <div>
+                          <div className="text-xs text-slate-600 mb-1">成交时间</div>
+                          <input disabled value={salesOrderEditRow.pay_time || ''} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed" />
+                        </div>
+                        <div>
+                          <div className="text-xs text-slate-600 mb-1">进线月份</div>
+                          <input
+                            value={salesOrderEditForm.in_month}
+                            onChange={(e) => setSalesOrderEditForm((p) => ({ ...p, in_month: e.target.value }))}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800"
+                          />
+                        </div>
+                        <div>
+                          <div className="text-xs text-slate-600 mb-1">渠道</div>
+                          <input
+                            value={salesOrderEditForm.channel}
+                            onChange={(e) => setSalesOrderEditForm((p) => ({ ...p, channel: e.target.value }))}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800"
+                          />
+                        </div>
+                        <div>
+                          <div className="text-xs text-slate-600 mb-1">微信昵称</div>
+                          <input
+                            value={salesOrderEditForm.wechat_nick}
+                            onChange={(e) => setSalesOrderEditForm((p) => ({ ...p, wechat_nick: e.target.value }))}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800"
+                          />
+                        </div>
+                        <div>
+                          <div className="text-xs text-slate-600 mb-1">销售归属</div>
+                          <input
+                            value={salesOrderEditForm.sales_owner}
+                            onChange={(e) => setSalesOrderEditForm((p) => ({ ...p, sales_owner: e.target.value }))}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex items-center justify-end gap-2">
+                        <button onClick={() => closeSalesOrderEdit()} className="px-3 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50">
+                          取消
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (!salesOrderEditRow) return
+                            setSalesOrderEditError(null)
+                            const payload: SalesOrderConfigItem = {
+                              ...salesOrderEditRow,
+                              in_month: salesOrderEditForm.in_month,
+                              channel: salesOrderEditForm.channel,
+                              wechat_nick: salesOrderEditForm.wechat_nick,
+                              sales_owner: salesOrderEditForm.sales_owner,
+                            }
+                            const ok = await saveSalesOrderRow(payload)
+                            if (ok) closeSalesOrderEdit()
+                            else setSalesOrderEditError(salesOrderError || '保存失败')
+                          }}
+                          disabled={salesOrderLoading}
+                          className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white"
+                        >
+                          保存
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {salesOrderDetailOpen && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setSalesOrderDetailOpen(false)}>
+                    <div className="w-full max-w-6xl bg-white rounded-xl shadow-lg border border-slate-200 p-3 mx-4 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                      <div className="mb-3 flex items-center justify-between">
+                        <div className="font-semibold text-slate-800">
+                          销售订单明细（
+                          {salesOrderDetailMonthFilter.trim()
+                            ? salesOrderDetailMonthFilter.trim()
+                            : salesOrderMonth.trim()
+                              ? salesOrderMonth.trim().slice(0, 7)
+                              : '-'}
+                          ）
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-600 whitespace-nowrap">月份</span>
+                            <input
+                              type="month"
+                              value={salesOrderDetailMonthFilter}
+                              onChange={(e) => setSalesOrderDetailMonthFilter(e.target.value)}
+                              className="px-2 py-1 border border-slate-300 rounded-lg text-xs bg-white"
+                            />
+                            <button
+                              onClick={() => void loadSalesOrderDetail(salesOrderDetailMonthFilter)}
+                              disabled={!salesOrderDetailMonthFilter.trim()}
+                              className="px-2 py-1 rounded bg-slate-200 hover:bg-slate-300 disabled:opacity-50 text-slate-800 text-xs"
+                            >
+                              查询
+                            </button>
+                          </div>
+                          <button
+                            onClick={() => {
+                              const m = salesOrderDetailMonthFilter.trim()
+                                ? salesOrderDetailMonthFilter.trim()
+                                : salesOrderMonth.trim()
+                                  ? salesOrderMonth.trim().slice(0, 7)
+                                  : ''
+                              void window.open(`${API_BASE}/api/config/sales-order/detail/export.csv?month=${encodeURIComponent(m)}`, '_blank')
+                            }}
+                            className="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs whitespace-nowrap"
+                          >
+                            下载 CSV
+                          </button>
+                          <button onClick={() => setSalesOrderDetailOpen(false)} className="text-slate-500 hover:text-slate-700">✕</button>
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 overflow-x-auto">
+                        <table className="w-full text-[11px]">
+                          <thead>
+                            <tr className="border-b border-slate-200 bg-slate-100">
+                              <th className="px-2 py-1.5 text-left whitespace-nowrap">客户姓名</th>
+                              <th className="px-2 py-1.5 text-left whitespace-nowrap">资金账号</th>
+                              <th className="px-2 py-1.5 text-left whitespace-nowrap">手机号</th>
+                              <th className="px-2 py-1.5 text-left whitespace-nowrap">订单编号</th>
+                              <th className="px-2 py-1.5 text-left whitespace-nowrap">产品名称</th>
+                              <th className="px-2 py-1.5 text-left whitespace-nowrap">产品类型</th>
+                              <th className="px-2 py-1.5 text-left whitespace-nowrap">产品归类</th>
+                              <th className="px-2 py-1.5 text-left whitespace-nowrap">签约方式</th>
+                              <th className="px-2 py-1.5 text-left whitespace-nowrap">支付金额</th>
+                              <th className="px-2 py-1.5 text-left whitespace-nowrap">退款金额</th>
+                              <th className="px-2 py-1.5 text-left whitespace-nowrap">总资产</th>
+                              <th className="px-2 py-1.5 text-left whitespace-nowrap">成交时间</th>
+                              <th className="px-2 py-1.5 text-left whitespace-nowrap">支付结束时间</th>
+                              <th className="px-2 py-1.5 text-left whitespace-nowrap">客户分层</th>
+                              <th className="px-2 py-1.5 text-left whitespace-nowrap">进线月份</th>
+                              <th className="px-2 py-1.5 text-left whitespace-nowrap">渠道</th>
+                              <th className="px-2 py-1.5 text-left whitespace-nowrap">微信昵称</th>
+                              <th className="px-2 py-1.5 text-left whitespace-nowrap">销售归属</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {salesOrderDetailLoading && salesOrderDetailItems.length === 0 ? (
+                              <tr>
+                                <td colSpan={18} className="px-2 py-8 text-center text-slate-500">
+                                  加载中...
+                                </td>
+                              </tr>
+                            ) : salesOrderDetailItems.length === 0 ? (
+                              <tr>
+                                <td colSpan={18} className="px-2 py-8 text-center text-slate-500">
+                                  暂无数据
+                                </td>
+                              </tr>
+                            ) : (
+                              salesOrderDetailItems.map((it, idx) => (
+                              <tr key={`sod-${idx}`} className="border-b border-slate-100">
+                                <td className="px-2 py-1.5 whitespace-nowrap">{it.customer_name || '-'}</td>
+                                <td className="px-2 py-1.5 whitespace-nowrap">{it.customer_account || '-'}</td>
+                                <td className="px-2 py-1.5 whitespace-nowrap">{it.customer_phone || '-'}</td>
+                                <td className="px-2 py-1.5 whitespace-nowrap">{it.sole_code || '-'}</td>
+                                <td className="px-2 py-1.5 whitespace-nowrap">{it.product_name || '-'}</td>
+                                <td className="px-2 py-1.5 whitespace-nowrap">{it.product_type || '-'}</td>
+                                <td className="px-2 py-1.5 whitespace-nowrap">{it.product_class || '-'}</td>
+                                <td className="px-2 py-1.5 whitespace-nowrap">{it.sign_method || '-'}</td>
+                                <td className="px-2 py-1.5 whitespace-nowrap">
+                                  {it.pay_amount_display == null || !Number.isFinite(Number(it.pay_amount_display)) ? '-' : Number(it.pay_amount_display).toFixed(4)}
+                                </td>
+                                <td className="px-2 py-1.5 whitespace-nowrap">
+                                  {it.refund_amount == null || !Number.isFinite(Number(it.refund_amount)) ? '-' : Number(it.refund_amount).toFixed(4)}
+                                </td>
+                                <td className="px-2 py-1.5 whitespace-nowrap">
+                                  {it.curr_total_asset == null || !Number.isFinite(Number(it.curr_total_asset)) ? '-' : Number(it.curr_total_asset).toFixed(4)}
+                                </td>
+                                <td className="px-2 py-1.5 whitespace-nowrap">{it.pay_time || '-'}</td>
+                                <td className="px-2 py-1.5 whitespace-nowrap">{it.pay_time_end || '-'}</td>
+                                <td className="px-2 py-1.5 whitespace-nowrap">{it.customer_layer || '-'}</td>
+                                <td className="px-2 py-1.5 whitespace-nowrap">{it.in_month || '-'}</td>
+                                <td className="px-2 py-1.5 whitespace-nowrap">{it.channel || '-'}</td>
+                                <td className="px-2 py-1.5 whitespace-nowrap">{it.wechat_nick || '-'}</td>
+                                <td className="px-2 py-1.5 whitespace-nowrap">{it.sales_owner || '-'}</td>
+                              </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {salesOrderSummaryOpen && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setSalesOrderSummaryOpen(false)}>
+                    <div className="w-full max-w-3xl bg-white rounded-xl shadow-lg border border-slate-200 p-3 mx-4 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                      <div className="mb-3 flex items-center justify-between">
+                        <div className="font-semibold text-slate-800">
+                          销售订单汇总（
+                          {salesOrderSummaryMonthFilter.trim()
+                            ? salesOrderSummaryMonthFilter.trim()
+                            : salesOrderMonth.trim()
+                              ? salesOrderMonth.trim().slice(0, 7)
+                              : '-'}
+                          ）
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-600 whitespace-nowrap">月份</span>
+                            <input
+                              type="month"
+                              value={salesOrderSummaryMonthFilter}
+                              onChange={(e) => setSalesOrderSummaryMonthFilter(e.target.value)}
+                              className="px-2 py-1 border border-slate-300 rounded-lg text-xs bg-white"
+                            />
+                            <button
+                              onClick={() => void loadSalesOrderSummary(salesOrderSummaryMonthFilter)}
+                              disabled={!salesOrderSummaryMonthFilter.trim()}
+                              className="px-2 py-1 rounded bg-slate-200 hover:bg-slate-300 disabled:opacity-50 text-slate-800 text-xs"
+                            >
+                              查询
+                            </button>
+                          </div>
+                          <button
+                            onClick={() => {
+                              const m = salesOrderSummaryMonthFilter.trim()
+                                ? salesOrderSummaryMonthFilter.trim()
+                                : salesOrderMonth.trim()
+                                  ? salesOrderMonth.trim().slice(0, 7)
+                                  : ''
+                              void window.open(`${API_BASE}/api/config/sales-order/summary/export.csv?month=${encodeURIComponent(m)}`, '_blank')
+                            }}
+                            className="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs whitespace-nowrap"
+                          >
+                            下载 CSV
+                          </button>
+                          <button onClick={() => setSalesOrderSummaryOpen(false)} className="text-slate-500 hover:text-slate-700">✕</button>
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 overflow-x-auto">
+                        <table className="w-full text-[11px]">
+                          <thead>
+                            <tr className="border-b border-slate-200 bg-slate-100">
+                              <th className="px-2 py-1.5 text-left whitespace-nowrap">销售归属</th>
+                              <th className="px-2 py-1.5 text-right whitespace-nowrap">升佣订单数</th>
+                              <th className="px-2 py-1.5 text-right whitespace-nowrap">现金订单数</th>
+                              <th className="px-2 py-1.5 text-right whitespace-nowrap">总计订单数</th>
+                              <th className="px-2 py-1.5 text-right whitespace-nowrap">现金订单额</th>
+                              <th className="px-2 py-1.5 text-right whitespace-nowrap">新签订单数</th>
+                              <th className="px-2 py-1.5 text-right whitespace-nowrap">续期订单数</th>
+                              <th className="px-2 py-1.5 text-right whitespace-nowrap">复购订单数</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {salesOrderSummaryLoading && salesOrderSummaryItems.length === 0 ? <tr><td colSpan={8} className="px-2 py-8 text-center text-slate-500">加载中...</td></tr> : salesOrderSummaryItems.length === 0 ? <tr><td colSpan={8} className="px-2 py-8 text-center text-slate-500">暂无数据</td></tr> : salesOrderSummaryItems.map((it, idx) => (
+                              <tr key={`sos-${idx}`} className="border-b border-slate-100">
+                                <td className="px-2 py-1.5 whitespace-nowrap">{it.sales_owner || '-'}</td>
+                                <td className="px-2 py-1.5 text-right whitespace-nowrap">{Number(it.commission_count || 0)}</td>
+                                <td className="px-2 py-1.5 text-right whitespace-nowrap">{Number(it.cash_count || 0)}</td>
+                                <td className="px-2 py-1.5 text-right whitespace-nowrap">{Number(it.total_count || 0)}</td>
+                                <td className="px-2 py-1.5 text-right whitespace-nowrap">{it.cash_amount == null || !Number.isFinite(Number(it.cash_amount)) ? '-' : Number(it.cash_amount).toFixed(4)}</td>
+                                <td className="px-2 py-1.5 text-right whitespace-nowrap">{Number(it.new_count || 0)}</td>
+                                <td className="px-2 py-1.5 text-right whitespace-nowrap">{Number(it.renew_count || 0)}</td>
+                                <td className="px-2 py-1.5 text-right whitespace-nowrap">{Number(it.repurchase_count || 0)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {configTab === 'sign_customer_group' && (
+              <div className="mt-4">
+                <div className="mb-3 flex items-center gap-2">
+                  <input
+                    type="month"
+                    value={signCustomerGroupMonth}
+                    onChange={(e) => setSignCustomerGroupMonth(e.target.value)}
+                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  />
+                  <button
+                    onClick={() => void loadSignCustomerGroup(1)}
+                    className="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 text-sm"
+                  >
+                    查询
+                  </button>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    {signCustomerGroupError ? (
+                      <div className="py-10 text-center text-red-600">{signCustomerGroupError}</div>
+                    ) : signCustomerGroupLoading && signCustomerGroupItems.length === 0 ? (
+                      <div className="py-10 text-center text-slate-500">加载中...</div>
+                    ) : signCustomerGroupItems.length === 0 ? (
+                      <div className="py-10 text-center text-slate-500">暂无配置数据</div>
+                    ) : (
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-200 bg-slate-100">
+                            <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">订单编号</th>
+                            <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">姓名</th>
+                            <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">资金账号</th>
+                            <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">手机号</th>
+                            <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">到期日期</th>
+                            <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">是否进群</th>
+                            <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">操作</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {signCustomerGroupItems.map((it, idx) => {
+                            const key = `${String(it.sole_code || '')}__${String(it.customer_account || '')}`
+                            return (
+                              <tr key={`sign-${key}-${idx}`} className="border-b border-slate-100 hover:bg-slate-100/70">
+                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.sole_code || '-'}</td>
+                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.customer_name || '-'}</td>
+                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.customer_account || '-'}</td>
+                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.customer_phone || '-'}</td>
+                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.pay_time_end || '-'}</td>
+                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
+                                  <select
+                                    className="px-2 py-1 border border-slate-300 rounded"
+                                    value={String(it.in_group ?? 0)}
+                                    onChange={(e) => {
+                                      const v = Number(e.target.value)
+                                      setSignCustomerGroupItems((prev) => prev.map((r, i) => (i === idx ? { ...r, in_group: v } : r)))
+                                    }}
+                                  >
+                                    <option value="0">否</option>
+                                    <option value="1">是</option>
+                                  </select>
+                                </td>
+                                <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
+                                  <button
+                                    onClick={() => void saveSignCustomerGroupRow(it, Number(it.in_group ?? 0))}
+                                    disabled={!!signRowSaving[key]}
+                                    className="px-3 py-1 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs"
+                                  >
+                                    {signRowSaving[key] ? '保存中...' : '保存'}
+                                  </button>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center justify-between text-sm text-slate-600">
+                  <div>共 {signCustomerGroupTotal} 条</div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => void loadSignCustomerGroup(Math.max(1, signCustomerGroupPage - 1))}
+                      disabled={signCustomerGroupPage <= 1 || signCustomerGroupLoading}
+                      className="px-3 py-1 rounded border border-slate-300 disabled:opacity-50"
+                    >
+                      上一页
+                    </button>
+                    <span>第 {signCustomerGroupPage} 页</span>
+                    <button
+                      onClick={() => void loadSignCustomerGroup(signCustomerGroupPage + 1)}
+                      disabled={signCustomerGroupLoading || signCustomerGroupPage * SIGN_CUSTOMER_GROUP_PAGE_SIZE >= signCustomerGroupTotal}
+                      className="px-3 py-1 rounded border border-slate-300 disabled:opacity-50"
+                    >
+                      下一页
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {configTab === 'code_mapping' && (
             <div className="mt-4">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">

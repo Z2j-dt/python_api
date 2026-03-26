@@ -1,0 +1,2944 @@
+-- Auto-generated补数：由 ttt.csv 仅提供 订单编号(sole_code) 与 销售归属(sales_owner)
+-- 生成目的：向 ads.stg_branch_customer_ext_excel 回填缺失历史 sales_owner
+
+INSERT INTO ads.stg_branch_customer_ext_excel
+  (customer_name, customer_account, product_name, in_month, channel, sales_owner, wechat_nick)
+SELECT DISTINCT
+  b.customer_name,
+  b.customer_account,
+  input.sole_code,
+  c.in_month,
+  c.channel,
+  input.sales_owner,
+  c.wechat_nick
+FROM (
+  SELECT 'THSTG676A0FC6A4CBF900511' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG676CDF0DA6529400531' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG677F1BBCA4CC4800152' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG67A32E59A6527700350' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG67A461D4A6529700387' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG67AF05B3A6529700525' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG67B7D224A6527700598' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG67D52A49A6527700003' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG67D7B03FA6527700019' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG67D7DF9AA6527700033' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG67DBBC2DA6527700086' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG67E0FAF3A6527700102' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG67E20D5FA6527700108' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG67E4F72EA6527700151' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG67EA4668A6527700012' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG67F4E714A6527700031' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6805D980A6528F00113' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68119040A652A000018' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG686B5BBBA652A000143' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG681E0CF1A652A000091' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG681E01D7A652A000078' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG681DFBEDA652A000077' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG681DF972A652A000074' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG681DEF4DA652A000084' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG681D6CD8A652A000080' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG681DF9A8A652A000075' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6852221AA652A000256' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG685183C4A652A000265' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG681F728CA652A000085' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG681F50D2A652A000096' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG681F4C0CA652A000095' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG681F45A0A652A000082' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG681F443DA652A000093' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG681F42E8A652A000087' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG681F3EFFA652A000081' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG681F3922A652A000080' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6820874BA652A000091' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6820844EA652A000084' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68207AF9A652A000097' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6820590FA652A000089' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689C655AA6527200035' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6821AB6AA652A000119' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6821857DA652A000110' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68217399A652A000093' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68216BC1A652A000091' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68215C5EA652A000103' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68214844A652A000095' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG682144E8A652A000102' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG682140FAA652A000094' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG682333F4A652A000116' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68232243A652A000134' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68231824A652A000143' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG682306ABA652A000139' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6822E2F7A652A000125' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6822DBB2A652A000132' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6822D5DAA652A000141' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6822B731A652A000138' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG685E1F15A652A000045' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68249ADBA652A000164' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG682475FAA652A000163' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG682470D0A652A000178' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68246390A652A000158' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68245A7CA652A000157' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68245478A652A000156' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6824454EA652A000153' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68244547A652A000154' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6824450EA652A000152' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68243290A652A000152' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6823D8AEA652A000147' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG685A7B82A652A000010' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68516337A652A000248' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG685161E1A652A000253' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68515B20A652A000249' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68515298A652A000222' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6825DB7BA652A000150' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6825D5CCA652A000195' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6825D598A652A000194' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6825D0A0A652A000192' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68259B04A652A000175' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68259864A652A000177' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG682591B8A652A000176' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68258B4BA652A000175' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68257CFCA652A000189' AS sole_code, '冯媛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68256863A652A000144' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68254DCDA652A000188' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68254403A652A000141' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG682540B8A652A000164' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6825403EA652A000163' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68253DA3A652A000162' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6825DDADA652A000185' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68620114A652A000053' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG685E907AA652A000052' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6848D06FA652A000147' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6826F97DA652A000225' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6826F961A652A000220' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6826F02AA652A000216' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6826E628A652A000175' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6826E369A652A000174' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6826DC66A652A000203' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6826C503A652A000163' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6826BC9EA652A000213' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6826BA74A652A000202' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6826B2E8A652A000188' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6826AB21A652A000196' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG682696EFA652A000204' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6826963BA652A000154' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68268267A652A000203' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6828ABD9A652A000181' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG685D1A3FA652A000021' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG685CFB98A652A000029' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6829F278A652A000217' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6829A5E5A652A000235' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68628235A652A000077' AS sole_code, '李雅楠' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6861DDE7A652A000047' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG685E3C40A652A000042' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG682B2759A652A000200' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG682B1ACEA652A000255' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG682A8E6EA652A000225' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG682A879BA652A000223' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG682A866DA652A000229' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG682A8266A652A000221' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG682A7EAFA652A000219' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG682C186DA652A000248' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG682D7C5DA652A000243' AS sole_code, '宋庆鸿' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG682D6942A652A000275' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG682D635CA652A000236' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG682D1F8EA652A000254' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG682D1C0AA652A000225' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6864E76FA652A000102' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG686239EFA652A000058' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG682F2CECA652A000327' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG682F2B04A652A000325' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG682F0F36A652A000324' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG682F1AD7A652A000282' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG686238E6A652A000065' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG683071E7A652A000340' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68306176A652A000304' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68306145A652A000318' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68305F91A652A000317' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68305230A652A000316' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68302235A652A000296' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG682FE7F1A652A000290' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG682FD060A652A000287' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68515D7DA652A000246' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68331C9CA652A000314' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68342970A652A000362' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6833E062A652A000321' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6833C371A652A000316' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68677DC8A652A000132' AS sole_code, '冯媛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6835D5B5A652A000384' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68354884A652A000340' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6835360DA652A000349' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68351CAFA652A000334' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6836BF6DA652A000390' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6836A977A652A000413' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG686BA4E1A652A000155' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG685D34EBA652A000032' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG683866B4A652A000017' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6837B76BA652A000002' AS sole_code, '李雅楠' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6865F0BEA652A000106' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6851576BA652A000258' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6839B7A2A652A000034' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6839A94CA652A000037' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68399BD4A652A000038' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6839569AA652A000030' AS sole_code, '陆宇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68393681A652A000031' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG683E8B39A652A000047' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG683E4A13A652A000044' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68402D02A652A000076' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG683FDF39A652A000071' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG683FB2D7A652A000065' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG683F8EC5A652A000061' AS sole_code, '任龙涛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6840F527A652A000067' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68459B30A652A000123' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG684AD58DA652A000188' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG684ABE5FA652A000186' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG684A4DA8A652A000173' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG684C3667A652A000195' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG684BCAFEA652A000208' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG684BBF90A652A000218' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG684FD931A652A000200' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG684FD30BA652A000216' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG684FC6DAA652A000223' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG684FBC7BA652A000209' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68518159A652A000240' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68517A43A652A000239' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG685179A3A652A000253' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68517395A652A000251' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG685172B5A652A000235' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68515E5AA652A000250' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG685159E2A652A000243' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6851591FA652A000245' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6851541AA652A000224' AS sole_code, '王德瑞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6850CB0BA652A000208' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6850CA5EA652A000207' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6850C046A652A000205' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6853BCA6A652A000258' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6853710EA652A000272' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6858FE34A652A000005' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG685A5273A6527200005' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG685A402AA652A000004' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG685A5D66A652A000006' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG685C0097A652A000017' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG685BAD8DA652A000005' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG685BA3F3A652A000015' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG685D5485A652A000042' AS sole_code, '冯媛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG685D3BB9A652A000033' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG685CF34BA652A000034' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG685CA6AAA652A000011' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG685E9252A652A000044' AS sole_code, '冯媛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG685E8A67A652A000051' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG685E851FA652A000037' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG685E8327A652A000035' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG685E10DEA652A000044' AS sole_code, '冯媛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG685E0690A652A000038' AS sole_code, '任龙涛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG685E05DEA652A000037' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG685DFC43A652A000036' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG685EC0EDA652A000044' AS sole_code, '冯媛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68628E72A652A000072' AS sole_code, '冯媛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG686283AAA652A000071' AS sole_code, '冯媛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68627F20A652A000079' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68627F09A652A000078' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68627D00A652A000075' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68627857A652A000066' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6862720DA652A000067' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG686242CCA652A000059' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6861FCC8A652A000050' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6861E55BA652A000051' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6861E493A652A000050' AS sole_code, '冯媛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6861D9EFA652A000056' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68632F71A652A000086' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6863397EA652A000084' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68639931A652A000093' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6863A0D8A652A000086' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6863CA02A652A000092' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6863C9D7A652A000094' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6863CCB9A652A000089' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6863EFC6A652A000091' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68647289A652A000097' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG686485A1A652A000095' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68648CCFA6527200098' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6864EA59A652A000105' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6864EB2EA652A000103' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6864ECF5A652A000105' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6864EE8EA652A000106' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68651C48A652A000108' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6865229CA652A000108' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68652BEFA652A000111' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6865D335A652A000113' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6865192BA652A000107' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6864FDF3A652A000109' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6865D78EA652A000111' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6865DAE4A652A000112' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68660C29A652A000115' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68677A67A652A000132' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6867258DA652A000126' AS sole_code, '任龙涛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG686728E5A652A000127' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG686729B3A652A000125' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6867BB43A652A000135' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6867BCEEA652A000136' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG686A19BAA652A000136' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG686A7E89A652A000137' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG686AA184A652A000137' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG686B19F7A652A000140' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6867CF42A652A000137' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6867BA46A652A000134' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG686FAB58A652A800184' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG686FC15AA652A800187' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68705AE8A652A800177' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68705D39A652A800178' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG686FB7A6A652A800186' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG686FB0A4A652A800175' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG686FA9B8A652A800180' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG687063CCA652A800181' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68707E6FA652A800186' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG687092F3A652A800191' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6870AFB2A652A800188' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68709F88A652A800193' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6870A4FAA652A800189' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6870F926A652A800199' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6870F971A652A800192' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6870FB66A652A800203' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6870FB86A652A800193' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68711096A652A800194' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68711282A652A800195' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG687112BCA652A800198' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG687138D5A652A800196' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6871ECECA652A800201' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68720C38A652A800207' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68744AD3A652A800202' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68744AECA652A800202' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG687459F0A652A800213' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG687459F0A652A800203' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68745F0EA652A800205' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6874671BA652A800206' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68746B34A652A800215' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68747034A652A800216' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6874723FA652A800205' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68747508A652A800206' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68747AEDA652A800217' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68748577A652A800214' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68749D68A652A800210' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6874933CA652A800215' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG687486FEA652A800218' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6874B28DA652A800217' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6874BFD5A4CD5100214' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6874C815A652A800219' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6874D748A652A800216' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6875A667A652A800221' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6875A7CCA652A800220' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6875A8D5A652A800216' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6875AC9EA652A800222' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6875ADB9A652A800223' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6875B148A652A800220' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6875E6B7A652A800228' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6875E21EA652A800224' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6875D8B9A652A800226' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6875F2FAA652A800230' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68761AFDA652A800229' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68766E13A652A800235' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6876FDACA652A800233' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6876FFC6A652A800236' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68770F0CA652A800239' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG687724E7A652A800229' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6877390AA652A800236' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68775C0AA652A800238' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68776CBDA652A800239' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6877A846A652A800235' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6878444FA652A800241' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68784C69A652A800241' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68784C86A652A800242' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68786EA0A652A800249' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68787EF0A652A800247' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68789234A652A800255' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68789A87A652A800250' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6878A53DA652A800251' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6878CC2CA652A800255' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6878ACC9A652A800259' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6878E659A652A800259' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6879A77CA652A800271' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6879A9CFA652A800250' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6879AAB7A652A800251' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6879D0BDA652A600271' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6879BACDA652A800263' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6879D73EA652A800259' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6879F390A652A800280' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG687A4181A652A800288' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG687D92EDA652A800293' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG687D9706A652A800276' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG687DA45AA652A800284' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG687DA647A652A800282' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG687DA7F6A652A800286' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG687DAC98A652A800289' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG687DB1ADA652A800288' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG687DBFE1A652A800290' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG687DC231A652A800303' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG687DC7DBA652A800293' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG687DC87EA652A800294' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG687DD82EA652A800294' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG687DE061A652A800296' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG687E09ACA652A800324' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG687EDBF1A652A800374' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG687E4E25A6528800356' AS sole_code, '冯媛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG687EEE7BA652A800360' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG687EF210A652A800343' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG687EF689A652A800346' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG687F0084A652A800365' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG687F6DF2A652A800386' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688036A1A652A800006' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68804BD7A652A800010' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68805256A652A800008' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68819E9DA652A800027' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68818818A652A800027' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6881811CA652A800029' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6880707DA652A800013' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6881D6DBC7E3E100034' AS sole_code, '冯媛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688240E4A652A800039' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688235C4A652A800045' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6882351BA652A800037' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68822BBFA652A800043' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688227C8A652A800041' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6882DBE1A652A800050' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6882EE76A652A800053' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6882F2FBA652A800055' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6882FBA4A652A800062' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6882FCBEA652A800060' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6882FC94A652A800063' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688310A8A652A800065' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68859F13A652A800007' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68863ABCC7E3E100009' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6886D0B1A652A800015' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6886D4EEA652A800014' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6886E1ABA652A800020' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6886E512A652A800021' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688701A2C7E3E100022' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688707D8A652A800023' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68870917A652A800018' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68870A4CA652A800023' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6887113DA652A800019' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68871761A652A800024' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68871BA2A652A800028' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68871C9DA652A800031' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68871C89A652A800030' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68872427A652A800032' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68872D2EA652A800034' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688731E9A652A800022' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68873647A652A800034' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68873D67A652A800035' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688747A5A652A800036' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688762A9A652A800027' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688766B6A652A800038' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68878AF6A6529E00038' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68879EF8A652A800040' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6888177FC7E3E100038' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68877FB7A652A800031' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68877C89C7E3E100030' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68877779C7E3E100029' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68876F2AC7E3E100037' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68876E8BA652A800036' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68882092A652A800034' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688821F2A652A800036' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688823CFA652A800039' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68882ACDA652A800042' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68882D2EA652A800040' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688842F5C7E3E100044' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68884C3BC7E3E100045' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68885BF8C7E3E100051' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68885C08C7E3E100047' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68886CDDC7E3E100058' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688874CDA652A800056' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68887575C7E3E100051' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68887780C7E3E200057' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68887EC4A652A800055' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68888121C7E3E100062' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688882BDA652A800056' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68888A58A652A800067' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68889615A652A800059' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68889FE3A652A800059' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6888D9CFA652A800060' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6888BC2BA652A800066' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68897214A652A800070' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68897B09C7E3E100066' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688981B2A652A800068' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6889897BA652A800075' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68899E41A652A800074' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6889BFB6A4CD2B00082' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688A510BC7E3E100087' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688A0226A652A800085' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6889F174C7E3E100085' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688AC89CA6529A00082' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688AC5EBA652A800093' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688ADC4CA652A800097' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688ADE45A652A800085' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688ADF93A6529D00086' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688AE442A652A800096' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688B0D24C7E3E100097' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688B2075A652A800106' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688B173CA652A800093' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688B3734C7E3E100105' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688B5774A652A800111' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688B7DEEA652A800108' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688C089AA652A800115' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688C114EC7E3E100112' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688C2457A652A800103' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688C348EA652A800117' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688C34CBA652A800120' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688C59CDA652A800106' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688C92F5C7E3E100005' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688C98DCC7E3E100004' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688CCFAEC7E3E100006' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG688F6896A652A800010' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68905F38A652A800024' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6890F4A2C7E3E100010' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68916923C7E3E100013' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68917D7BC7E3E200016' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6891EF15A652A800004' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6892CA4EC7E3E100016' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6892D210C7E3E200012' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6892F256A6528F00019' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6892F69BA652A800016' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6893223AA652A800024' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6893343BA652A800020' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6893EF24A652A800028' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68940D4FA652A600028' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68941540C7E3E100033' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6894308BA652A800037' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68943859A652A800046' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68945742A652A800042' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68949568A652A800044' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68956DC8C7E3E100047' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6895AA94A6529E00047' AS sole_code, '任龙涛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6895CAF2A652A800053' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6895E81EA652A800051' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6895E9EDA652A800052' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6895EC6DA652A800056' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6895F5E8A652A800079' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6895F90CA652A800061' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68970303A652A800063' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689709B4A652A800054' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68972CEDA652A600064' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6897D4C4A652A800065' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6898880AA652A800086' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68993FF7A652A800069' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68994602A652A800066' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68994639A652A800058' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689948D7A652A800089' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6899555CC7E3E100073' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689955A4C7E3E200068' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689955FEC7E3E300061' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68997B2CA652A800084' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68998181A652A800069' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6899DBA9A652A800006' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689A115BC7E3E100007' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689A9F0DA652A800004' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689AB893A652A800015' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689AD10AA652A800017' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689ADEECA652A800023' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689AEB0FA652A800027' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689AED50A652A800017' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689BEA31C7E3E100004' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689BFF29A652A800009' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689C0941A652A800023' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689C0C5FA652A800014' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689C13E7A4CD5100014' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689C425CA652A800021' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689C52F6C7E3E200034' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689C6FADA652A800024' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689D71ABA652A800049' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689D7235A652A800026' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689D7771A652A800037' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689D8DCBA652A800039' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689D966BA652A800054' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689DE11BA652A800034' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689E7D7EA652A800060' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689E8BA8A652A800051' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689E9F0AA652A800058' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689EA96CA652A800054' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689EAC95A652A800064' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689EB446A652A800068' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689EBA19A652A800058' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689EC1D6A652A800066' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689ECFFEA652A800070' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689ED053A652A800071' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689EFB68A652A800070' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689F1B02A652A800064' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689F20D3A652A800073' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689F22EEA652A800065' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG689F2AB2A652A800080' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A1BA04A652A800077' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A27383A652A800090' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A27E07A652A800085' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A28CC2A652A800082' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A28D2AA652A800096' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A28E5CA652A800090' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A290B0A652A800069' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A297D1A652A800072' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A2A6E8A652A800088' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A2C2E2A652A800106' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A2C8F1C7E3E100086' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A2E119A652A800121' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A2F420C7E3E200096' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A2F6C4C7E3E200097' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A304C9A652A800098' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A33028A652A800131' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A34841A652A800117' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A3CDBCA652A800104' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A3D639A652A800132' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A3E2CEA652A800108' AS sole_code, '冯媛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A3E431A652A800135' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A3E6D8A652A800136' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A415A9A652A800145' AS sole_code, '冯媛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A41A3EA652A800139' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A41B76A652A800115' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A41E7DA6528F00135' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A42107A652A800145' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A45597A652A600148' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A51C19A652A800163' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A52384A652A800174' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A5249AA652A800175' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A528FFA652A800133' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A53039A652A800170' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A54136A652A800185' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A543C4A652A800137' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A557A9A652A800188' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A570B3A652A800145' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A57221A652A800193' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A576E0A652A800195' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A5773EA652A800196' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A578E1A652A800197' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A57B33A652A800198' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A5BEE8A652A800159' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A5D613A652A800182' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A67843A652A800213' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A67C6EA652A800207' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A6953DA652A800222' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A696FAA652A800194' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A6D54F1312D0100236' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A6D694A652A800206' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A7C38FA652A800243' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A7C682A652A800215' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A7CF01A652A800190' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A7D278A652A800247' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A7D8CAA652A800192' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A7E1B3A652A800223' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A7F1AAA652A800241' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A8003AA652A800250' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A80223A652A800251' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A80576A652A800244' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A80E09C7E3E100230' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A816EDA652A800232' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A81B32A652A800247' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A82157C7E3E100204' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A8244FA652A800207' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A82DDAA652A800001' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68A842B2A652A800001' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AA95C6A6528F00006' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AA9A84A652A800011' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AAE35FA652A800013' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68ABBAB7C7E3E100016' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68ABBC51A652A800017' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68ABBC6FA652A800023' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68ABBDC8A652A800020' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68ABC057A652A800019' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68ABC26DA652A800021' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68ABC7E8A652A800025' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68ABC93AA652A800026' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68ABD607A652A800034' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68ABD78AA652A800030' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68ABD7CDA652A800031' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68ABDAC4A652A800036' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68ABE021C7E3E100038' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68ABE062A652A800033' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68ABEE92A652A800042' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68ABF478A652A800036' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AC0C6CA652A800041' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AC15B9A652A800043' AS sole_code, '冯媛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AC236BA652A800051' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AC3A78A652A800055' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68ACFA10A652A800046' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AD03EFA652A800057' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AD0A0BA652A800047' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AD0B9EA652A800060' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AD0D24A652A800061' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AD1FCAA652A800070' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AD24D0A652A800068' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AD35BEA652A800071' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AD36E6A652A800057' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AD3E88A652A800058' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AD50CDA652A800082' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AD5664C7E3E100064' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AD5E4DA652A800071' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AD612BA652A800068' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AD6198A6528F00086' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AD6390A652A600073' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AD65F2A652A800070' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AD6BC9C7E3E100084' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68ADA8B9A652A800088' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68ADB94EA652A800076' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68ADB9AFA652A800083' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68ADDE4AC7E3E200085' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AE585AA652A800092' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AE6517A652A800092' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AE6E1EA652A800085' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AE6F71A652A800087' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AE7154A652A800089' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AE725DA652A800099' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AE7D1FC7E3E100101' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AE9AA9A652A800105' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AEC7B5A652A800124' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AEC916A652A800114' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AF05BEC7E3E200117' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AFAEAEA652A800130' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AFC25EA652A800123' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AFC7CAA652A800124' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68AFCA99C7E3E200128' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B043C3A652A800145' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B052C5A652A800143' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B0FFA4A652A800139' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B10087A652A800152' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B10A6FA652A800153' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B10C29A652A800160' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B118A8A652A800142' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B11A31C7E3E100143' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B12493A652A800157' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B1284BC7E3E200158' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B12F9AA652A800146' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B1321CA4CD5100157' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B14784A652A800149' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B156D9C7E3E100170' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B15F5EA652A800162' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B1608EC7E3E200151' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B163F3C7E3E100164' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B2562FC7E3E200184' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B418B3A652A800169' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B41946A652A800170' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B4207EA652A800203' AS sole_code, '赵晓川' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B4FAD0C7E3E100211' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B4FB08C7E3E200181' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B4FDA8C7E3E200210' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B52EFBC7E3E100218' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B796E8C7E3E100256' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BFC626C7E3E100358' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C0DC1FC7E3E100370' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C27338A652A800406' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C851CAA6529E00009' AS sole_code, '任龙涛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CA1286C7E3E100033' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CA12D9C7E3E200034' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CA1F50A652A800033' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CB4DD1C7E3E100060' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CBBD51C7E3E300072' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CCBF811312D0100083' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D0F8E01312D0100111' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D26FB8C7E3E100133' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68DBC002A6528F00230' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68DB789EA6528F00213' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68DB4981A6528F00220' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68DB46BDA6528F00211' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68DB38E2A6528F00218' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68DB2657A6528F00225' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68DA7464A6528F00214' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68DA6C89A6528F00221' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68DA6838A6528F00205' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68DA0C66A6528F00219' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68DA05FFA6528F00216' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D9FA49A6528F00198' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D9D79BA6528F00205' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D8FBF8A6528F00209' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D8EB14A6528F00200' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D747FAA6528F00194' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D738EDA6528F00192' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D67793A6528F00198' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D676EBA6528F00199' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D65149A6528F00196' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D64D99A6528F00197' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D6127CA6528F00193' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D5E57BA6528F00187' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D5E412A6528F00185' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D5DAD2A6528F00183' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D53805A6528F00183' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D52CC7A6528F00180' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D52ACAA6528F00184' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D52720A6528F00180' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D4F198A6528F00177' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D4EAA4A6528F00178' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D4DB93A6528F00169' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D3A772A6528F00148' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D378C7A652A800144' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D36E60A6528F00144' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D36914A6528F00142' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D329C6A4CDD100139' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D28D8BA652A800137' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D1FC97A652A800127' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D1F7FEA6528F00125' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D1211DA6528F00116' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D1185DA6528F00118' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D0F03CA652A800107' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D0E9E9A652A800111' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D0B729A6528F00102' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CE5FD5A6528F00091' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CCE9F3A652A800080' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CCBE99A6528F00081' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CBD16EA6528F00066' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CB7B68A6528F00066' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CB588DA652A800048' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CAA63BA652A800055' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CAA036A652A800051' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C91429A6528F00022' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C913D5A652A800021' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C90957A652A800015' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C6B496A652A800441' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C6AF99A652A800439' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C3B887A652A800422' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C2B57FA652A800411' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C24FD4A652A800400' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BFB61DA652A800363' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BE8621A652A800345' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BE7BFCA652A800346' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BE794BA652A800295' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BE72DBA652A800342' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BE2610A652A800327' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BAD0B7A652A800303' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B8F7C5A652A800239' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B4F459A652A800210' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B4F391A652A800180' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B4E000A652A800208' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FB6E36C7E3E300593' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FAD3D2A6528F00561' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F826E3A6528F00506' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F710C9A6528F00453' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6FD43A6528F00441' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F2FD7BA652A800370' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F19F78A652A800342' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F14C6FA652A800339' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F0DC4CA6528F00348' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F0DBD2A6528F00347' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F0D288A6528F00337' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F052E8A4CD5100334' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68EF3E05A6528F00323' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68ED8B85A4CD5100296' AS sole_code, '李雅楠' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68EC607EA4CD5100278' AS sole_code, '张锐烽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68EC4E63A6528F00267' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68E874B9A6528F00264' AS sole_code, '王泽璇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68E75741A652A800248' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68E74CC4C7E3E100248' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68E73AC9A652A800244' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68E73AADA6528F00243' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68E72B1FA652A800246' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68E713A4A4CD5100227' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68E63A4AC7E3E100230' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69049AE2A652A800967' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690497FBA4CD1D00996' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690486FCA652A800965' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69047C56A6529A00972' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69047B85A6529A00962' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6904148EA652A800949' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69035207A6528F00953' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69033199A6528F00926' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69030B31A652A800912' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690305C4A652A800883' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6902BC44A6528F00887' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6902BB5BA6528F00861' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69016D08A4CD1D00761' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6900D292A6529A00773' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6900AA5CA4CD1D00787' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690051C5C7E3E100729' AS sole_code, '张锐烽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FF41F2A6528F00657' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FF0B6BA652A800616' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FED1BBA4CD5100602' AS sole_code, '李雅楠' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FEC85FA6528F00600' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68DB4390A652A800219' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68DB3EDDA652A800225' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D9F17BA652A800211' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D9CA91A652A800203' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D66780A6528F00198' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D62B1CA4CD5100194' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D6228DA652A800193' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D60E4DA652A800191' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D6058AA652A800189' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D601A2A652A800188' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D5EA74A652A800188' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D5E570A652A800186' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D55BD0A652A800184' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D5141FA652A800181' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D513FFA652A800179' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D4DF3BA652A800172' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D4CFD8A652A800170' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D4CF01A652A800169' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D4BC27A652A800165' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D4AB33A652A800172' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D4A441A652A800162' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D4A085A6528F00169' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D49C46A652A800161' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D49738A652A800155' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D490C3A652A800159' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D3B8EA1312D0100150' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D3ACAFA652A800149' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D3A58AA652A800161' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D39066C7E3E100156' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D388C8A652A800146' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D3887CA652A800154' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D384D1A652A800148' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D38368A652A800146' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D37509A652A800146' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D36B4BA652A800143' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D367CDA6528F00139' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D35E85A652A800147' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D35876A652A800140' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D3580FA6528F00145' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D354B6A6528F00142' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D3457BA652A800138' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D344F3A652A800142' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D28CCAA652A800138' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D2466AA652A800133' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D24615A6528F00131' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D1FAF0A652A800126' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D0F9E1A652A800114' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D0F221A652A800110' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D0EA6AA652A800106' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D0DDE8A652A800106' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68D0ACF2A652A800098' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CFDCF0A652A800102' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CFB0C1A652A800093' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CD5354A652A800089' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CCFA93A652A800086' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CCD2A3A652A800083' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CCC788A652A800079' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CCB1D5A652A800076' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CBAE09A652A800068' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CBA103A652A800065' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CB8D6CA652A800066' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CB7BD2A652A700057' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CB78C9A652A800055' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CB7545A652A800054' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CB6E2EA652A800058' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CB6429A652A800062' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CB5C1FA652A800056' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CB593EA6528F00049' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CA7275A652A800049' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CA62C4A652A700043' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CA35F7A652A800037' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CA22D6A652A800040' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CA1E6AA652A800032' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CA0BEBA652A800033' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68CA099CA652A800032' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C90B6DA652A800020' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C90328A652A800019' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C8D6CCA652A800015' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C8CE98A652A800014' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C8BFE2A652A800013' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C8B4A5A652A800005' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C81FDAA652A800007' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C7A343A652A800456' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C76CD6A652A800441' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C6B469A652A800395' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C39792A652A800420' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C38D9EA652A800372' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C3884FA652A800371' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C37DFAA652A800402' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C37208A652A800369' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C2F780A652A800399' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C26F41A652A700404' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C26C34A652A800403' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C26191A652A800404' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C24F50A652A800386' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C22735A652A800354' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C2268BA652A700400' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C21B65A652A800395' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C173E3A652A800398' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C12CD8A652A800346' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68C0CEDFA652A800369' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BFD7C2A652A800323' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BFD290A652A800372' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BFCE1BA652A800366' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BFCB1AA652A800321' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BFC670A652A800359' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BFC2CBA652A800364' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BFA084A652A800365' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BF96F7A652A800317' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BEA082A652A800353' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BE8223A652A800347' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BE78BEA652A800294' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BE74EDA652A800344' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BE7451A652A800343' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BE6D43A652A800341' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BE5019A652A800289' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BE4024A652A800333' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BE3C15A652A800336' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BE39A5A652A800285' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BE368AA652A800284' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BE2CDFA652A800278' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BE2442A652A800321' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BAC3A3A652A700302' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BAB19DA652A800300' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BA8BBFA652A800291' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BA8191A652A800297' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BA815CA652A800296' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BA7BC1A652A800258' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BA7941A652A800257' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BA69BAA652A800294' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BA61B8A652A800292' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BA420EA652A800289' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BA3FB8A652A800288' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BA3B44A652A800295' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BA34CBA652A800293' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68BA30DEA652A800282' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B9AA70A652A800250' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B983DAA652A800281' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B80F0AA652A800264' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B7EFAAA652A800224' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B7EBF2A652A800261' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B7E0B2A652A800256' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B7C56FA652A800218' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B7B97FA652A800253' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B797F0A652A800216' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B6C592A652A800212' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B66E7FA652A800247' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B66173A652A800244' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B64DE2A652A800239' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B64D41A652A800237' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B64C93A652A800246' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B64A36A652A800239' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B644B1A652A800243' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B643BBA652A800200' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B6434FA652A800233' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B64069A652A800240' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B570E0A652A800195' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B55E0EA652A800194' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B5369EA652A800219' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B531FDA652A800216' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B5037DA652A800212' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68B4F057A652A800205' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FC3FC3A6529A00594' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FB249D1312D0100620' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FB23A81312D0100619' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FB097C1312D0100584' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FB08DDA4CC9600575' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FB03DC1312D0100572' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FAD1391312D0100574' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FACC751312D0100608' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FAC4BB1312D0100603' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F9E9C81312D0100550' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F9E7F01312D0100548' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F9DBC61312D0100547' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F9D4431312D0100581' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F9D41E1312D0100542' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F9D2041312D0100540' AS sole_code, '王泽璇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F9CB74A6527500575' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F9B68E1312D0100571' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F9B5031312D0100569' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F9AAA5A652A800532' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F9A8751312D0100538' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F99A671312D0100567' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F997BB1312D0100566' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F992B41312D0100566' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F986A11312D0100563' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F984601312D0100562' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F9825F1312D0100561' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F982BE1312D0100530' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F982941312D0100561' AS sole_code, '王泽璇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F97CCF1312D0100559' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F975281312D0100526' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F8A2D91312D0100542' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F8A2181312D0100541' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F88D9A1312D0100504' AS sole_code, '任龙涛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F88C1C1312D0100533' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F8856A1312D0100508' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F884571312D0100506' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F884321312D0100499' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F880411312D0100525' AS sole_code, '王泽璇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F87FAF1312D0100529' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F87DC21312D0100526' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F87D691312D0100500' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F87B7BA6528F00493' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F8766D1312D0100521' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F870181312D0100491' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F869981312D0100515' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F84C8C1312D0100494' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F84B851312D0100518' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F848AC1312D0100513' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F843AF1312D0100485' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F83D941312D0100492' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F836F51312D0100509' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F833FEA6527700510' AS sole_code, '王泽璇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F8323C1312D0100505' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F830C11312D0100490' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F82FD11312D0100509' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F82F861312D0100488' AS sole_code, '张锐烽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F82B8A1312D0100480' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F82AD91312D0100479' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F82A471312D0100486' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F820591312D0100477' AS sole_code, '任龙涛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F74BE41312D0100479' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F74B4BA652A800477' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F748E21312D0100469' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F7456C1312D0100495' AS sole_code, '李雅楠' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F7456A1312D0100468' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F745441312D0100497' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F742211312D0100495' AS sole_code, '李雅楠' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F73EAF1312D0100491' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F73DE51312D0100490' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F73CFD1312D0100476' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F73B951312D0100465' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F7365B1312D0100487' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F735311312D0100486' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F735141312D0100482' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F734181312D0100481' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F734EE1312D0100485' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F732D6A652A800474' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F72F891312D0100477' AS sole_code, '王泽璇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F72EC61312D0100471' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F72E181312D0100482' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F72DEC1312D0100476' AS sole_code, '任龙涛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F72CFE1312D0100479' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F72CE41312D0100466' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F72ADC1312D0100478' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F72A881312D0100476' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F72A3F1312D0100475' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F729DF1312D0100470' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F729241312D0100463' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F726861312D0100459' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F725C81312D0100469' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F7249F1312D0100467' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F724011312D0100451' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F723FF1312D0100458' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F722AF1312D0100467' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F722401312D0100466' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F720AF1312D0100450' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F71D841312D0100447' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F718BC1312D0100461' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F718131312D0100461' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F716D51312D0100455' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F712351312D0100459' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F712351312D0100442' AS sole_code, '李雅楠' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F7119E1312D0100458' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F711921312D0100459' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F70FE21312D0100458' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F70EF11312D0100452' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F70EA61312D0100441' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F70E8A1312D0100457' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F70E961312D0100451' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F70E001312D0100450' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F70CCB1312D0100456' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F708141312D0100447' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F708A01312D0100455' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F7086A1312D0100438' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F707831312D0100455' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F707561312D0100446' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F7070E1312D0100454' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F7063B1312D0100436' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F705EE1312D0100444' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F705981312D0100435' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F703701312D0100443' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F700D41312D0100434' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F700511312D0100433' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6FF8D1312D0100432' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6FEB61312D0100449' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6FDF3C7E3E100448' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6FD2D1312D0100439' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6FD561312D0100447' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6FD21A4CC9600446' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6FD1A1312D0100453' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6FC491312D0100438' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6FBCC1312D0100437' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6FBC51312D0100445' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6FB931312D0100444' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6FA641312D0100436' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6F9F01312D0100435' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6F9A21312D0100451' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6F8EF1312D0100427' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6F7601312D0100432' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6F6031312D0100449' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6F5F91312D0100443' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6F5E21312D0100448' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6F5E31312D0100442' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6F5931312D0100431' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6F5931312D0100447' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6F5661312D0100441' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6F4AE1312D0100430' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6F4581312D0100429' AS sole_code, '张锐烽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6F39E1312D0100440' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6F159A652A800424' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6F0BAA652A800428' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6EB4C1312D0100420' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6E4D51312D0100437' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6E2DB1312D0100441' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6E2DE1312D0100420' AS sole_code, '任龙涛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6E2001312D0100440' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6E06E1312D0100436' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6E0571312D0100414' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6DF8DA652A800435' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6DF031312D0100434' AS sole_code, '任龙涛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6DEAA1312D0100419' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6DC3A1312D0100436' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6DC131312D0100411' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6D7AA1312D0100431' AS sole_code, '任龙涛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6D72C1312D0100433' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6D5ED1312D0100432' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6D1F51312D0100429' AS sole_code, '王泽璇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6D1C71312D0100428' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6D0E31312D0100427' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F6CD981312D0100426' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F635A4A652A800425' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F63224C7E3E200409' AS sole_code, '冯媛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F600391312D0100423' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5FDFA1312D0100430' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5FB361312D0100422' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5FA811312D0100405' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5F90A1312D0100421' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5F8A11312D0100408' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5F7DE1312D0100407' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5F7921312D0100406' AS sole_code, '任龙涛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5F67D1312D0100405' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5F5B61312D0100419' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5F45E1312D0100418' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5F4221312D0100404' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5F3181312D0100404' AS sole_code, '任龙涛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5F3041312D0100403' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5F27E1312D0100402' AS sole_code, '任龙涛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5F2761312D0100417' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5F12B1312D0100401' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5F11C1312D0100413' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5F1071312D0100403' AS sole_code, '王泽璇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5F0D21312D0100427' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5F0761312D0100398' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5F02C1312D0100426' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5EF731312D0100397' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5EEB51312D0100402' AS sole_code, '任龙涛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5EE881312D0100424' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5EE151312D0100396' AS sole_code, '冯媛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5ED871312D0100395' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5ED101312D0100400' AS sole_code, '任龙涛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5ECF61312D0100422' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5EC2C1312D0100399' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5EBA71312D0100392' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5EB511312D0100410' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5EAFA1312D0100421' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5EAF51312D0100409' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5EAA21312D0100420' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5EAA01312D0100408' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5EA461312D0100397' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E9611312D0100419' AS sole_code, '任龙涛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E8371312D0100417' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E8A31312D0100391' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E8AB1312D0100396' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E8881312D0100390' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E8571312D0100418' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E8431312D0100406' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E7C41312D0100416' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E6C21312D0100415' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E5A01312D0100393' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E5F31312D0100394' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E5C21312D0100389' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E5961312D0100392' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E52A1312D0100404' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E4F01312D0100390' AS sole_code, '任龙涛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E4E81312D0100389' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E4CC1312D0100414' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E42B1312D0100387' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E41F1312D0100401' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E3DA1312D0100388' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E3A81312D0100413' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E3271312D0100386' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E3431312D0100386' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E3241312D0100399' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E2C61312D0100411' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E2851312D0100385' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E25F1312D0100397' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E1CF1312D0100384' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E1661312D0100396' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E1501312D0100408' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E14C1312D0100407' AS sole_code, '王泽璇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E1181312D0100394' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E1321312D0100395' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E1241312D0100382' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E0431312D0100405' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E03A1312D0100381' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E0231312D0100379' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E0251312D0100380' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5DFCB1312D0100376' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5E00A1312D0100378' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5DEED1312D0100393' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5DEC71312D0100382' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5DDB81312D0100381' AS sole_code, '王德瑞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5DD431312D0100391' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5DD4F1312D0100380' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5DD281312D0100379' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5DD101312D0100375' AS sole_code, '皇甫煜' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5DC781312D0100403' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5DC161312D0100401' AS sole_code, '张锐烽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5DB241312D0100377' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5DB451312D0100389' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5DB021312D0100376' AS sole_code, '冯媛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5DA8A1312D0100373' AS sole_code, '张锐烽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5DA85A4CCF900388' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5D9B81312D0100372' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5D9511312D0100371' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5D91E1312D0100370' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5D8E41312D0100400' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5D7831312D0100385' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5D76A1312D0100398' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5D6661312D0100369' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5D6471312D0100384' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5D5B11312D0100383' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5D17B1312D0100373' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5D1C91312D0100395' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5D01C1312D0100381' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5CEC11312D0100394' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5CE561312D0100393' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5C82FA652A800392' AS sole_code, '李雅楠' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5C73C1312D0100366' AS sole_code, '任龙涛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5B8D61312D0100370' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F5AA811312D0100369' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F58FF21312D0100374' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F58F281312D0100361' AS sole_code, '李雅楠' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F58E9E1312D0100366' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F58D4CA652A800365' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F58C1A1312D0100372' AS sole_code, '王泽璇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F20ADF1312D0100377' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F20A0A1312D0100376' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F209501312D0100367' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F2063D1312D0100375' AS sole_code, '王泽璇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F201FE1312D0100358' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F201051312D0100374' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F2007F1312D0100373' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F1FEE11312D0100357' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F1FE9F1312D0100366' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F1F54E1312D0100372' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F1E5BDC7E3E100349' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F1D952A652A800354' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F19991A652A800367' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F196B8A652A800341' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F195EAA652A800350' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F18D3EA652A800340' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F105DAA652A800338' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F0B8E8A652A800346' AS sole_code, '李雅楠' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F095B8A652A800344' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F086D9A652A800325' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F05ECBA652A800352' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F05BB4A652A800350' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F05A151312D0100339' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F05306A652A800321' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F04FCDA6528200348' AS sole_code, '李雅楠' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68F03FE1A652A800327' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68EF7B94A652A800310' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68EF72E1A652A800308' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68EF42DBA652A800305' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68EF424DA6528F00304' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68EF3C2A1312D0100336' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68EF36601312D0100299' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68EF35701312D0100325' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68EC8F4DA652A800287' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68EC794B1312D0100285' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68EC778CA4CC9600285' AS sole_code, '李雅楠' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68EC60D61312D0100282' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68EC5C63A652A800276' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68EC5159A652A800279' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68EC5054A652A600281' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68E9214BC7E3E100269' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68E8615BA652A800264' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68E757CDA652A800254' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68E747E0A652A800247' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68E742DFA652A800246' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68E73244A652A800248' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68E716ECA6529A00234' AS sole_code, '李雅楠' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68E71069A4CD9B00225' AS sole_code, '李雅楠' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68E1C4EFC7E3E200227' AS sole_code, '冯媛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68E08FF7A652A800227' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69045CD2A652A800959' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690450131312D0100969' AS sole_code, '李雅楠' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69044DF3A652A800968' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690447D9A652A800954' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690439D11312D0100965' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69043043A4CCF900962' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69042E301312D0100951' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69042B04A6529A00959' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6904258CA652A800956' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69042097A6529A00948' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690415C31312D0100942' AS sole_code, '王泽璇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690414401312D0100934' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69040FF51312D0100966' AS sole_code, '李雅楠' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69040AC61312D0100964' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69040AB81312D0100935' AS sole_code, '李雅楠' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6904060F1312D0100946' AS sole_code, '李雅楠' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6903FDF11312D0100943' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69032B4D1312D0100925' AS sole_code, '张锐烽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690329BEA6529A00922' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690322DC1312D0100926' AS sole_code, '任龙涛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69031B3BA6529A00897' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69030333A4CD5100907' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6902DE5AA4CCF900876' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6902D7741312D0100874' AS sole_code, '王德瑞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6902D3661312D0100894' AS sole_code, '冯媛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6902CD731312D0100882' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6902BC0F1312D0100861' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6902BAB31312D0100857' AS sole_code, '李雅楠' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6902B85EA6528F00856' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6902ABAE1312D0100853' AS sole_code, '王泽璇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6901E6F2A652A800862' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6901D8C31312D0100858' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6901D8711312D0100827' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6901CE501312D0100845' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6901CA5D1312D0100840' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6901C6571312D0100836' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6901C4551312D0100817' AS sole_code, '冯媛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6901BCE31312D0100826' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6901B94B1312D0100839' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6901B8B0A652A800810' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6901B7CE1312D0100836' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6901B7071312D0100821' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6901B3E71312D0100823' AS sole_code, '任龙涛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6901B3261312D0100817' AS sole_code, '任龙涛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6901AD23A652A800801' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6901AC4D1312D0100813' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69019D8A1312D0100805' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690192AC1312D0100793' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69019009A6529A00799' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69018AD41312D0100779' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6901890C1312D0100777' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690185471312D0100784' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690185251312D0100808' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690184DD1312D0100783' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6901819F1312D0100768' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69017EACA652A800767' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690179491312D0100765' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690177671312D0100800' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69016F4C1312D0100797' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69016D0BA652A800795' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69016B121312D0100778' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6901690B1312D0100759' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690164451312D0100775' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6901632D1312D0100758' AS sole_code, '李雅楠' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690162461312D0100771' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69015E3A1312D0100770' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69006102A652B300750' AS sole_code, '李雅楠' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69005CF11312D0100749' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690059451312D0100731' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69005110A652A800744' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690044361312D0100739' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690042E7A652A800737' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690033D91312D0100730' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6900341BA4CD1D00716' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690032FEA652A800715' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690031D11312D0100730' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690020221312D0100709' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69000E091312D0100715' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FF5F53A4CD1D00673' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FF4C5AA4CD1D00702' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FF1D441312D0100664' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FF18041312D0100639' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FF12A51312D0100621' AS sole_code, '王泽璇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FF0FF71312D0100630' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FF07CF1312D0100654' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FEF34E1312D0100622' AS sole_code, '朱振' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FEE7C01312D0100655' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FEE7781312D0100647' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FED689A652A800603' AS sole_code, '季宗辉' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FED0C51312D0100643' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FECF41C7E3E100644' AS sole_code, '冯媛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FEC84CC7E3E100640' AS sole_code, '王泽璇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FEC4321312D0100638' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FEB8FA1312D0100612' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FD14FBA6529A00608' AS sole_code, '李永旗' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG68FD1352C7E3E100633' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG691705A4A6528F00005' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6916D3E7A6528F00164' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6916D3B3A6528F00147' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6915DEEBA6528F00130' AS sole_code, '王泽璇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG691315CBC7E3E100070' AS sole_code, '李雅楠' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6928F30BA6528F00282' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69158FFC1312D0100078' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69153EEAA652A800018' AS sole_code, '李雅楠' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6912DDBB1312D0100070' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69129FEF1312D0100052' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690D8BDA1312D0101158' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690D7AB01312D0101195' AS sole_code, '王泽璇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690D4DE61312D0101151' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690C42541312D0101141' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690C16081312D0101127' AS sole_code, '李雅楠' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690BF41F1312D0101120' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690AE8431312D0101056' AS sole_code, '王泽璇' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690AC0961312D0101098' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690AB26F1312D0101071' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690AAF4AC7E3E101055' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690AA4FA1312D0101052' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690AA242C7E3E101067' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690AA0EF1312D0101095' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690A95631312D0101040' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6909A6481312D0101069' AS sole_code, '李雅楠' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69099B381312D0101022' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG69085BFDA4CC9D00995' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6908359C1312D0100986' AS sole_code, '孙彬航' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG690830C61312D0101000' AS sole_code, '张栋' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6928F79BC7E3E100283' AS sole_code, '马云霞' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6925319D1312D0100194' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6923F8031312D0100177' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG6923EEE91312D0100196' AS sole_code, '任龙涛' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG691EC9591312D0100170' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG691EB7F21312D0100165' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG691D71DF1312D0100154' AS sole_code, '刘泽' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG691D30C21312D0100130' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG691C26981312D0100145' AS sole_code, '潘美茹' AS sales_owner
+  UNION ALL
+  SELECT 'THSTG691C0EF71312D0100142' AS sole_code, '潘美茹' AS sales_owner
+) input
+INNER JOIN ads.mv_branch_customer_base b
+  ON b.sole_code = input.sole_code
+LEFT JOIN ads.branch_customer_ext_config c
+  ON c.sole_code = b.sole_code
+ AND c.customer_account = b.customer_account
+ AND c.product_name = b.product_name;

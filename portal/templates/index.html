@@ -103,6 +103,12 @@
                         <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_stock_position" href="#sr_api_config_stock_position">
                             <span>产品净值</span>
                         </a>
+                        <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_sales_order" href="#sr_api_config_sales_order">
+                            <span>销售订单配置</span>
+                        </a>
+                        <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_sign_customer_group" href="#sr_api_config_sign_customer_group">
+                            <span>签约客户群管理配置</span>
+                        </a>
                     </div>
                 </div>
 
@@ -185,6 +191,8 @@
                 "sr_api_config_staff": { module: "sr_api", view: "config_staff" },
                 "sr_api_config_code_mapping": { module: "sr_api", view: "config_code_mapping" },
                 "sr_api_config_stock_position": { module: "sr_api", view: "config_stock_position" },
+                "sr_api_config_sales_order": { module: "sr_api", view: "config_sales_order" },
+                "sr_api_config_sign_customer_group": { module: "sr_api", view: "config_sign_customer_group" },
                 "sr_api_config_opportunity_lead": { module: "sr_api", view: "config_opportunity_lead" },
                 "sr_api_config_morning_hot_stock_track": { module: "sr_api", view: "config_morning_hot_stock_track" }
             };
@@ -285,6 +293,10 @@
                         title = "直销中心-承接人员配置";
                     } else if (view === "config_stock_position") {
                         title = "投顾中心-产品净值";
+                    } else if (view === "config_sales_order") {
+                        title = "投顾中心-销售订单配置";
+                    } else if (view === "config_sign_customer_group") {
+                        title = "投顾中心-签约客户群管理配置";
                     } else if (view === "config_opportunity_lead") {
                         title = "客户中心-商机线索配置";
                     } else if (view === "config_morning_hot_stock_track") {
@@ -314,6 +326,10 @@
                         url = url + sep + "view=config&tab=code_mapping";
                     } else if (view === "config_stock_position") {
                         url = url + sep + "view=config&tab=stock_position";
+                    } else if (view === "config_sales_order") {
+                        url = url + sep + "view=config&tab=sales_order";
+                    } else if (view === "config_sign_customer_group") {
+                        url = url + sep + "view=config&tab=sign_customer_group";
                     } else if (view === "config_opportunity_lead") {
                         url = url + sep + "view=config&tab=opportunity_lead";
                     } else if (view === "config_morning_hot_stock_track") {
@@ -395,7 +411,7 @@
                         }
                     });
                     var v = (params.view || "realtime").trim();
-                    if (["realtime", "open_channel_daily", "config_open", "config_staff", "config_code_mapping", "config_stock_position", "config_opportunity_lead", "config_morning_hot_stock_track"].indexOf(v) >= 0) view = v;
+                    if (["realtime", "open_channel_daily", "config_open", "config_staff", "config_code_mapping", "config_stock_position", "config_sales_order", "config_sign_customer_group", "config_opportunity_lead", "config_morning_hot_stock_track"].indexOf(v) >= 0) view = v;
                     else view = "realtime";
                 }
                 var item = findNavItem(moduleId, view);
@@ -438,16 +454,12 @@
                             label: (item.textContent || "").trim()
                         });
                     } catch (err) {}
-                    // 统一改为新开窗口（新标签页），避免切换模块丢失当前模块页面状态
                     var targetModule = item.getAttribute("data-module");
                     var targetView = item.getAttribute("data-view") || "";
-                    // 新开“门户壳页面”（带左侧目录栏），而不是直接打开模块服务页
-                    // 这样新标签页里也保留侧边栏；每个模块开一个标签页即可保留各自状态
-                    var path = moduleToPath[targetModule] || "/";
-                    if (targetModule === "sr_api" && targetView) {
-                        path = path + (path.indexOf("?") >= 0 ? "&" : "?") + "view=" + encodeURIComponent(targetView);
-                    }
-                    window.open(path, "_blank");
+                    loadModule(targetModule, targetView);
+                    try {
+                        if (item.getAttribute("href")) window.location.hash = item.getAttribute("href");
+                    } catch (err3) {}
                 });
             }
 

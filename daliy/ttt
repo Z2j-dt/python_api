@@ -1,0 +1,160 @@
+CREATE MATERIALIZED VIEW mv_tg_user_orderlayer (
+  customer_account,
+  sole_code,
+  product_name,
+  product_type,
+  advisor_name,
+  branch_no,
+  branch_name,
+  order_amount,
+  pay_time,
+  pay_time_end,
+  order_category,
+  customer_layer,
+  report_week,
+  report_month,
+  pay_date,
+  is_persisting,
+  cancel_status
+)
+COMMENT "APP投顾订单明细"
+DISTRIBUTED BY RANDOM
+REFRESH MANUAL
+PROPERTIES (
+  "replicated_storage" = "true",
+  "replication_num" = "3",
+  "storage_medium" = "HDD"
+)
+AS
+WITH t (client_id, branch_no, branch_name) AS (
+  SELECT DISTINCT
+    hive_catalog.dwd.d_uf20_customer_info_di.client_id,
+    hive_catalog.dwd.d_uf20_customer_info_di.branch_no,
+    hive_catalog.dwd.d_uf20_customer_info_di.branch_no_name AS branch_name
+  FROM hive_catalog.dwd.d_uf20_customer_info_di
+  WHERE (
+    hive_catalog.dwd.d_uf20_customer_info_di.day IN (
+      (
+        SELECT max(hive_catalog.dwd.d_uf20_customer_info_di.day) AS max(day)
+        FROM hive_catalog.dwd.d_uf20_customer_info_di
+        WHERE hive_catalog.dwd.d_uf20_customer_info_di.day >= ((current_date()) - 7)
+      )
+    )
+  )
+  AND (hive_catalog.dwd.d_uf20_customer_info_di.asset_prop = '0')
+),
+base_order (
+  sole_code,
+  customer_account,
+  product_name,
+  product_type,
+  branch_no,
+  branch_name,
+  pay_time,
+  pay_time_end,
+  order_amount,
+  advisor_name,
+  order_category,
+  pay_date,
+  cancel_status,
+  is_persisting
+) AS (
+  SELECT
+    hive_catalog.dws.a.sole_code,
+    hive_catalog.dws.a.customer_account,
+    hive_catalog.dws.a.product_name,
+    hive_catalog.dws.a.product_type,
+    t.branch_no,
+    t.branch_name,
+    convert_tz(hive_catalog.dws.a.pay_time, 'Asia/Shanghai', 'UTC') AS pay_time,
+    convert_tz(hive_catalog.dws.a.pay_time_end, 'Asia/Shanghai', 'UTC') AS pay_time_end,
+    hive_catalog.dws.a.order_amount,
+    hive_catalog.dws.a.advisor_name,
+    if(hive_catalog.dws.a.pay_type = '账户提佣', '升佣', '现金') AS order_category,
+    date_trunc('day', convert_tz(hive_catalog.dws.a.pay_time, 'Asia/Shanghai', 'UTC')) AS pay_date,
+    hive_catalog.dws.a.cancel_status,
+    CASE
+      WHEN (hive_catalog.dws.a.pay_type != '账户提佣') AND (hive_catalog.dws.a.order_amount <= 10) THEN 0
+      WHEN (hive_catalog.dws.a.cancel_status = '正常') THEN 1
+      ELSE 0
+    END AS is_persisting
+  FROM hive_catalog.dws.s_tg_product_order_df AS a
+  INNER JOIN t
+    ON hive_catalog.dws.a.customer_account = t.client_id
+  WHERE (
+    hive_catalog.dws.a.day IN (
+      (
+        SELECT max(hive_catalog.dws.s_tg_product_order_df.day) AS max(day)
+        FROM hive_catalog.dws.s_tg_product_order_df
+        WHERE hive_catalog.dws.s_tg_product_order_df.day >= ((current_date()) - 7)
+      )
+    )
+  )
+  AND (hive_catalog.dws.a.order_amount > 0)
+),
+daily_status (
+  customer_account,
+  product_name,
+  order_category,
+  pay_date,
+  hist_max_end_date,
+  first_pay_date
+) AS (
+  SELECT
+    daily_agg.customer_account,
+    daily_agg.product_name,
+    daily_agg.order_category,
+    daily_agg.pay_date,
+    max(daily_agg.max_end_date_per_day) OVER (
+      PARTITION BY daily_agg.customer_account, daily_agg.product_name, daily_agg.order_category
+      ORDER BY daily_agg.pay_date ASC
+      ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+    ) AS hist_max_end_date,
+    min(daily_agg.pay_date) OVER (
+      PARTITION BY daily_agg.customer_account, daily_agg.product_name, daily_agg.order_category
+    ) AS first_pay_date
+  FROM (
+    SELECT
+      base_order.customer_account,
+      base_order.product_name,
+      base_order.order_category,
+      base_order.pay_date,
+      max(date_trunc('day', base_order.pay_time_end)) AS max_end_date_per_day
+    FROM base_order
+    GROUP BY 1, 2, 3, 4
+  ) daily_agg
+)
+SELECT
+  b.customer_account,
+  b.sole_code,
+  b.product_name,
+  b.product_type,
+  b.advisor_name,
+  b.branch_no,
+  b.branch_name,
+  b.order_amount,
+  b.pay_time,
+  b.pay_time_end,
+  b.order_category,
+  CASE
+    WHEN (b.order_category != '现金') THEN NULL
+    WHEN (d.hist_max_end_date IS NOT NULL)
+      AND (b.pay_date <= (date_trunc('day', d.hist_max_end_date))) THEN '续费'
+    WHEN (d.hist_max_end_date IS NOT NULL)
+      AND (b.pay_date > (date_trunc('day', d.hist_max_end_date))) THEN '复购'
+    WHEN (b.pay_date = d.first_pay_date) THEN '新增'
+  END AS customer_layer,
+  to_date(date_add(date_trunc('week', b.pay_time), INTERVAL 6 DAY)) AS report_week,
+  to_date(date_trunc('month', b.pay_time)) AS report_month,
+  to_date(b.pay_date) AS pay_date,
+  b.is_persisting,
+  b.cancel_status
+FROM base_order AS b
+INNER JOIN daily_status AS d
+  ON (
+    (b.customer_account = d.customer_account)
+    AND (b.product_name = d.product_name)
+    AND (b.order_category = d.order_category)
+  )
+  AND (b.pay_date = d.pay_date)
+;

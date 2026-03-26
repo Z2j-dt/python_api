@@ -198,6 +198,8 @@ CONFIG_CODE_MAPPING_TABLE = "code_mapping"
 CONFIG_STOCK_POSITION_TABLE = "config_stock_position"
 CONFIG_OPPORTUNITY_LEAD_TABLE = "config_opportunity_lead"
 CONFIG_MORNING_HOT_STOCK_TRACK_TABLE = "config_morning_hot_stock_track"
+CONFIG_SALES_ORDER_TABLE = "branch_customer_ext_config"
+CONFIG_SIGN_CUSTOMER_GROUP_TABLE = "config_sign_customer_group"
 
 
 class OpenChannelTagBase(BaseModel):
@@ -238,6 +240,10 @@ class ChannelStaffOut(ChannelStaffBase):
     id: int
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+
+
+class SignCustomerGroupUpdate(BaseModel):
+    in_group: int
 
 
 # -------------------- 配置表：客户中心-商机线索 --------------------
@@ -461,6 +467,17 @@ def _next_config_id(cur, table_name: str) -> int:
     cur.execute(f"SELECT 1 FROM `{table_name}` WHERE id = 1 LIMIT 1")
     if not cur.fetchone():
         return 1
+
+
+def _parse_month_yyyy_mm(v: Optional[str]) -> str:
+    """解析 YYYY-MM，非法时返回当前月。"""
+    s = (v or "").strip()
+    if s:
+        try:
+            return datetime.strptime(s, "%Y-%m").strftime("%Y-%m")
+        except Exception:
+            pass
+    return datetime.now().strftime("%Y-%m")
     # 找到第一个断点：存在 t1.id，但不存在 t1.id+1
     cur.execute(
         f"SELECT t1.id + 1 AS next_id "
@@ -770,6 +787,705 @@ async def delete_channel_staff(item_id: int, request: Request) -> Dict[str, Any]
             cur.execute(
                 f"DELETE FROM `{CONFIG_CHANNEL_STAFF_TABLE}` WHERE id = %s",
                 (item_id,),
+            )
+            if cur.rowcount == 0:
+                raise HTTPException(status_code=404, detail="记录不存在")
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# -------------------- API：投顾中心-销售订单配置 --------------------
+
+def _mask_customer_phone(v: Any) -> str:
+    s = str(v or "")
+    if len(s) >= 11:
+        return s[:3] + "****" + s[-4:]
+    return s
+
+
+@app.get("/api/config/sales-order")
+async def list_sales_order_config(
+    date: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20,
+    month: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    销售订单配置列表
+    - 优先按 `date=YYYY-MM-DD` 拉取“当天”数据
+    - 未传 date 则优先使用 month（YYYY-MM）
+    - 都没传则拉取 mv_branch_customer_detail_final 口径下“最新一日”
+    """
+    page = max(1, int(page or 1))
+    page_size = int(page_size or 20)
+    if page_size < 1:
+        page_size = 20
+    if page_size > 2000:
+        page_size = 2000
+    offset = (page - 1) * page_size
+
+    try:
+        target_day = _parse_date(date)
+        # 只有用户显式传入 month 时才按月过滤；
+        # month=None 不能默认成“当前月”，否则会绕过“最新一天”的兜底逻辑。
+        target_month = _parse_month_yyyy_mm(month) if (not target_day and month and str(month).strip()) else None
+
+        # 最新一日：成交日期来自 branch_customer_ext_config.pay_time
+        # 同时要求 mv_branch_customer_detail_final.pay_amount != '0.00000' 才算有效
+        if not target_day and not target_month:
+            with _db_cursor() as cur:
+                cur.execute(
+                    f"""
+                    SELECT MAX(SUBSTRING(TRIM(CAST(c.pay_time AS STRING)), 1, 10)) AS d
+                    FROM `{CONFIG_SALES_ORDER_TABLE}` c
+                    JOIN `mv_branch_customer_detail_final` t
+                      ON t.sole_code = c.sole_code
+                     AND t.customer_account = c.customer_account
+                     AND t.product_name = c.product_name
+                    WHERE t.pay_amount IS NOT NULL
+                      AND CAST(t.pay_amount AS STRING) != '0.00000'
+                      AND c.pay_time IS NOT NULL
+                      AND TRIM(CAST(c.pay_time AS STRING)) != ''
+                    """
+                )
+                row = cur.fetchone() or {}
+                raw_d = row.get("d")
+                target_day = _parse_date(raw_d)
+                if not target_day and raw_d:
+                    s = str(raw_d).strip()
+                    # 尽量截取 YYYY-MM-DD
+                    target_day = s[:10] if len(s) >= 10 else _parse_date(s)
+                # 如果 config(pay_time) 取不到或解析失败，则从 mv/pay_time 兜底取最新一天
+                if not target_day:
+                    cur.execute(
+                        """
+                        SELECT MAX(SUBSTRING(TRIM(CAST(t.pay_time AS STRING)), 1, 10)) AS d
+                        FROM `mv_branch_customer_detail_final` t
+                        WHERE t.pay_amount IS NOT NULL
+                          AND CAST(t.pay_amount AS STRING) != '0.00000'
+                          AND t.pay_time IS NOT NULL
+                          AND TRIM(CAST(t.pay_time AS STRING)) != ''
+                        """
+                    )
+                    row2 = cur.fetchone() or {}
+                    raw_d2 = row2.get("d")
+                    dd2 = _parse_date(raw_d2)
+                    if not dd2 and raw_d2:
+                        s2 = str(raw_d2).strip()
+                        dd2 = s2[:10] if len(s2) >= 10 else _parse_date(s2)
+                    target_day = dd2
+
+        if target_day:
+            filter_sql = "SUBSTRING(TRIM(CAST(c.pay_time AS STRING)), 1, 10) = %s"
+            filter_arg = target_day
+            order_sql = " ORDER BY c.pay_time DESC, c.sole_code ASC"
+        elif target_month:
+            # 月度兜底：以 pay_time 的月份筛选（列表页）
+            filter_sql = "SUBSTRING(TRIM(CAST(c.pay_time AS STRING)), 1, 7) = %s"
+            filter_arg = target_month
+            order_sql = " ORDER BY c.pay_time DESC, c.sole_code ASC"
+        else:
+            # 理论上不会走到这里：前面已尝试“最新一日”兜底。
+            # 再兜底一层：按当前月返回，避免给前端空响应。
+            target_month = _parse_month_yyyy_mm(None)
+            filter_sql = "SUBSTRING(TRIM(CAST(c.pay_time AS STRING)), 1, 7) = %s"
+            filter_arg = target_month
+            order_sql = " ORDER BY c.pay_time DESC, c.sole_code ASC"
+
+        with _db_cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT COUNT(*) AS total
+                FROM `{CONFIG_SALES_ORDER_TABLE}` c
+                JOIN `mv_branch_customer_detail_final` t
+                  ON t.sole_code = c.sole_code
+                 AND t.customer_account = c.customer_account
+                 AND t.product_name = c.product_name
+                WHERE t.pay_amount IS NOT NULL
+                  AND CAST(t.pay_amount AS STRING) != '0.00000'
+                  AND c.pay_time IS NOT NULL
+                  AND TRIM(CAST(c.pay_time AS STRING)) != ''
+                  AND {filter_sql}
+                """,
+                (filter_arg,),
+            )
+            total = int((cur.fetchone() or {}).get("total") or 0)
+
+            cur.execute(
+                f"""
+                SELECT
+                  c.sole_code,
+                  c.customer_account,
+                  c.product_name,
+                  c.pay_time,
+                  c.in_month,
+                  c.channel,
+                  c.wechat_nick,
+                  c.sales_owner
+                FROM `{CONFIG_SALES_ORDER_TABLE}` c
+                JOIN `mv_branch_customer_detail_final` t
+                  ON t.sole_code = c.sole_code
+                 AND t.customer_account = c.customer_account
+                 AND t.product_name = c.product_name
+                WHERE t.pay_amount IS NOT NULL
+                  AND CAST(t.pay_amount AS STRING) != '0.00000'
+                  AND c.pay_time IS NOT NULL
+                  AND TRIM(CAST(c.pay_time AS STRING)) != ''
+                  AND {filter_sql}
+                {order_sql}
+                LIMIT %s OFFSET %s
+                """,
+                (filter_arg, page_size, offset),
+            )
+            rows = cur.fetchall() or []
+
+        items = []
+        for r in rows:
+            d = dict(r)
+            d["pay_time"] = _fmt_dt(d.get("pay_time"))
+            items.append(d)
+
+        return {"date": target_day or "", "month": target_month or "", "total": total, "items": items}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/config/sales-order/latest-date")
+async def sales_order_latest_date() -> Dict[str, str]:
+    try:
+        with _db_cursor() as cur:
+            cur.execute(
+                """
+                SELECT MAX(SUBSTRING(TRIM(CAST(c.pay_time AS STRING)), 1, 10)) AS d
+                FROM `{CONFIG_SALES_ORDER_TABLE}` c
+                JOIN `mv_branch_customer_detail_final` t
+                  ON t.sole_code = c.sole_code
+                 AND t.customer_account = c.customer_account
+                 AND t.product_name = c.product_name
+                WHERE t.pay_amount IS NOT NULL
+                  AND CAST(t.pay_amount AS STRING) != '0.00000'
+                  AND c.pay_time IS NOT NULL
+                  AND TRIM(CAST(c.pay_time AS STRING)) != ''
+                """
+            )
+            row = cur.fetchone() or {}
+        d = row.get("d")
+        dd = _parse_date(d)
+        if not dd and d:
+            s = str(d).strip()
+            dd = s[:10] if len(s) >= 10 else (dd or s)
+        # 兜底：如果配置表无法解析最新日期，则直接从 mv/pay_time 获取最新一天
+        if not dd:
+            with _db_cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT MAX(SUBSTRING(TRIM(CAST(t.pay_time AS STRING)), 1, 10)) AS d
+                    FROM `mv_branch_customer_detail_final` t
+                    WHERE t.pay_amount IS NOT NULL
+                      AND CAST(t.pay_amount AS STRING) != '0.00000'
+                      AND t.pay_time IS NOT NULL
+                      AND TRIM(CAST(t.pay_time AS STRING)) != ''
+                    """
+                )
+                row2 = cur.fetchone() or {}
+            raw_d2 = row2.get("d")
+            dd = _parse_date(raw_d2)
+            if not dd and raw_d2:
+                s2 = str(raw_d2).strip()
+                dd = s2[:10] if len(s2) >= 10 else (dd or s2)
+        return {"date": dd}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/config/sales-order/{sole_code}/{customer_account}/{product_name}")
+async def update_sales_order_config(
+    sole_code: str,
+    customer_account: str,
+    product_name: str,
+    body: Dict[str, Any],
+    request: Request,
+) -> Dict[str, Any]:
+    _reject_if_readonly(request)
+    sole = (sole_code or "").strip()
+    acct = (customer_account or "").strip()
+    prod = (product_name or "").strip()
+    if not sole or not acct or not prod:
+        raise HTTPException(status_code=400, detail="主键字段不能为空")
+    in_month = (str(body.get("in_month") or "").strip() or None)
+    channel = (str(body.get("channel") or "").strip() or None)
+    wechat_nick = (str(body.get("wechat_nick") or "").strip() or None)
+    sales_owner = (str(body.get("sales_owner") or "").strip() or None)
+    try:
+        with _db_cursor() as cur:
+            cur.execute(
+                f"""
+                UPDATE `{CONFIG_SALES_ORDER_TABLE}`
+                SET in_month = %s,
+                    channel = %s,
+                    wechat_nick = %s,
+                    sales_owner = %s,
+                    updated_time = NOW()
+                WHERE sole_code = %s AND customer_account = %s AND product_name = %s
+                """,
+                (in_month, channel, wechat_nick, sales_owner, sole, acct, prod),
+            )
+            if cur.rowcount == 0:
+                raise HTTPException(status_code=404, detail="记录不存在")
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/config/sales-order/detail")
+async def sales_order_detail(date: Optional[str] = None, month: Optional[str] = None) -> List[Dict[str, Any]]:
+    target_day = _parse_date(date)
+    target_month = _parse_month_yyyy_mm(month) if not target_day else None
+
+    # 都不传：拉最新一日
+    if not target_day and not target_month:
+        with _db_cursor() as cur:
+            cur.execute(
+                """
+                SELECT MAX(SUBSTRING(TRIM(CAST(pay_time AS STRING)), 1, 10)) AS d
+                FROM `mv_branch_customer_detail_final`
+                WHERE pay_amount IS NOT NULL
+                  AND CAST(pay_amount AS STRING) != '0.00000'
+                  AND pay_time IS NOT NULL
+                  AND TRIM(CAST(pay_time AS STRING)) != ''
+                """
+            )
+            row = cur.fetchone() or {}
+            target_day = _parse_date(row.get("d"))
+
+    try:
+        with _db_cursor() as cur:
+            if target_day:
+                day_expr = "SUBSTRING(TRIM(CAST(t.pay_time AS STRING)), 1, 10) = %s"
+                cur.execute(
+                    f"""
+                    SELECT
+                      t.customer_name,
+                      t.customer_account,
+                      t.customer_phone,
+                      t.sole_code,
+                      t.product_name,
+                      t.product_type AS product_type,
+                      t.product_category AS product_class,
+                      t.sign_type,
+                      CASE
+                        WHEN t.sign_type LIKE '%%升佣%%' THEN '升佣'
+                        WHEN t.sign_type LIKE '%%现金%%' THEN '现金'
+                        ELSE ''
+                      END AS sign_method,
+                      CASE
+                        WHEN t.sign_type LIKE '%%新增%%' OR t.sign_type LIKE '%%新签%%' THEN '新签'
+                        WHEN t.sign_type LIKE '%%续费%%' OR t.sign_type LIKE '%%续约%%' OR t.sign_type LIKE '%%续期%%' THEN '续期'
+                        WHEN t.sign_type LIKE '%%复购%%' THEN '复购'
+                        ELSE ''
+                      END AS sign_attr,
+                      t.pay_amount,
+                      t.pay_commission,
+                      t.refund_amount,
+                      t.curr_total_asset,
+                      t.pay_time,
+                      t.pay_time_end,
+                      t.customer_layer,
+                      t.in_month,
+                      t.channel,
+                      c.sales_owner AS sales_owner,
+                      c.wechat_nick AS wechat_nick
+                    FROM `mv_branch_customer_detail_final` t
+                    LEFT JOIN `{CONFIG_SALES_ORDER_TABLE}` c
+                      ON t.sole_code = c.sole_code
+                     AND t.customer_account = c.customer_account
+                     AND t.product_name = c.product_name
+                    WHERE t.pay_amount IS NOT NULL
+                      AND CAST(t.pay_amount AS STRING) != '0.00000'
+                      AND t.pay_time IS NOT NULL
+                      AND TRIM(CAST(t.pay_time AS STRING)) != ''
+                      AND {day_expr}
+                    ORDER BY t.pay_time DESC, t.sole_code ASC
+                    """,
+                    (target_day,),
+                )
+            else:
+                # 月度口径：按 pay_time 的月份筛选（成交时间 = pay_time）
+                ym_expr = "SUBSTRING(TRIM(CAST(t.pay_time AS STRING)), 1, 7)"
+                cur.execute(
+                    f"""
+                    SELECT
+                      t.customer_name,
+                      t.customer_account,
+                      t.customer_phone,
+                      t.sole_code,
+                      t.product_name,
+                      t.product_type AS product_type,
+                      t.product_category AS product_class,
+                      t.sign_type,
+                      CASE
+                        WHEN t.sign_type LIKE '%%升佣%%' THEN '升佣'
+                        WHEN t.sign_type LIKE '%%现金%%' THEN '现金'
+                        ELSE ''
+                      END AS sign_method,
+                      CASE
+                        WHEN t.sign_type LIKE '%%新增%%' OR t.sign_type LIKE '%%新签%%' THEN '新签'
+                        WHEN t.sign_type LIKE '%%续费%%' OR t.sign_type LIKE '%%续约%%' OR t.sign_type LIKE '%%续期%%' THEN '续期'
+                        WHEN t.sign_type LIKE '%%复购%%' THEN '复购'
+                        ELSE ''
+                      END AS sign_attr,
+                      t.pay_amount,
+                      t.pay_commission,
+                      t.refund_amount,
+                      t.curr_total_asset,
+                      t.pay_time,
+                      t.pay_time_end,
+                      t.customer_layer,
+                      t.in_month,
+                      t.channel,
+                      c.sales_owner AS sales_owner,
+                      c.wechat_nick AS wechat_nick
+                    FROM `mv_branch_customer_detail_final` t
+                    LEFT JOIN `{CONFIG_SALES_ORDER_TABLE}` c
+                      ON t.sole_code = c.sole_code
+                     AND t.customer_account = c.customer_account
+                     AND t.product_name = c.product_name
+                    WHERE t.pay_amount IS NOT NULL
+                      AND CAST(t.pay_amount AS STRING) != '0.00000'
+                      AND t.pay_time IS NOT NULL
+                      AND TRIM(CAST(t.pay_time AS STRING)) != ''
+                      AND {ym_expr} = %s
+                    ORDER BY t.pay_time DESC, t.sole_code ASC
+                    """,
+                    (target_month,),
+                )
+            rows = cur.fetchall() or []
+        items = []
+        for r in rows:
+            d = dict(r)
+            d["customer_phone"] = _mask_customer_phone(d.get("customer_phone"))
+            d["pay_time"] = _fmt_dt(d.get("pay_time"))
+            d["pay_time_end"] = _fmt_dt(d.get("pay_time_end"))
+            for k in ("pay_amount", "pay_commission"):
+                if d.get(k) is not None:
+                    try:
+                        d[k] = float(d[k])
+                    except Exception:
+                        pass
+            for k in ("refund_amount", "curr_total_asset"):
+                if d.get(k) is not None:
+                    try:
+                        d[k] = float(d[k])
+                    except Exception:
+                        pass
+            # 前端“支付金额”：升佣用佣金，现金用支付金额
+            try:
+                sign_method = str(d.get("sign_method") or "")
+                if sign_method == "升佣":
+                    d["pay_amount_display"] = d.get("pay_commission")
+                else:
+                    d["pay_amount_display"] = d.get("pay_amount")
+            except Exception:
+                d["pay_amount_display"] = None
+            items.append(d)
+        return items
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/config/sales-order/summary")
+async def sales_order_summary(date: Optional[str] = None, month: Optional[str] = None) -> List[Dict[str, Any]]:
+    target_day = _parse_date(date)
+    target_month = _parse_month_yyyy_mm(month) if not target_day else None
+
+    if not target_day and not target_month:
+        with _db_cursor() as cur:
+            cur.execute(
+                """
+                SELECT MAX(SUBSTRING(TRIM(CAST(pay_time AS STRING)), 1, 10)) AS d
+                FROM `mv_branch_customer_detail_final`
+                WHERE pay_amount IS NOT NULL
+                  AND CAST(pay_amount AS STRING) != '0.00000'
+                  AND pay_time IS NOT NULL
+                  AND TRIM(CAST(pay_time AS STRING)) != ''
+                """
+            )
+            row = cur.fetchone() or {}
+            target_day = _parse_date(row.get("d"))
+
+    try:
+        with _db_cursor() as cur:
+            if target_day:
+                day_expr = "SUBSTRING(TRIM(CAST(t.pay_time AS STRING)), 1, 10) = %s"
+                cur.execute(
+                    f"""
+                    SELECT
+                      COALESCE(c.sales_owner, '未配置') AS sales_owner,
+                      COUNT(*) AS total_count,
+                      SUM(CASE WHEN t.sign_type LIKE '%%升佣%%' THEN 1 ELSE 0 END) AS commission_count,
+                      SUM(CASE WHEN t.sign_type LIKE '%%现金%%' THEN 1 ELSE 0 END) AS cash_count,
+                      SUM(CASE WHEN t.sign_type LIKE '%%现金%%' THEN t.pay_amount ELSE 0 END) AS cash_amount,
+                      -- 新签/续期/复购：按 customer_layer 统计（mv 口径）
+                      SUM(CASE WHEN t.customer_layer = '新增' THEN 1 ELSE 0 END) AS new_count,
+                      SUM(CASE WHEN t.customer_layer = '续费' THEN 1 ELSE 0 END) AS renew_count,
+                      SUM(CASE WHEN t.customer_layer = '复购' THEN 1 ELSE 0 END) AS repurchase_count
+                    FROM `mv_branch_customer_detail_final` t
+                    LEFT JOIN `{CONFIG_SALES_ORDER_TABLE}` c
+                      ON t.sole_code = c.sole_code
+                     AND t.customer_account = c.customer_account
+                     AND t.product_name = c.product_name
+                    WHERE t.pay_amount IS NOT NULL
+                      AND CAST(t.pay_amount AS STRING) != '0.00000'
+                      AND t.pay_time IS NOT NULL
+                      AND TRIM(CAST(t.pay_time AS STRING)) != ''
+                      AND {day_expr}
+                    GROUP BY COALESCE(c.sales_owner, '未配置')
+                    ORDER BY total_count DESC, sales_owner ASC
+                    """,
+                    (target_day,),
+                )
+            else:
+                # 月度口径：按 pay_time 的月份筛选（成交时间 = pay_time）
+                ym_expr = "SUBSTRING(TRIM(CAST(t.pay_time AS STRING)), 1, 7)"
+                cur.execute(
+                    f"""
+                    SELECT
+                      COALESCE(c.sales_owner, '未配置') AS sales_owner,
+                      COUNT(*) AS total_count,
+                      SUM(CASE WHEN t.sign_type LIKE '%%升佣%%' THEN 1 ELSE 0 END) AS commission_count,
+                      SUM(CASE WHEN t.sign_type LIKE '%%现金%%' THEN 1 ELSE 0 END) AS cash_count,
+                      SUM(CASE WHEN t.sign_type LIKE '%%现金%%' THEN t.pay_amount ELSE 0 END) AS cash_amount,
+                      -- 新签/续期/复购：按 customer_layer 统计（mv 口径）
+                      SUM(CASE WHEN t.customer_layer = '新增' THEN 1 ELSE 0 END) AS new_count,
+                      SUM(CASE WHEN t.customer_layer = '续费' THEN 1 ELSE 0 END) AS renew_count,
+                      SUM(CASE WHEN t.customer_layer = '复购' THEN 1 ELSE 0 END) AS repurchase_count
+                    FROM `mv_branch_customer_detail_final` t
+                    LEFT JOIN `{CONFIG_SALES_ORDER_TABLE}` c
+                      ON t.sole_code = c.sole_code
+                     AND t.customer_account = c.customer_account
+                     AND t.product_name = c.product_name
+                    WHERE t.pay_amount IS NOT NULL
+                      AND CAST(t.pay_amount AS STRING) != '0.00000'
+                      AND t.pay_time IS NOT NULL
+                      AND TRIM(CAST(t.pay_time AS STRING)) != ''
+                      AND {ym_expr} = %s
+                    GROUP BY COALESCE(c.sales_owner, '未配置')
+                    ORDER BY total_count DESC, sales_owner ASC
+                    """,
+                    (target_month,),
+                )
+            rows = cur.fetchall() or []
+
+        items: List[Dict[str, Any]] = []
+        totals = {
+            "commission_count": 0,
+            "cash_count": 0,
+            "total_count": 0,
+            "cash_amount": 0.0,
+            "new_count": 0,
+            "renew_count": 0,
+            "repurchase_count": 0,
+        }
+        for r in rows:
+            d = dict(r)
+            for k in ("commission_count", "cash_count", "total_count", "new_count", "renew_count", "repurchase_count"):
+                try:
+                    d[k] = int(d.get(k) or 0)
+                except Exception:
+                    d[k] = 0
+            try:
+                d["cash_amount"] = float(d.get("cash_amount") or 0)
+            except Exception:
+                d["cash_amount"] = 0.0
+            items.append(d)
+            totals["commission_count"] += d["commission_count"]
+            totals["cash_count"] += d["cash_count"]
+            totals["total_count"] += d["total_count"]
+            totals["cash_amount"] += d["cash_amount"]
+            totals["new_count"] += d["new_count"]
+            totals["renew_count"] += d["renew_count"]
+            totals["repurchase_count"] += d["repurchase_count"]
+
+        items.append(
+            {
+                "sales_owner": "总计",
+                "commission_count": totals["commission_count"],
+                "cash_count": totals["cash_count"],
+                "total_count": totals["total_count"],
+                "cash_amount": totals["cash_amount"],
+                "new_count": totals["new_count"],
+                "renew_count": totals["renew_count"],
+                "repurchase_count": totals["repurchase_count"],
+            }
+        )
+        return items
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/config/sales-order/detail/export.csv")
+async def sales_order_detail_export_csv(date: Optional[str] = None, month: Optional[str] = None):
+    rows = await sales_order_detail(date=date, month=month)
+    cols = [
+        "customer_name",
+        "customer_account",
+        "customer_phone",
+        "sole_code",
+        "product_name",
+        "product_type",
+        "product_class",
+        "sign_method",
+        "pay_amount_display",
+        "refund_amount",
+        "curr_total_asset",
+        "pay_time",
+        "pay_time_end",
+        "customer_layer",
+        "in_month",
+        "channel",
+        "wechat_nick",
+        "sales_owner",
+    ]
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=cols)
+    writer.writeheader()
+    for r in rows:
+        writer.writerow({k: r.get(k) for k in cols})
+    data = output.getvalue().encode("utf-8-sig")
+    return StreamingResponse(
+        io.BytesIO(data),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename={quote(f'sales_order_detail_{_parse_date(date) or _parse_month_yyyy_mm(month)}.csv')}"},
+    )
+
+
+@app.get("/api/config/sales-order/summary/export.csv")
+async def sales_order_summary_export_csv(date: Optional[str] = None, month: Optional[str] = None):
+    rows = await sales_order_summary(date=date, month=month)
+    cols = [
+        "sales_owner",
+        "commission_count",
+        "cash_count",
+        "total_count",
+        "cash_amount",
+        "new_count",
+        "renew_count",
+        "repurchase_count",
+    ]
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=cols)
+    writer.writeheader()
+    for r in rows:
+        writer.writerow({k: r.get(k) for k in cols})
+    data = output.getvalue().encode("utf-8-sig")
+    return StreamingResponse(
+        io.BytesIO(data),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename={quote(f'sales_order_summary_{_parse_date(date) or _parse_month_yyyy_mm(month)}.csv')}"},
+    )
+
+
+# -------------------- API：投顾中心-签约客户群管理配置 --------------------
+
+@app.get("/api/config/sign-customer-group")
+async def list_sign_customer_group(
+    month: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20,
+) -> Dict[str, Any]:
+    m = _parse_month_yyyy_mm(month)
+    page = max(1, int(page or 1))
+    page_size = int(page_size or 20)
+    if page_size < 1:
+        page_size = 20
+    if page_size > 200:
+        page_size = 200
+    offset = (page - 1) * page_size
+    ym_expr = "SUBSTRING(TRIM(CAST(pay_time_end AS STRING)), 1, 7)"
+
+    try:
+        with _db_cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT COUNT(*) AS total
+                FROM `{CONFIG_SIGN_CUSTOMER_GROUP_TABLE}`
+                WHERE pay_time_end IS NOT NULL
+                  AND TRIM(CAST(pay_time_end AS STRING)) != ''
+                  AND {ym_expr} = %s
+                """,
+                (m,),
+            )
+            total = int((cur.fetchone() or {}).get("total") or 0)
+
+            cur.execute(
+                f"""
+                SELECT
+                  sole_code, customer_name, customer_phone, customer_account,
+                  wechat_nick, pay_time, sign_type, curr_total_asset,
+                  pay_time_end, refund_amount, in_group, updated_time
+                FROM `{CONFIG_SIGN_CUSTOMER_GROUP_TABLE}`
+                WHERE pay_time_end IS NOT NULL
+                  AND TRIM(CAST(pay_time_end AS STRING)) != ''
+                  AND {ym_expr} = %s
+                ORDER BY pay_time DESC, sole_code ASC
+                LIMIT %s OFFSET %s
+                """,
+                (m, page_size, offset),
+            )
+            rows = cur.fetchall() or []
+
+        items: List[Dict[str, Any]] = []
+        for r in rows:
+            d = dict(r)
+            for k in ("pay_time", "pay_time_end", "updated_time"):
+                if k in d:
+                    d[k] = _fmt_dt(d.get(k))
+            for k in ("curr_total_asset", "refund_amount"):
+                if d.get(k) is not None:
+                    try:
+                        d[k] = float(d[k])
+                    except Exception:
+                        pass
+            if d.get("in_group") is not None:
+                try:
+                    d["in_group"] = int(d["in_group"])
+                except Exception:
+                    pass
+            items.append(d)
+
+        return {"month": m, "total": total, "items": items}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/config/sign-customer-group/{sole_code}/{customer_account}")
+async def update_sign_customer_group_in_group(
+    sole_code: str,
+    customer_account: str,
+    body: SignCustomerGroupUpdate,
+    request: Request,
+) -> Dict[str, Any]:
+    _reject_if_readonly(request)
+    in_group = 1 if int(body.in_group or 0) == 1 else 0
+    sole = (sole_code or "").strip()
+    acct = (customer_account or "").strip()
+    if not sole or not acct:
+        raise HTTPException(status_code=400, detail="sole_code 与 customer_account 不能为空")
+
+    try:
+        with _db_cursor() as cur:
+            cur.execute(
+                f"""
+                UPDATE `{CONFIG_SIGN_CUSTOMER_GROUP_TABLE}`
+                SET in_group = %s, updated_time = NOW()
+                WHERE sole_code = %s AND customer_account = %s
+                """,
+                (in_group, sole, acct),
             )
             if cur.rowcount == 0:
                 raise HTTPException(status_code=404, detail="记录不存在")
@@ -1414,6 +2130,18 @@ async def export_stock_position_excel(
             )
             rows2 = cur.fetchall()
 
+            # Sheet3: 净值明细（row_type=2）
+            cur.execute(
+                f"SELECT biz_date, stock_name, stock_code, position_after "
+                f"FROM `{PRODUCT_NAV_DAILY_DETAIL_TABLE}` "
+                f"WHERE product_name = %s AND row_type = 2 "
+                f"  AND biz_date IS NOT NULL "
+                f"  AND TRIM(CAST(biz_date AS STRING)) != '' "
+                f"ORDER BY biz_date DESC, stock_code ASC",
+                (name,),
+            )
+            rows3 = cur.fetchall()
+
         from openpyxl import Workbook
 
         wb = Workbook()
@@ -1428,7 +2156,6 @@ async def export_stock_position_excel(
                     r.get("id"),
                     r.get("product_name"),
                     _parse_date(r.get("trade_date")),
-                    r.get("row_id"),
                     r.get("stock_code"),
                     r.get("stock_name"),
                     float(r.get("position_pct") or 0) if r.get("position_pct") is not None else None,
@@ -1449,6 +2176,19 @@ async def export_stock_position_excel(
                     _parse_date(r.get("biz_date")),
                     float(r.get("nav") or 0) if r.get("nav") is not None else None,
                     float(r.get("hs300_nav") or 0) if r.get("hs300_nav") is not None else None,
+                ]
+            )
+
+        # Sheet3: 净值明细（row_type=2）
+        ws3 = wb.create_sheet("净值明细")
+        ws3.append(["日期", "个股", "股票代码", "持仓数量"])
+        for r in rows3:
+            ws3.append(
+                [
+                    _parse_date(r.get("biz_date")),
+                    r.get("stock_name"),
+                    r.get("stock_code"),
+                    float(r.get("position_after") or 0) if r.get("position_after") is not None else None,
                 ]
             )
 
@@ -1629,6 +2369,20 @@ class NavChartPoint(BaseModel):
     hs300_nav: Optional[float] = None
 
 
+class NavDetailRow(BaseModel):
+    biz_date: str
+    stock_name: Optional[str] = None
+    stock_code: Optional[str] = None
+    position_after: Optional[float] = None
+
+
+class NavDetailResp(BaseModel):
+    product_name: str
+    biz_date: Optional[str] = None
+    total: int = 0
+    items: List[NavDetailRow] = []
+
+
 @app.get("/api/config/stock-position/nav-chart", response_model=List[NavChartPoint])
 async def get_stock_position_nav_chart(
     product_name: Optional[str] = None,
@@ -1677,6 +2431,68 @@ async def get_stock_position_nav_chart(
                 hs300_val = None
             series.append({"date": dt, "nav": round(nav_val, 6), "hs300_nav": hs300_val})
         return [NavChartPoint(**x) for x in series]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/config/stock-position/nav-detail", response_model=NavDetailResp)
+async def get_stock_position_nav_detail(
+    product_name: Optional[str] = None,
+    biz_date: Optional[str] = None,
+) -> NavDetailResp:
+    """
+    返回“净值明细”（product_nav_daily_detail row_type=2）
+    - 默认：仅返回最新 biz_date 的明细
+    - 过滤：按 product_name（即配置页选择的产品）
+    - 字段：biz_date, stock_name, stock_code, position_after
+    """
+    name = (product_name or "").strip() or "短线王"
+    try:
+        with _db_cursor() as cur:
+            if biz_date and biz_date.strip():
+                target_biz_date = biz_date.strip()
+            else:
+                # 取最新 biz_date（order by + limit，兼容 biz_date 是 date 或字符串）
+                cur.execute(
+                    f"SELECT biz_date FROM `{PRODUCT_NAV_DAILY_DETAIL_TABLE}` "
+                    f"WHERE product_name = %s AND row_type = 2 AND biz_date IS NOT NULL "
+                    f"ORDER BY biz_date DESC LIMIT 1",
+                    (name,),
+                )
+                r = cur.fetchone() or {}
+                target_biz_date = r.get("biz_date")
+
+            dt_norm = _parse_date(target_biz_date)
+
+            # 查指定（或最新）biz_date 的明细
+            cur.execute(
+                f"SELECT biz_date, stock_name, stock_code, position_after "
+                f"FROM `{PRODUCT_NAV_DAILY_DETAIL_TABLE}` "
+                f"WHERE product_name = %s AND row_type = 2 "
+                f"  AND biz_date IS NOT NULL "
+                f"  AND TRIM(CAST(biz_date AS STRING)) != '' "
+                f"  AND biz_date = %s "
+                f"ORDER BY stock_code ASC",
+                (name, target_biz_date),
+            )
+            rows = cur.fetchall() or []
+
+        items: List[NavDetailRow] = []
+        for r in rows:
+            items.append(
+                NavDetailRow(
+                    biz_date=_parse_date(r.get("biz_date")) or str(r.get("biz_date") or ""),
+                    stock_name=r.get("stock_name"),
+                    stock_code=r.get("stock_code"),
+                    position_after=float(r.get("position_after") or 0) if r.get("position_after") is not None else None,
+                )
+            )
+        return NavDetailResp(
+            product_name=name,
+            biz_date=dt_norm,
+            total=len(items),
+            items=items,
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
