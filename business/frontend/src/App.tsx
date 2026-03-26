@@ -4187,6 +4187,7 @@ function App() {
                         <table className="w-full text-[11px]">
                           <thead>
                             <tr className="border-b border-slate-200 bg-slate-100">
+                              <th className="px-2 py-1.5 text-left whitespace-nowrap">销售归属</th>
                               <th className="px-2 py-1.5 text-left whitespace-nowrap">客户姓名</th>
                               <th className="px-2 py-1.5 text-left whitespace-nowrap">资金账号</th>
                               <th className="px-2 py-1.5 text-left whitespace-nowrap">手机号</th>
@@ -4199,12 +4200,11 @@ function App() {
                               <th className="px-2 py-1.5 text-left whitespace-nowrap">退款金额</th>
                               <th className="px-2 py-1.5 text-left whitespace-nowrap">总资产</th>
                               <th className="px-2 py-1.5 text-left whitespace-nowrap">成交时间</th>
-                              <th className="px-2 py-1.5 text-left whitespace-nowrap">支付结束时间</th>
+                              <th className="px-2 py-1.5 text-left whitespace-nowrap">到期/退订时间</th>
                               <th className="px-2 py-1.5 text-left whitespace-nowrap">客户分层</th>
                               <th className="px-2 py-1.5 text-left whitespace-nowrap">进线月份</th>
                               <th className="px-2 py-1.5 text-left whitespace-nowrap">渠道</th>
                               <th className="px-2 py-1.5 text-left whitespace-nowrap">微信昵称</th>
-                              <th className="px-2 py-1.5 text-left whitespace-nowrap">销售归属</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -4223,6 +4223,7 @@ function App() {
                             ) : (
                               salesOrderDetailItems.map((it, idx) => (
                               <tr key={`sod-${idx}`} className="border-b border-slate-100">
+                                <td className="px-2 py-1.5 whitespace-nowrap">{it.sales_owner || '-'}</td>
                                 <td className="px-2 py-1.5 whitespace-nowrap">{it.customer_name || '-'}</td>
                                 <td className="px-2 py-1.5 whitespace-nowrap">{it.customer_account || '-'}</td>
                                 <td className="px-2 py-1.5 whitespace-nowrap">{it.customer_phone || '-'}</td>
@@ -4246,7 +4247,6 @@ function App() {
                                 <td className="px-2 py-1.5 whitespace-nowrap">{it.in_month || '-'}</td>
                                 <td className="px-2 py-1.5 whitespace-nowrap">{it.channel || '-'}</td>
                                 <td className="px-2 py-1.5 whitespace-nowrap">{it.wechat_nick || '-'}</td>
-                                <td className="px-2 py-1.5 whitespace-nowrap">{it.sales_owner || '-'}</td>
                               </tr>
                               ))
                             )}
