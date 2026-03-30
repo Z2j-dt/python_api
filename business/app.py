@@ -464,9 +464,31 @@ def _next_config_id(cur, table_name: str) -> int:
     返回最小可用正整数 id（从 1 开始，删除后会补空缺）。
     适用于配置表这种小表。
     """
-    cur.execute(f"SELECT 1 FROM `{table_name}` WHERE id = 1 LIMIT 1")
-    if not cur.fetchone():
-        return 1
+    # 之前这里漏了分支：当 `id=1` 已存在时会返回 None，
+    # 最终插入时触发 StarRocks 的 "NULL value in non-nullable column 'id'"。
+    cur.execute(f"SELECT id FROM `{table_name}` ORDER BY id ASC")
+    rows = cur.fetchall() or []
+    ids: List[int] = []
+    for r in rows:
+        v = (r or {}).get("id")
+        if v is None:
+            continue
+        try:
+            ids.append(int(v))
+        except Exception:
+            continue
+
+    # 找最小缺失的正整数，从 1 开始递增
+    next_id = 1
+    for v in ids:
+        if v < next_id:
+            continue
+        if v == next_id:
+            next_id += 1
+            continue
+        # v > next_id：说明 next_id 这号是缺的
+        break
+    return next_id if next_id >= 1 else 1
 
 
 def _parse_month_yyyy_mm(v: Optional[str]) -> str:
@@ -478,22 +500,6 @@ def _parse_month_yyyy_mm(v: Optional[str]) -> str:
         except Exception:
             pass
     return datetime.now().strftime("%Y-%m")
-    # 找到第一个断点：存在 t1.id，但不存在 t1.id+1
-    cur.execute(
-        f"SELECT t1.id + 1 AS next_id "
-        f"FROM `{table_name}` t1 "
-        f"LEFT JOIN `{table_name}` t2 ON t2.id = t1.id + 1 "
-        f"WHERE t2.id IS NULL "
-        f"ORDER BY t1.id "
-        f"LIMIT 1"
-    )
-    r = cur.fetchone() or {}
-    nid = r.get("next_id")
-    try:
-        nid = int(nid)
-    except Exception:
-        nid = 1
-    return nid if nid >= 1 else 1
 
 
 def _next_row_id_for_date(cur, product_name: str, trade_date: str) -> int:
@@ -817,7 +823,7 @@ async def list_sales_order_config(
     销售订单配置列表
     - 优先按 `date=YYYY-MM-DD` 拉取“当天”数据
     - 未传 date 则优先使用 month（YYYY-MM）
-    - 都没传则拉取 mv_branch_customer_detail_final 口径下“最新一日”
+    - 都没传则拉取配置表口径下“最新一日”
     """
     page = max(1, int(page or 1))
     page_size = int(page_size or 20)
@@ -833,22 +839,17 @@ async def list_sales_order_config(
         # month=None 不能默认成“当前月”，否则会绕过“最新一天”的兜底逻辑。
         target_month = _parse_month_yyyy_mm(month) if (not target_day and month and str(month).strip()) else None
 
-        # 最新一日：成交日期来自 branch_customer_ext_config.pay_time
-        # 同时要求 mv_branch_customer_detail_final.pay_amount != '0.00000' 才算有效
+        # 最新一日：成交日期来自配置表 pay_time（仅统计有效 pay_amount）
         if not target_day and not target_month:
             with _db_cursor() as cur:
                 cur.execute(
                     f"""
                     SELECT MAX(SUBSTRING(TRIM(CAST(c.pay_time AS STRING)), 1, 10)) AS d
                     FROM `{CONFIG_SALES_ORDER_TABLE}` c
-                    JOIN `mv_branch_customer_detail_final` t
-                      ON t.sole_code = c.sole_code
-                     AND t.customer_account = c.customer_account
-                     AND t.product_name = c.product_name
-                    WHERE t.pay_amount IS NOT NULL
-                      AND CAST(t.pay_amount AS STRING) != '0.00000'
-                      AND c.pay_time IS NOT NULL
+                    WHERE c.pay_time IS NOT NULL
                       AND TRIM(CAST(c.pay_time AS STRING)) != ''
+                      AND c.pay_amount IS NOT NULL
+                      AND CAST(c.pay_amount AS STRING) != '0.00000'
                     """
                 )
                 row = cur.fetchone() or {}
@@ -858,25 +859,6 @@ async def list_sales_order_config(
                     s = str(raw_d).strip()
                     # 尽量截取 YYYY-MM-DD
                     target_day = s[:10] if len(s) >= 10 else _parse_date(s)
-                # 如果 config(pay_time) 取不到或解析失败，则从 mv/pay_time 兜底取最新一天
-                if not target_day:
-                    cur.execute(
-                        """
-                        SELECT MAX(SUBSTRING(TRIM(CAST(t.pay_time AS STRING)), 1, 10)) AS d
-                        FROM `mv_branch_customer_detail_final` t
-                        WHERE t.pay_amount IS NOT NULL
-                          AND CAST(t.pay_amount AS STRING) != '0.00000'
-                          AND t.pay_time IS NOT NULL
-                          AND TRIM(CAST(t.pay_time AS STRING)) != ''
-                        """
-                    )
-                    row2 = cur.fetchone() or {}
-                    raw_d2 = row2.get("d")
-                    dd2 = _parse_date(raw_d2)
-                    if not dd2 and raw_d2:
-                        s2 = str(raw_d2).strip()
-                        dd2 = s2[:10] if len(s2) >= 10 else _parse_date(s2)
-                    target_day = dd2
 
         if target_day:
             filter_sql = "SUBSTRING(TRIM(CAST(c.pay_time AS STRING)), 1, 10) = %s"
@@ -900,14 +882,10 @@ async def list_sales_order_config(
                 f"""
                 SELECT COUNT(*) AS total
                 FROM `{CONFIG_SALES_ORDER_TABLE}` c
-                JOIN `mv_branch_customer_detail_final` t
-                  ON t.sole_code = c.sole_code
-                 AND t.customer_account = c.customer_account
-                 AND t.product_name = c.product_name
-                WHERE t.pay_amount IS NOT NULL
-                  AND CAST(t.pay_amount AS STRING) != '0.00000'
-                  AND c.pay_time IS NOT NULL
+                WHERE c.pay_time IS NOT NULL
                   AND TRIM(CAST(c.pay_time AS STRING)) != ''
+                  AND c.pay_amount IS NOT NULL
+                  AND CAST(c.pay_amount AS STRING) != '0.00000'
                   AND {filter_sql}
                 """,
                 (filter_arg,),
@@ -926,14 +904,10 @@ async def list_sales_order_config(
                   c.wechat_nick,
                   c.sales_owner
                 FROM `{CONFIG_SALES_ORDER_TABLE}` c
-                JOIN `mv_branch_customer_detail_final` t
-                  ON t.sole_code = c.sole_code
-                 AND t.customer_account = c.customer_account
-                 AND t.product_name = c.product_name
-                WHERE t.pay_amount IS NOT NULL
-                  AND CAST(t.pay_amount AS STRING) != '0.00000'
-                  AND c.pay_time IS NOT NULL
+                WHERE c.pay_time IS NOT NULL
                   AND TRIM(CAST(c.pay_time AS STRING)) != ''
+                  AND c.pay_amount IS NOT NULL
+                  AND CAST(c.pay_amount AS STRING) != '0.00000'
                   AND {filter_sql}
                 {order_sql}
                 LIMIT %s OFFSET %s
@@ -958,17 +932,13 @@ async def sales_order_latest_date() -> Dict[str, str]:
     try:
         with _db_cursor() as cur:
             cur.execute(
-                """
+                f"""
                 SELECT MAX(SUBSTRING(TRIM(CAST(c.pay_time AS STRING)), 1, 10)) AS d
                 FROM `{CONFIG_SALES_ORDER_TABLE}` c
-                JOIN `mv_branch_customer_detail_final` t
-                  ON t.sole_code = c.sole_code
-                 AND t.customer_account = c.customer_account
-                 AND t.product_name = c.product_name
-                WHERE t.pay_amount IS NOT NULL
-                  AND CAST(t.pay_amount AS STRING) != '0.00000'
-                  AND c.pay_time IS NOT NULL
+                WHERE c.pay_time IS NOT NULL
                   AND TRIM(CAST(c.pay_time AS STRING)) != ''
+                  AND c.pay_amount IS NOT NULL
+                  AND CAST(c.pay_amount AS STRING) != '0.00000'
                 """
             )
             row = cur.fetchone() or {}
@@ -977,25 +947,6 @@ async def sales_order_latest_date() -> Dict[str, str]:
         if not dd and d:
             s = str(d).strip()
             dd = s[:10] if len(s) >= 10 else (dd or s)
-        # 兜底：如果配置表无法解析最新日期，则直接从 mv/pay_time 获取最新一天
-        if not dd:
-            with _db_cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT MAX(SUBSTRING(TRIM(CAST(t.pay_time AS STRING)), 1, 10)) AS d
-                    FROM `mv_branch_customer_detail_final` t
-                    WHERE t.pay_amount IS NOT NULL
-                      AND CAST(t.pay_amount AS STRING) != '0.00000'
-                      AND t.pay_time IS NOT NULL
-                      AND TRIM(CAST(t.pay_time AS STRING)) != ''
-                    """
-                )
-                row2 = cur.fetchone() or {}
-            raw_d2 = row2.get("d")
-            dd = _parse_date(raw_d2)
-            if not dd and raw_d2:
-                s2 = str(raw_d2).strip()
-                dd = s2[:10] if len(s2) >= 10 else (dd or s2)
         return {"date": dd}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -2181,7 +2132,7 @@ async def export_stock_position_excel(
 
         # Sheet3: 净值明细（row_type=2）
         ws3 = wb.create_sheet("净值明细")
-        ws3.append(["日期", "个股", "股票代码", "持仓数量"])
+        ws3.append(["日期", "个股", "股票代码", "持仓份额"])
         for r in rows3:
             ws3.append(
                 [
@@ -2565,6 +2516,42 @@ async def create_stock_position(body: StockPositionCreate, request: Request) -> 
             product_name = (body.product_name or "").strip() or None
             next_row_id = _next_row_id_for_date(cur, product_name or "", trade_date.strip())
             next_id = _next_config_id(cur, CONFIG_STOCK_POSITION_TABLE)
+            if not next_id or next_id < 1:
+                # 理论上不该发生；兜底避免再次写入 NULL/非法 id
+                next_id = 1
+
+            # -------------------- 填报校验：stock_name 必须与价格表一致 --------------------
+            # 规则：在 hsgt_price_deliver 取 biz_date 最大的一天；用 stock_code 关联取 stock_name；
+            # 如果与页面填的 stock_name 不一致，直接拦截。
+            stock_code_input = (body.stock_code or "").strip()
+            stock_name_input = (body.stock_name or "").strip() if body.stock_name else ""
+            if stock_code_input and stock_name_input:
+                # 严格按 stock_code 关联 hsgt_price_deliver（不做前缀映射）
+                candidate_codes: List[str] = [stock_code_input]
+
+                cur.execute(
+                    "SELECT MAX(biz_date) AS max_d FROM portal_db.hsgt_price_deliver WHERE biz_date IS NOT NULL"
+                )
+                max_d_row = cur.fetchone() or {}
+                max_d = max_d_row.get("max_d")
+                if max_d is not None:
+                    placeholders = ",".join(["%s"] * len(candidate_codes))
+                    cur.execute(
+                        f"""
+                        SELECT stock_name
+                        FROM portal_db.hsgt_price_deliver
+                        WHERE biz_date = %s
+                          AND stock_code IN ({placeholders})
+                          AND stock_name IS NOT NULL
+                          AND TRIM(CAST(stock_name AS STRING)) != ''
+                        LIMIT 1
+                        """,
+                        (max_d, *candidate_codes),
+                    )
+                    expected_row = cur.fetchone() or {}
+                    expected_name = (expected_row.get("stock_name") or "").strip()
+                    if not expected_name or expected_name != stock_name_input:
+                        raise HTTPException(status_code=400, detail="填报数校验不对")
             cur.execute(
                 f"INSERT INTO `{CONFIG_STOCK_POSITION_TABLE}` "
                 f"(id, product_name, trade_date, row_id, stock_code, stock_name, position_pct, side, price, created_at, updated_at) "
@@ -2587,8 +2574,11 @@ async def create_stock_position(body: StockPositionCreate, request: Request) -> 
             cur.execute(
                 f"SELECT id, product_name, trade_date, row_id, stock_code, stock_name, "
                 f"position_pct, side, price, created_at, updated_at "
-                f"FROM `{CONFIG_STOCK_POSITION_TABLE}` WHERE id = %s",
-                (int(next_id),),
+                f"FROM `{CONFIG_STOCK_POSITION_TABLE}` "
+                f"WHERE product_name <=> %s AND trade_date = %s AND row_id = %s "
+                f"AND id = %s "
+                f"ORDER BY id DESC LIMIT 1",
+                (product_name or None, trade_date.strip(), next_row_id, next_id),
             )
             row = cur.fetchone()
         if not row:
@@ -2636,6 +2626,37 @@ async def update_stock_position(item_id: int, body: StockPositionUpdate, request
             new_side = (_v("side", body.side) or "").strip()
             new_price = _v("price", body.price)
             created_at = _fmt_dt(old.get("created_at")) or now_str
+
+            # -------------------- 填报校验：stock_name 必须与价格表一致 --------------------
+            # 规则：hsgt_price_deliver 取 biz_date 最大的一天，然后按 stock_code 查 stock_name 比较。
+            # 只有当用户显式提供 new_name 时才校验（避免允许 stock_name 留空）。
+            if new_code and new_name:
+                # 严格按 stock_code 关联 hsgt_price_deliver（不做前缀映射）
+                candidate_codes: List[str] = [new_code]
+
+                cur.execute(
+                    "SELECT MAX(biz_date) AS max_d FROM portal_db.hsgt_price_deliver WHERE biz_date IS NOT NULL"
+                )
+                max_d_row = cur.fetchone() or {}
+                max_d = max_d_row.get("max_d")
+                if max_d is not None:
+                    placeholders = ",".join(["%s"] * len(candidate_codes))
+                    cur.execute(
+                        f"""
+                        SELECT stock_name
+                        FROM portal_db.hsgt_price_deliver
+                        WHERE biz_date = %s
+                          AND stock_code IN ({placeholders})
+                          AND stock_name IS NOT NULL
+                          AND TRIM(CAST(stock_name AS STRING)) != ''
+                        LIMIT 1
+                        """,
+                        (max_d, *candidate_codes),
+                    )
+                    expected_row = cur.fetchone() or {}
+                    expected_name = (expected_row.get("stock_name") or "").strip()
+                    if not expected_name or expected_name != new_name:
+                        raise HTTPException(status_code=400, detail="填报数校验不对")
 
             cur.execute(
                 f"DELETE FROM `{CONFIG_STOCK_POSITION_TABLE}` WHERE id = %s",

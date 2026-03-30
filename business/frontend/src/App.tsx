@@ -835,9 +835,12 @@ function App() {
   const [navDetailError, setNavDetailError] = useState<string | null>(null)
   const [navDetailItems, setNavDetailItems] = useState<NavDetailRow[]>([])
 
-  // 产品净值预览（浮框，仓位明细/净值/净值明细）
+  // 产品净值预览（浮框，仓位明细/净值/记录明细）
   const [stockPositionPreviewOpen, setStockPositionPreviewOpen] = useState(false)
-  const [stockPositionPreviewTab, setStockPositionPreviewTab] = useState<'position' | 'nav' | 'nav_detail'>('position')
+  // 预览浮框 Tab：
+  // - 原“净值明细”改名为“仓位明细”（即 nav_detail）
+  // - 原“仓位明细”改名为“记录明细”（即 position）
+  const [stockPositionPreviewTab, setStockPositionPreviewTab] = useState<'position' | 'nav' | 'nav_detail'>('nav_detail')
   const [stockPositionPreviewPositionLoading, setStockPositionPreviewPositionLoading] = useState(false)
   const [stockPositionPreviewPositionError, setStockPositionPreviewPositionError] = useState<string | null>(null)
   const [stockPositionPreviewPositionItems, setStockPositionPreviewPositionItems] = useState<StockPositionItem[]>([])
@@ -1754,8 +1757,9 @@ function App() {
 
   const openStockPositionPreview = useCallback(async () => {
     setStockPositionPreviewOpen(true)
-    setStockPositionPreviewTab('position')
-    // 默认加载全部 Tab 数据（位置明细/净值/净值明细），保证切 Tab 不卡
+    // 打开预览时默认展示“仓位明细”（对应 nav_detail）
+    setStockPositionPreviewTab('nav_detail')
+    // 默认加载全部 Tab 数据（仓位明细/净值/记录明细），保证切 Tab 不卡
     await Promise.all([loadStockPositionPreviewPositionDetail(), loadStockPositionPreviewNav(), loadNavDetail()])
   }, [loadStockPositionPreviewPositionDetail, loadStockPositionPreviewNav, loadNavDetail])
 
@@ -2875,7 +2879,7 @@ function App() {
                     <button
                       onClick={() => void openStockPositionPreview()}
                       className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition-colors"
-                      title="预览：仓位明细 / 净值 / 净值明细"
+                      title="预览：仓位明细 / 净值 / 记录明细"
                     >
                       预览
                     </button>
@@ -3733,7 +3737,7 @@ function App() {
               </div>
             ) : null}
 
-            {/* 产品净值预览浮框（仓位明细 / 净值 / 净值明细） */}
+            {/* 产品净值预览浮框（仓位明细 / 净值 / 记录明细） */}
             {stockPositionPreviewOpen && (
               <div
                 className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
@@ -3768,15 +3772,16 @@ function App() {
                   </div>
 
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => setStockPositionPreviewTab('position')}
+                        onClick={() => setStockPositionPreviewTab('nav_detail')}
                         className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
-                          stockPositionPreviewTab === 'position'
+                          stockPositionPreviewTab === 'nav_detail'
                             ? 'bg-sky-600 border-sky-600 text-white'
                             : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
                         }`}
+                        title="取 product_nav_daily_detail row_type=2 的最新 biz_date 明细"
                       >
                         仓位明细
                       </button>
@@ -3793,15 +3798,14 @@ function App() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setStockPositionPreviewTab('nav_detail')}
+                        onClick={() => setStockPositionPreviewTab('position')}
                         className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
-                          stockPositionPreviewTab === 'nav_detail'
+                          stockPositionPreviewTab === 'position'
                             ? 'bg-sky-600 border-sky-600 text-white'
                             : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
                         }`}
-                        title="取 product_nav_daily_detail row_type=2 的最新 biz_date 明细"
                       >
-                        净值明细
+                        记录明细
                       </button>
                     </div>
 
@@ -3878,7 +3882,10 @@ function App() {
                               </tr>
                             </thead>
                             <tbody>
-                              {stockPositionPreviewNavItems.map((it, idx) => (
+                              {[...stockPositionPreviewNavItems]
+                                // 显式按日期倒序，避免接口返回顺序变动
+                                .sort((a, b) => String(b.date ?? '').localeCompare(String(a.date ?? '')))
+                                .map((it, idx) => (
                                 <tr key={`${it.date}-${idx}`} className="border-b border-slate-100 hover:bg-slate-100/70">
                                   <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.date ?? '-'}</td>
                                   <td className="px-3 py-2 text-right text-slate-700 whitespace-nowrap">
@@ -3912,7 +3919,7 @@ function App() {
                                 <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">日期</th>
                                 <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">个股</th>
                                 <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">股票代码</th>
-                                <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">持仓数量</th>
+                                <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">持仓份额</th>
                               </tr>
                             </thead>
                             <tbody>
