@@ -855,6 +855,15 @@ function App() {
   const [navEndDate, setNavEndDate] = useState<string>(() => new Date().toISOString().slice(0, 10))
   const [navZoomMode, setNavZoomMode] = useState<'30d' | '90d' | 'all'>('90d')
 
+  const isTestProductName = useCallback((name?: string | null) => {
+    const s = String(name || '').trim()
+    if (!s) return false
+    const low = s.toLowerCase()
+    const cnTokens = ['测试', '演示', '沙箱', '预发', '灰度']
+    const enTokens = ['test', 'uat', 'demo', 'mock', 'staging', 'sandbox']
+    return cnTokens.some((t) => s.includes(t)) || enTokens.some((t) => low.includes(t))
+  }, [])
+
   const getFirstProductName = useCallback((v: string) => {
     const first = v
       .split(',')
@@ -1081,11 +1090,15 @@ function App() {
       const res = await fetchWithTimeout(`${API_BASE}/api/config/stock-position/products`)
       if (!res.ok) throw new Error(await res.text())
       const list: string[] = await res.json()
-      setStockPositionProducts(list)
+      const cleaned = list
+        .map((x) => String(x || '').trim())
+        .filter((x) => !!x)
+        .filter((x) => !isTestProductName(x))
+      setStockPositionProducts(cleaned)
     } catch {
       setStockPositionProducts([])
     }
-  }, [])
+  }, [isTestProductName])
 
   const loadStockPosition = useCallback(async () => {
     setStockPositionLoading(true)
@@ -2851,6 +2864,7 @@ function App() {
                     >
                       {/* 兜底：如果当前值不在列表里，也要能展示出来 */}
                       {stockPositionFilter.trim() &&
+                        !isTestProductName(stockPositionFilter.trim()) &&
                         stockPositionProducts.indexOf(stockPositionFilter.trim()) < 0 && (
                           <option value={stockPositionFilter.trim()}>{stockPositionFilter.trim()}</option>
                         )}

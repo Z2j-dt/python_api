@@ -6,6 +6,7 @@ business 下仅 app.py，frontend、sql 为资产目录。
 import os
 import io
 import csv
+import re as _re
 from pathlib import Path
 from urllib.parse import quote
 
@@ -54,6 +55,18 @@ except Exception:
 
 def _mv_list():
     return [t.strip() for t in _settings.mv_tables.split(",") if t.strip()]
+
+_TEST_PRODUCT_NAME_TOKENS_CN = ("测试", "演示", "沙箱", "预发", "灰度")
+_TEST_PRODUCT_NAME_TOKENS_EN = ("test", "uat", "demo", "mock", "staging", "sandbox")
+
+
+def _is_test_product_name(name: Optional[str]) -> bool:
+    s = (name or "").strip()
+    if not s:
+        return False
+    low = s.lower()
+    return any(t in s for t in _TEST_PRODUCT_NAME_TOKENS_CN) or any(t in low for t in _TEST_PRODUCT_NAME_TOKENS_EN)
+
 
 def _get_conn(connect_timeout: int = 10):
     """DB 连接，避免内网不可达时长时间挂死。"""
@@ -1281,38 +1294,152 @@ async def sales_order_summary(date: Optional[str] = None, month: Optional[str] =
 
 @app.get("/api/config/sales-order/detail/export.csv")
 async def sales_order_detail_export_csv(date: Optional[str] = None, month: Optional[str] = None):
-    rows = await sales_order_detail(date=date, month=month)
-    cols = [
-        "customer_name",
-        "customer_account",
-        "customer_phone",
-        "sole_code",
-        "product_name",
-        "product_type",
-        "product_class",
-        "sign_method",
-        "pay_amount_display",
-        "refund_amount",
-        "curr_total_asset",
-        "pay_time",
-        "pay_time_end",
-        "customer_layer",
-        "in_month",
-        "channel",
-        "wechat_nick",
-        "sales_owner",
-    ]
-    output = io.StringIO()
-    writer = csv.DictWriter(output, fieldnames=cols)
-    writer.writeheader()
-    for r in rows:
-        writer.writerow({k: r.get(k) for k in cols})
-    data = output.getvalue().encode("utf-8-sig")
-    return StreamingResponse(
-        io.BytesIO(data),
-        media_type="text/csv; charset=utf-8",
-        headers={"Content-Disposition": f"attachment; filename={quote(f'sales_order_detail_{_parse_date(date) or _parse_month_yyyy_mm(month)}.csv')}"},
-    )
+    try:
+        # 导出不复用 detail 接口，避免时间格式化/金额改口径；直接输出原始字段
+        target_day = _parse_date(date)
+        target_month = _parse_month_yyyy_mm(month) if not target_day else None
+
+        if not target_day and not target_month:
+            with _db_cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT MAX(SUBSTRING(TRIM(CAST(pay_time AS STRING)), 1, 10)) AS d
+                    FROM `mv_branch_customer_detail_final`
+                    WHERE pay_amount IS NOT NULL
+                      AND CAST(pay_amount AS STRING) != '0.00000'
+                      AND pay_time IS NOT NULL
+                      AND TRIM(CAST(pay_time AS STRING)) != ''
+                    """
+                )
+                row = cur.fetchone() or {}
+                target_day = _parse_date(row.get("d"))
+
+        with _db_cursor() as cur:
+            if target_day:
+                day_expr = "SUBSTRING(TRIM(CAST(t.pay_time AS STRING)), 1, 10) = %s"
+                cur.execute(
+                    f"""
+                    SELECT
+                      t.customer_name,
+                      t.customer_account,
+                      t.customer_phone,
+                      t.sole_code,
+                      t.product_name,
+                      t.product_type AS product_type,
+                      t.product_category AS product_class,
+                      t.sign_type,
+                      t.pay_amount,
+                      t.pay_commission,
+                      t.refund_amount,
+                      t.curr_total_asset,
+                      t.pay_time,
+                      t.pay_time_end,
+                      t.customer_layer,
+                      t.in_month,
+                      t.channel,
+                      c.wechat_nick AS wechat_nick,
+                      c.sales_owner AS sales_owner
+                    FROM `mv_branch_customer_detail_final` t
+                    LEFT JOIN `{CONFIG_SALES_ORDER_TABLE}` c
+                      ON t.sole_code = c.sole_code
+                     AND t.customer_account = c.customer_account
+                     AND t.product_name = c.product_name
+                    WHERE t.pay_amount IS NOT NULL
+                      AND CAST(t.pay_amount AS STRING) != '0.00000'
+                      AND t.pay_time IS NOT NULL
+                      AND TRIM(CAST(t.pay_time AS STRING)) != ''
+                      AND {day_expr}
+                    ORDER BY t.pay_time DESC, t.sole_code ASC
+                    """,
+                    (target_day,),
+                )
+            else:
+                ym_expr = "SUBSTRING(TRIM(CAST(t.pay_time AS STRING)), 1, 7)"
+                cur.execute(
+                    f"""
+                    SELECT
+                      t.customer_name,
+                      t.customer_account,
+                      t.customer_phone,
+                      t.sole_code,
+                      t.product_name,
+                      t.product_type AS product_type,
+                      t.product_category AS product_class,
+                      t.sign_type,
+                      t.pay_amount,
+                      t.pay_commission,
+                      t.refund_amount,
+                      t.curr_total_asset,
+                      t.pay_time,
+                      t.pay_time_end,
+                      t.customer_layer,
+                      t.in_month,
+                      t.channel,
+                      c.wechat_nick AS wechat_nick,
+                      c.sales_owner AS sales_owner
+                    FROM `mv_branch_customer_detail_final` t
+                    LEFT JOIN `{CONFIG_SALES_ORDER_TABLE}` c
+                      ON t.sole_code = c.sole_code
+                     AND t.customer_account = c.customer_account
+                     AND t.product_name = c.product_name
+                    WHERE t.pay_amount IS NOT NULL
+                      AND CAST(t.pay_amount AS STRING) != '0.00000'
+                      AND t.pay_time IS NOT NULL
+                      AND TRIM(CAST(t.pay_time AS STRING)) != ''
+                      AND {ym_expr} = %s
+                    ORDER BY t.pay_time DESC, t.sole_code ASC
+                    """,
+                    (target_month,),
+                )
+            rows = cur.fetchall() or []
+
+        cols = [
+            ("客户姓名", "customer_name"),
+            ("资金账号", "customer_account"),
+            ("手机号", "customer_phone"),
+            ("订单编号", "sole_code"),
+            ("产品名称", "product_name"),
+            ("产品类型", "product_type"),
+            ("产品归类", "product_class"),
+            ("签约方式", "sign_type"),
+            ("支付金额", "pay_amount"),
+            ("佣金", "pay_commission"),
+            ("退款金额", "refund_amount"),
+            ("总资产", "curr_total_asset"),
+            ("成交时间", "pay_time"),
+            ("支付结束时间", "pay_time_end"),
+            ("客户分层", "customer_layer"),
+            ("进线月份", "in_month"),
+            ("渠道", "channel"),
+            ("微信昵称", "wechat_nick"),
+            ("销售归属", "sales_owner"),
+        ]
+
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=[c[0] for c in cols])
+        writer.writeheader()
+        for r in rows:
+            d = dict(r)
+            out: Dict[str, Any] = {}
+            for cn, en in cols:
+                v = d.get(en)
+                if en == "customer_phone":
+                    v = _mask_customer_phone(v)
+                if en == "in_month" and v is not None:
+                    s = str(v).strip()
+                    if _re.match(r"^\d{4}-\d{2}$", s):
+                        v = "'" + s
+                out[cn] = v
+            writer.writerow(out)
+
+        data = output.getvalue().encode("utf-8-sig")
+        return StreamingResponse(
+            io.BytesIO(data),
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": f"attachment; filename={quote(f'sales_order_detail_{_parse_date(date) or _parse_month_yyyy_mm(month)}.csv')}"},
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"导出明细CSV失败: {e}")
 
 
 @app.get("/api/config/sales-order/summary/export.csv")
@@ -1967,7 +2094,30 @@ async def list_stock_position_products() -> List[str]:
                 f"WHERE product_name IS NOT NULL AND product_name != '' "
                 f"ORDER BY product_name"
             )
-            return [r["product_name"] for r in cur.fetchall()]
+            raw_names = [r["product_name"] for r in cur.fetchall()]
+
+            # 统一清洗 + 去重（确保顺序可控）
+            cleaned: List[str] = []
+            seen = set()
+            for n in raw_names:
+                s = (n or "").strip()
+                if not s:
+                    continue
+                if s in seen:
+                    continue
+                seen.add(s)
+                cleaned.append(s)
+
+            # 过滤测试类产品名，避免污染“投顾中心-产品净值”筛选下拉
+            cleaned = [n for n in cleaned if not _is_test_product_name(n)]
+
+            # 固定下拉顺序：常用产品置顶，其余按名称稳定排序（大小写不敏感）
+            pinned = {"短线王"}
+
+            def _sort_key(x: str):
+                return (0 if x in pinned else 1, x.casefold())
+
+            return sorted(cleaned, key=_sort_key)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
