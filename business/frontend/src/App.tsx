@@ -356,6 +356,8 @@ interface NavDetailRow {
   biz_date: string
   stock_name?: string | null
   stock_code?: string | null
+  // 仓位：后端返回 open_pct（百分比数值，如 5 表示 5%）
+  open_pct?: number | null
   position_after?: number | null
 }
 
@@ -3933,6 +3935,7 @@ function App() {
                                 <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">日期</th>
                                 <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">个股</th>
                                 <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">股票代码</th>
+                                <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">仓位</th>
                                 <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">持仓份额</th>
                               </tr>
                             </thead>
@@ -3942,6 +3945,9 @@ function App() {
                                   <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.biz_date ?? '-'}</td>
                                   <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.stock_name ?? '-'}</td>
                                   <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.stock_code ?? '-'}</td>
+                                  <td className="px-3 py-2 text-right text-slate-700 whitespace-nowrap">
+                                    {it.open_pct == null ? '-' : `${Number(it.open_pct).toFixed(1)}%`}
+                                  </td>
                                   <td className="px-3 py-2 text-right text-slate-700 whitespace-nowrap">
                                     {it.position_after == null ? '-' : Number(it.position_after).toFixed(4)}
                                   </td>

@@ -5,10 +5,18 @@
   - hsgt_price_deliver     (收盘价，含个股+沪深300=000300)
 计算指定产品每日持仓明细 + 总资产 + 净值，
 写入 product_nav_daily_detail 表（含每只股票明细 + 当日总计行）。
+
+净值基期（固定）：以「首笔操作交易日」的上一交易日为基日（如首操作为 2025-12-01 则基期为 2025-11-28），
+该基日组合净值与沪深300净值均为 1；之后组合净值 = 当日总资产 / 基日收盘总资产，300 = 当日收盘 / 基日收盘。
+基期只由最早一笔 config 交易日期决定，全序列不变。
+
+增量写入：命令行传入 --from-date / -f，值为 YYYYMMDD（如 20250301）或 YYYY-MM-DD；
+仍从基期起回放持仓状态，但只生成并 DELETE+INSERT 该日（含）至行情末日的明细行。
 """
 
+import argparse
 import pymysql
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 from decimal import Decimal, ROUND_DOWN, getcontext
 
@@ -26,7 +34,12 @@ DETAIL_TABLE = "product_nav_daily_detail"
 PRODUCT_CAPITAL_TABLE = "config_product_nav_capital"
 
 NAV_INIT_CAPITAL = 10_000_000  # 默认初始资金 1000 万（配置表查不到时回退）
-HS300_CODE_DB = "000300"       # 沪深300 在价格表里的代码
+HS300_CODE_DB = "000300"       # 沪深300 在价格表里的代码（标准写法）
+# 库里历史数据可能混用多种写法；与字面量不等会导致「上一交易日」查不到、净值基期退化成首笔交易日=1
+HS300_CODE_SQL_IN = ("000300", "000300.SH", "SH000300", "sh000300")
+# 首笔交易日之前向下多取的自然日，保证 000300 在「上一交易日」的行进入 price_map
+# （若仅依赖 SQL 求 anchor 一旦未命中，原先会把 price_load_min=首笔日，整段历史 300 被滤掉 → 基期=首日 → 净值恒为 1）
+PRICE_LOOKBACK_BEFORE_FIRST_TRADE_DAYS = 400
 PRODUCT_NAME = "短线王"        # 要计算的产品名（可按需改成其他产品）
 
 getcontext().prec = 28
@@ -34,6 +47,20 @@ getcontext().prec = 28
 
 def _d(v) -> Decimal:
     return Decimal(str(v))
+
+
+def _match_hs300_code(stock_code: Optional[str]) -> bool:
+    """判定价格表里的 stock_code 是否沪深300（兼容 000300 / 000300.SH / SH000300 等）。"""
+    if not stock_code:
+        return False
+    c = stock_code.strip().upper()
+    if c in ("000300", "000300.SH", "SH000300"):
+        return True
+    if c.startswith("SH") and c[2:] == "000300":
+        return True
+    if c.endswith(".SH") and c[:-3] == "000300":
+        return True
+    return False
 
 
 def _q2(x: Decimal) -> Decimal:
@@ -238,7 +265,54 @@ def get_latest_price_date(cur, min_d: date) -> Optional[date]:
         return None
 
 
-def compute_daily_detail(product_name: str, cur) -> List[Dict[str, Any]]:
+def get_hs300_prev_trading_date(cur, first_trade_date: date) -> Optional[date]:
+    """
+    取「config 中首笔操作日」的前一个沪深300有收盘价的交易日。
+    该日即本产品固定净值基期（不变）：组合与沪深300 均以此为分母，当日净值=1。
+    """
+    ph = ",".join(["%s"] * len(HS300_CODE_SQL_IN))
+    sql = f"""
+        SELECT MAX(biz_date) AS prev_d
+        FROM {HSGT_PRICE_TABLE}
+        WHERE biz_date IS NOT NULL
+          AND biz_date < %s
+          AND stock_code IN ({ph})
+          AND last_price IS NOT NULL
+    """
+    try:
+        cur.execute(sql, (first_trade_date,) + tuple(HS300_CODE_SQL_IN))
+        row = cur.fetchone() or {}
+        return _parse_date(row.get("prev_d"))
+    except Exception:
+        return None
+
+
+def fetch_hs300_close_on_date(cur, biz_d: date) -> Optional[Decimal]:
+    """指定日取沪深300收盘价（多代码兼容）；全表扫描 load 仍缺该日时补一条。"""
+    ph = ",".join(["%s"] * len(HS300_CODE_SQL_IN))
+    sql = f"""
+        SELECT last_price
+        FROM {HSGT_PRICE_TABLE}
+        WHERE biz_date = %s
+          AND last_price IS NOT NULL
+          AND stock_code IN ({ph})
+        LIMIT 1
+    """
+    try:
+        cur.execute(sql, (biz_d,) + tuple(HS300_CODE_SQL_IN))
+        row = cur.fetchone() or {}
+        val = row.get("last_price")
+        if val is None:
+            return None
+        p = _d(val)
+        return p if p > 0 else None
+    except Exception:
+        return None
+
+
+def compute_daily_detail(
+    product_name: str, cur, update_from: Optional[date] = None
+) -> List[Dict[str, Any]]:
     trades = load_trades(cur, product_name)
     if not trades:
         return []
@@ -252,6 +326,11 @@ def compute_daily_detail(product_name: str, cur) -> List[Dict[str, Any]]:
     if not trade_dates:
         return []
     min_d, max_d_trade = min(trade_dates), max(trade_dates)
+    sql_anchor = get_hs300_prev_trading_date(cur, min_d)
+    price_floor = min_d - timedelta(days=PRICE_LOOKBACK_BEFORE_FIRST_TRADE_DAYS)
+    price_load_min = price_floor
+    if sql_anchor is not None and sql_anchor < min_d:
+        price_load_min = min(price_load_min, sql_anchor)
     # 关键修复：当日无交易但价格表已有当日数据时，也要把区间延伸到最新价格日（通常=今天）
     max_price_d = get_latest_price_date(cur, min_d)
     max_d = max_d_trade
@@ -259,7 +338,18 @@ def compute_daily_detail(product_name: str, cur) -> List[Dict[str, Any]]:
         max_d = max_price_d
 
     # 价格 + 股票名称（名称优先用价格表，若缺失再用交易配置表）
-    price_map, price_name_map = load_prices_and_names(cur, min_d, max_d)
+    price_map, price_name_map = load_prices_and_names(cur, price_load_min, max_d)
+
+    # 基期：优先 SQL；若未命中或异常，用已加载的 300 日线中「早于首笔交易日」的最近一天（与库中 4526/4576 这类口径一致）
+    anchor_d: Optional[date] = sql_anchor
+    if anchor_d is None or (min_d is not None and anchor_d >= min_d):
+        older_hs300 = sorted(
+            d
+            for (d, c) in price_map.keys()
+            if _match_hs300_code(c) and d < min_d
+        )
+        if older_hs300:
+            anchor_d = older_hs300[-1]
     trade_name_map: Dict[str, str] = {}
     for r in trades:
         code = (r.get("stock_code") or "").strip()
@@ -273,6 +363,9 @@ def compute_daily_detail(product_name: str, cur) -> List[Dict[str, Any]]:
 
     price_dates = {dt for (dt, _) in price_map.keys()}
     all_dates = sorted(d for d in (trade_dates | price_dates) if min_d <= d <= max_d)
+    # 基期日必须进序列：即便个股价在当日无行，仍有全现金 + 沪深300 基准可分母
+    if anchor_d is not None and anchor_d < min_d:
+        all_dates = [anchor_d] + all_dates
     if not all_dates:
         return []
 
@@ -300,16 +393,31 @@ def compute_daily_detail(product_name: str, cur) -> List[Dict[str, Any]]:
             last_close[code] = day[code]
         return last_close.get(code, Decimal("0"))
 
-    # 先准备沪深300净值（基期 = 最早有 price 的日期）
-    hs300_prices = {d: p for (d, c), p in price_map.items() if c == HS300_CODE_DB}
+    # 沪深300净值：有 anchor_d 时基期固定为 anchor_d（永不用「区间内首个 300 日线」顶替）；无 anchor 才退回区间首日。
+    hs300_prices: Dict[date, Decimal] = {}
+    for (d, c), p in price_map.items():
+        if _match_hs300_code(c):
+            try:
+                hs300_prices[d] = _d(p)
+            except Exception:
+                pass
+    if anchor_d is not None and anchor_d not in hs300_prices:
+        px_anchor = fetch_hs300_close_on_date(cur, anchor_d)
+        if px_anchor is not None:
+            hs300_prices[anchor_d] = px_anchor
     hs300_dates = sorted(hs300_prices.keys())
     hs300_nav_map: Dict[date, float] = {}
-    if hs300_dates:
+    base_d: Optional[date] = None
+    base_price: Optional[Decimal] = None
+    if anchor_d is not None and anchor_d in hs300_prices:
+        base_d, base_price = anchor_d, hs300_prices[anchor_d]
+    elif anchor_d is None and hs300_dates:
         base_d = hs300_dates[0]
         base_price = hs300_prices[base_d]
-        if base_price > 0:
-            for d in hs300_dates:
-                hs300_nav_map[d] = hs300_prices[d] / base_price
+    if base_d is not None and base_price is not None and base_price > 0:
+        for d in hs300_dates:
+            if d >= base_d:
+                hs300_nav_map[d] = float(hs300_prices[d] / base_price)
 
     # 按产品获取初始资金（支持不同产品不同资金规模）
     init_capital = load_init_capital(cur, product_name)
@@ -321,6 +429,8 @@ def compute_daily_detail(product_name: str, cur) -> List[Dict[str, Any]]:
     # 分批持仓（FIFO）：每次买入生成一个 lot；卖出按最早 lot 优先扣减。
     # lot: {pct_remain, shares_remain, cost_remain}
     lots: Dict[str, List[Dict[str, Decimal]]] = {}
+    # 组合净值分母 = 基期日收盘总资产（固定）；仅当无基期插入逻辑时退回 init_capital
+    portfolio_nav_denom: Optional[Decimal] = None
 
     def _lots_open_pct(code: str) -> Decimal:
         ls = lots.get(code) or []
@@ -349,6 +459,7 @@ def compute_daily_detail(product_name: str, cur) -> List[Dict[str, Any]]:
     detail_rows: List[Dict[str, Any]] = []
 
     for dt in all_dates:
+        emit = update_from is None or dt >= update_from
         # row_type=1 需要逐笔保留（同一天同一股票可多次买/卖，且成交价/金额不同不可聚合）。
         # 但 SR 侧常见唯一键为 (product_name, biz_date, row_type, stock_code)，因此这里为
         # 每笔交易生成一个“不会重复”的 stock_code："{原代码}#{买入/卖出}#{序号}"。
@@ -477,35 +588,36 @@ def compute_daily_detail(product_name: str, cur) -> List[Dict[str, Any]]:
             open_pct_after = _lots_open_pct(code) if code in lots else None
 
             # row_type = 1：逐笔交易明细（保留每笔，不做聚合）
-            detail_rows.append(
-                {
-                    "product_name": product_name,
-                    "biz_date": dt,
-                    "row_type": 1,
-                    "row_id": row_id,
-                    "stock_code": _trade_row_stock_code(code, side),
-                    "stock_name": stock_name,
-                    "side": side,
-                    "position_pct": pct,
-                    "trade_price": trade_price,
-                    "trade_shares": trade_shares,
-                    "position_before": pos_before,
-                    "position_after": pos_after,
-                    "cash_before": float(cash_before),
-                    "cash_after": float(cash_after),
-                    # temp3.py 不计算该指标；这里用“下单前现金”作参考
-                    "asset_no_float": float(capital_base),
-                    "open_pct": float(open_pct_after) if open_pct_after is not None else None,
-                    "close_price": None,
-                    "market_value": None,
-                    "total_position_mv": None,
-                    "total_cash": None,
-                    "total_asset": None,
-                    "nav": None,
-                    "hs300_nav": None,
-                    "remark": None,
-                }
-            )
+            if emit:
+                detail_rows.append(
+                    {
+                        "product_name": product_name,
+                        "biz_date": dt,
+                        "row_type": 1,
+                        "row_id": row_id,
+                        "stock_code": _trade_row_stock_code(code, side),
+                        "stock_name": stock_name,
+                        "side": side,
+                        "position_pct": pct,
+                        "trade_price": trade_price,
+                        "trade_shares": trade_shares,
+                        "position_before": pos_before,
+                        "position_after": pos_after,
+                        "cash_before": float(cash_before),
+                        "cash_after": float(cash_after),
+                        # temp3.py 不计算该指标；这里用“下单前现金”作参考
+                        "asset_no_float": float(capital_base),
+                        "open_pct": float(open_pct_after) if open_pct_after is not None else None,
+                        "close_price": None,
+                        "market_value": None,
+                        "total_position_mv": None,
+                        "total_cash": None,
+                        "total_asset": None,
+                        "nav": None,
+                        "hs300_nav": None,
+                        "remark": None,
+                    }
+                )
 
         # ===== 2. 计算当日市值、总资产、净值，记录 row_type = 2/3 =====
         total_mv = Decimal("0")
@@ -518,69 +630,88 @@ def compute_daily_detail(product_name: str, cur) -> List[Dict[str, Any]]:
 
         # 资产口径：总资产 = 现金 + 持仓市值（净值需要包含浮动盈亏）
         total_asset = cash + total_mv
-        nav = float(total_asset / init_capital) if init_capital > 0 else 0.0
+        if anchor_d is not None and dt == anchor_d:
+            portfolio_nav_denom = total_asset
+        denom = (
+            portfolio_nav_denom
+            if portfolio_nav_denom is not None and portfolio_nav_denom > 0
+            else init_capital
+        )
+        nav = float(total_asset / denom) if denom > 0 else 0.0
         hs300_nav = hs300_nav_map.get(dt)
 
         # row_type = 2：当日每只股票的持仓快照
-        for code, sh, px, mv in per_stock_snapshot:
+        if emit:
+            for code, sh, px, mv in per_stock_snapshot:
+                detail_rows.append(
+                    {
+                        "product_name": product_name,
+                        "biz_date": dt,
+                        "row_type": 2,
+                        "row_id": None,
+                        "stock_code": code,
+                        "stock_name": stock_name_map.get(code) or None,
+                        "side": None,
+                        "position_pct": None,
+                        "trade_price": None,
+                        "trade_shares": None,
+                        "position_before": None,
+                        "position_after": sh,
+                        "cash_before": None,
+                        "cash_after": float(cash),
+                        "close_price": float(px),
+                        "market_value": float(mv),
+                        "total_position_mv": None,
+                        "total_cash": None,
+                        "asset_no_float": None,
+                        # row_type=2 需要展示“仓位(按股票)”：这里用当日结束时该股票仍持有的 open_pct。
+                        "open_pct": float(_lots_open_pct(code)),
+                        "total_asset": None,
+                        "nav": None,
+                        "hs300_nav": None,
+                        "remark": None,
+                    }
+                )
+
+            # row_type = 3：当日总资产汇总行
+            # 汇总当日组合总仓位：对所有仍持有的股票求 open_pct 之和
+            total_open_pct = Decimal("0")
+            for code in positions.keys():
+                try:
+                    total_open_pct += _lots_open_pct(code)
+                except Exception:
+                    pass
+
             detail_rows.append(
                 {
                     "product_name": product_name,
                     "biz_date": dt,
-                    "row_type": 2,
+                    "row_type": 3,
                     "row_id": None,
-                    "stock_code": code,
-                    "stock_name": stock_name_map.get(code) or None,
+                    "stock_code": "__TOTAL__",
+                    "stock_name": "当日汇总",
                     "side": None,
                     "position_pct": None,
                     "trade_price": None,
                     "trade_shares": None,
                     "position_before": None,
-                    "position_after": sh,
+                    "position_after": None,
                     "cash_before": None,
                     "cash_after": float(cash),
-                    "close_price": float(px),
-                    "market_value": float(mv),
-                    "total_position_mv": None,
-                    "total_cash": None,
-                    "asset_no_float": None,
-                    "open_pct": None,
-                    "total_asset": None,
-                    "nav": None,
-                    "hs300_nav": None,
+                    "close_price": None,
+                    "market_value": None,
+                    "total_position_mv": float(total_mv),
+                    "total_cash": float(cash),
+                    "asset_no_float": float(
+                        cash + (sum(position_cost.values()) if position_cost else Decimal("0"))
+                    ),
+                    "open_pct": float(total_open_pct) if total_open_pct is not None else None,
+                    "total_asset": float(total_asset),
+                    "nav": float(nav),
+                    "hs300_nav": hs300_nav,
                     "remark": None,
                 }
             )
-
-        # row_type = 3：当日总资产汇总行
-        detail_rows.append(
-            {
-                "product_name": product_name,
-                "biz_date": dt,
-                "row_type": 3,
-                "row_id": None,
-                "stock_code": "__TOTAL__",
-                "stock_name": "当日汇总",
-                "side": None,
-                "position_pct": None,
-                "trade_price": None,
-                "trade_shares": None,
-                "position_before": None,
-                "position_after": None,
-                "cash_before": None,
-                "cash_after": float(cash),
-                "close_price": None,
-                "market_value": None,
-                "total_position_mv": float(total_mv),
-                "total_cash": float(cash),
-                "asset_no_float": float(cash + (sum(position_cost.values()) if position_cost else Decimal("0"))),
-                "open_pct": None,
-                "total_asset": float(total_asset),
-                "nav": float(nav),
-                "hs300_nav": hs300_nav,
-                "remark": None,
-            }
-        )
 
     return detail_rows
 
@@ -676,8 +807,10 @@ def write_detail_to_sr(rows: List[Dict[str, Any]]):
     print(f"[OK] 写入 {DETAIL_TABLE} 行数: {len(rows)}")
 
 
-def main():
+def main(update_from: Optional[date] = None):
     print(f"开始批量计算产品净值明细（从 {PRODUCT_CAPITAL_TABLE} 读取产品与初始资金）...")
+    if update_from is not None:
+        print(f"[INFO] 增量写入：仅 DELETE+INSERT biz_date >= {update_from}（此前仍完整回放持仓状态）")
     total_written = 0
     with get_conn() as conn, conn.cursor() as cur:
         products = load_products_capital(cur)
@@ -687,9 +820,9 @@ def main():
         for name, cap in products:
             # compute_daily_detail 内部仍会按 name 再查一次资金；这里先确保表里有配置即可
             print(f"[RUN] 产品={name} 初始资金={cap}")
-            rows = compute_daily_detail(name, cur)
+            rows = compute_daily_detail(name, cur, update_from=update_from)
             if not rows:
-                print(f"[SKIP] 产品={name} 无交易数据")
+                print(f"[SKIP] 产品={name} 无交易数据或增量区间内无可写日期")
                 continue
             print(f"[INFO] 产品={name} 计算得到明细行数: {len(rows)}")
             write_detail_to_sr(rows)
@@ -697,5 +830,31 @@ def main():
     print(f"[OK] 批量任务完成，总写入行数: {total_written}")
 
 
+def _parse_date_arg(raw: str) -> date:
+    """CLI 日期：优先 YYYYMMDD，兼容 YYYY-MM-DD。"""
+    s = raw.strip()
+    if len(s) == 8 and s.isdigit():
+        return datetime.strptime(s, "%Y%m%d").date()
+    if len(s) >= 10 and s[4] == "-" and s[7] == "-":
+        return datetime.strptime(s[:10], "%Y-%m-%d").date()
+    raise ValueError(f"无法解析日期: {raw!r}，请使用 YYYYMMDD 或 YYYY-MM-DD")
+
+
+def _cli_parse_update_from() -> Optional[date]:
+    parser = argparse.ArgumentParser(description="产品净值明细写入 product_nav_daily_detail")
+    parser.add_argument(
+        "-f",
+        "--from-date",
+        dest="from_date",
+        metavar="YYYYMMDD",
+        help="从该日起重算并落库至行情末日，格式 YYYYMMDD（如 20250301）或 YYYY-MM-DD；不传则全量",
+    )
+    args = parser.parse_args()
+    raw = (args.from_date or "").strip()
+    if not raw:
+        return None
+    return _parse_date_arg(raw)
+
+
 if __name__ == "__main__":
-    main()
+    main(update_from=_cli_parse_update_from())

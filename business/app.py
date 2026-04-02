@@ -1066,9 +1066,9 @@ async def sales_order_detail(date: Optional[str] = None, month: Optional[str] = 
                       c.wechat_nick AS wechat_nick
                     FROM `mv_branch_customer_detail_final` t
                     LEFT JOIN `{CONFIG_SALES_ORDER_TABLE}` c
-                      ON t.sole_code = c.sole_code
-                     AND t.customer_account = c.customer_account
-                     AND t.product_name = c.product_name
+                      ON TRIM(CAST(t.sole_code AS STRING)) = TRIM(CAST(c.sole_code AS STRING))
+                     AND TRIM(CAST(t.customer_account AS STRING)) = TRIM(CAST(c.customer_account AS STRING))
+                     AND TRIM(CAST(t.product_name AS STRING)) = TRIM(CAST(c.product_name AS STRING))
                     WHERE t.pay_amount IS NOT NULL
                       AND CAST(t.pay_amount AS STRING) != '0.00000'
                       AND t.pay_time IS NOT NULL
@@ -1116,9 +1116,9 @@ async def sales_order_detail(date: Optional[str] = None, month: Optional[str] = 
                       c.wechat_nick AS wechat_nick
                     FROM `mv_branch_customer_detail_final` t
                     LEFT JOIN `{CONFIG_SALES_ORDER_TABLE}` c
-                      ON t.sole_code = c.sole_code
-                     AND t.customer_account = c.customer_account
-                     AND t.product_name = c.product_name
+                      ON TRIM(CAST(t.sole_code AS STRING)) = TRIM(CAST(c.sole_code AS STRING))
+                     AND TRIM(CAST(t.customer_account AS STRING)) = TRIM(CAST(c.customer_account AS STRING))
+                     AND TRIM(CAST(t.product_name AS STRING)) = TRIM(CAST(c.product_name AS STRING))
                     WHERE t.pay_amount IS NOT NULL
                       AND CAST(t.pay_amount AS STRING) != '0.00000'
                       AND t.pay_time IS NOT NULL
@@ -1189,7 +1189,7 @@ async def sales_order_summary(date: Optional[str] = None, month: Optional[str] =
                 cur.execute(
                     f"""
                     SELECT
-                      COALESCE(c.sales_owner, '未配置') AS sales_owner,
+                      COALESCE(NULLIF(TRIM(CAST(c.sales_owner AS STRING)), ''), '-') AS sales_owner,
                       COUNT(*) AS total_count,
                       SUM(CASE WHEN t.sign_type LIKE '%%升佣%%' THEN 1 ELSE 0 END) AS commission_count,
                       SUM(CASE WHEN t.sign_type LIKE '%%现金%%' THEN 1 ELSE 0 END) AS cash_count,
@@ -1200,15 +1200,15 @@ async def sales_order_summary(date: Optional[str] = None, month: Optional[str] =
                       SUM(CASE WHEN t.customer_layer = '复购' THEN 1 ELSE 0 END) AS repurchase_count
                     FROM `mv_branch_customer_detail_final` t
                     LEFT JOIN `{CONFIG_SALES_ORDER_TABLE}` c
-                      ON t.sole_code = c.sole_code
-                     AND t.customer_account = c.customer_account
-                     AND t.product_name = c.product_name
+                      ON TRIM(CAST(t.sole_code AS STRING)) = TRIM(CAST(c.sole_code AS STRING))
+                     AND TRIM(CAST(t.customer_account AS STRING)) = TRIM(CAST(c.customer_account AS STRING))
+                     AND TRIM(CAST(t.product_name AS STRING)) = TRIM(CAST(c.product_name AS STRING))
                     WHERE t.pay_amount IS NOT NULL
                       AND CAST(t.pay_amount AS STRING) != '0.00000'
                       AND t.pay_time IS NOT NULL
                       AND TRIM(CAST(t.pay_time AS STRING)) != ''
                       AND {day_expr}
-                    GROUP BY COALESCE(c.sales_owner, '未配置')
+                    GROUP BY COALESCE(NULLIF(TRIM(CAST(c.sales_owner AS STRING)), ''), '-')
                     ORDER BY total_count DESC, sales_owner ASC
                     """,
                     (target_day,),
@@ -1219,7 +1219,7 @@ async def sales_order_summary(date: Optional[str] = None, month: Optional[str] =
                 cur.execute(
                     f"""
                     SELECT
-                      COALESCE(c.sales_owner, '未配置') AS sales_owner,
+                      COALESCE(NULLIF(TRIM(CAST(c.sales_owner AS STRING)), ''), '-') AS sales_owner,
                       COUNT(*) AS total_count,
                       SUM(CASE WHEN t.sign_type LIKE '%%升佣%%' THEN 1 ELSE 0 END) AS commission_count,
                       SUM(CASE WHEN t.sign_type LIKE '%%现金%%' THEN 1 ELSE 0 END) AS cash_count,
@@ -1230,15 +1230,15 @@ async def sales_order_summary(date: Optional[str] = None, month: Optional[str] =
                       SUM(CASE WHEN t.customer_layer = '复购' THEN 1 ELSE 0 END) AS repurchase_count
                     FROM `mv_branch_customer_detail_final` t
                     LEFT JOIN `{CONFIG_SALES_ORDER_TABLE}` c
-                      ON t.sole_code = c.sole_code
-                     AND t.customer_account = c.customer_account
-                     AND t.product_name = c.product_name
+                      ON TRIM(CAST(t.sole_code AS STRING)) = TRIM(CAST(c.sole_code AS STRING))
+                     AND TRIM(CAST(t.customer_account AS STRING)) = TRIM(CAST(c.customer_account AS STRING))
+                     AND TRIM(CAST(t.product_name AS STRING)) = TRIM(CAST(c.product_name AS STRING))
                     WHERE t.pay_amount IS NOT NULL
                       AND CAST(t.pay_amount AS STRING) != '0.00000'
                       AND t.pay_time IS NOT NULL
                       AND TRIM(CAST(t.pay_time AS STRING)) != ''
                       AND {ym_expr} = %s
-                    GROUP BY COALESCE(c.sales_owner, '未配置')
+                    GROUP BY COALESCE(NULLIF(TRIM(CAST(c.sales_owner AS STRING)), ''), '-')
                     ORDER BY total_count DESC, sales_owner ASC
                     """,
                     (target_month,),
@@ -2474,6 +2474,8 @@ class NavDetailRow(BaseModel):
     biz_date: str
     stock_name: Optional[str] = None
     stock_code: Optional[str] = None
+    # 仓位：等价于 product_nav_daily_detail.open_pct（百分比数值，如 5 表示 5%）
+    open_pct: Optional[float] = None
     position_after: Optional[float] = None
 
 
@@ -2531,6 +2533,18 @@ async def get_stock_position_nav_chart(
             except (TypeError, ValueError):
                 hs300_val = None
             series.append({"date": dt, "nav": round(nav_val, 6), "hs300_nav": hs300_val})
+
+        # 只有 1 天数据时，前端会判定“<2点不可绘制”。这里补一个“初始点=1”以保证可画图。
+        # 说明：补点日期取首日的前一自然日；不影响多日序列的正常展示。
+        if len(series) == 1:
+            try:
+                from datetime import datetime, timedelta
+
+                first_d = datetime.strptime(series[0]["date"], "%Y-%m-%d").date()
+                prev_d = first_d - timedelta(days=1)
+                series.insert(0, {"date": prev_d.strftime("%Y-%m-%d"), "nav": 1.0, "hs300_nav": 1.0})
+            except Exception:
+                pass
         return [NavChartPoint(**x) for x in series]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -2545,7 +2559,7 @@ async def get_stock_position_nav_detail(
     返回“净值明细”（product_nav_daily_detail row_type=2）
     - 默认：仅返回最新 biz_date 的明细
     - 过滤：按 product_name（即配置页选择的产品）
-    - 字段：biz_date, stock_name, stock_code, position_after
+    - 字段：biz_date, stock_name, stock_code, open_pct, position_after
     """
     name = (product_name or "").strip() or "短线王"
     try:
@@ -2567,7 +2581,7 @@ async def get_stock_position_nav_detail(
 
             # 查指定（或最新）biz_date 的明细
             cur.execute(
-                f"SELECT biz_date, stock_name, stock_code, position_after "
+                f"SELECT biz_date, stock_name, stock_code, open_pct, position_after "
                 f"FROM `{PRODUCT_NAV_DAILY_DETAIL_TABLE}` "
                 f"WHERE product_name = %s AND row_type = 2 "
                 f"  AND biz_date IS NOT NULL "
@@ -2585,7 +2599,37 @@ async def get_stock_position_nav_detail(
                     biz_date=_parse_date(r.get("biz_date")) or str(r.get("biz_date") or ""),
                     stock_name=r.get("stock_name"),
                     stock_code=r.get("stock_code"),
+                    open_pct=float(r.get("open_pct") or 0) if r.get("open_pct") is not None else None,
                     position_after=float(r.get("position_after") or 0) if r.get("position_after") is not None else None,
+                )
+            )
+
+        # 追加“总计”汇总行：
+        # - 日期列：总计
+        # - 个股列：N只
+        # - 股票代码列：空
+        # - 仓位列：sum(open_pct)
+        # - 持仓份额列：sum(position_after)
+        if items:
+            total_cnt = len(items)
+            total_open_pct = 0.0
+            total_position_after = 0.0
+            has_open_pct = False
+            has_position_after = False
+            for it in items:
+                if it.open_pct is not None:
+                    has_open_pct = True
+                    total_open_pct += float(it.open_pct or 0)
+                if it.position_after is not None:
+                    has_position_after = True
+                    total_position_after += float(it.position_after or 0)
+            items.append(
+                NavDetailRow(
+                    biz_date="总计",
+                    stock_name=f"{total_cnt}只",
+                    stock_code="",
+                    open_pct=total_open_pct if has_open_pct else None,
+                    position_after=total_position_after if has_position_after else None,
                 )
             )
         return NavDetailResp(
