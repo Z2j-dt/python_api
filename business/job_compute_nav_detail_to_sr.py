@@ -459,7 +459,14 @@ def compute_daily_detail(
     detail_rows: List[Dict[str, Any]] = []
 
     for dt in all_dates:
-        emit = update_from is None or dt >= update_from
+        # 增量重算也要保留“基期日”：
+        # 基期按“该产品首个交易日的上一个交易日”确定（anchor_d），
+        # 这样每个产品都能在净值序列中有自己的起点（通常为 1 / 1）。
+        emit = (
+            update_from is None
+            or dt >= update_from
+            or (anchor_d is not None and dt == anchor_d)
+        )
         # row_type=1 需要逐笔保留（同一天同一股票可多次买/卖，且成交价/金额不同不可聚合）。
         # 但 SR 侧常见唯一键为 (product_name, biz_date, row_type, stock_code)，因此这里为
         # 每笔交易生成一个“不会重复”的 stock_code："{原代码}#{买入/卖出}#{序号}"。

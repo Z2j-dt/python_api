@@ -1156,15 +1156,18 @@ function App() {
   }, [salesOrderMonth, salesOrderPage])
 
   const saveSalesOrderRow = useCallback(async (row: SalesOrderConfigItem): Promise<boolean> => {
+    const EMPTY_CUSTOMER_ACCOUNT_TOKEN = '__EMPTY_CUSTOMER_ACCOUNT__'
     const sole = String(row.sole_code || '').trim()
     const acct = String(row.customer_account || '').trim()
     const prod = String(row.product_name || '').trim()
-    if (!sole || !acct || !prod) return false
+    // customer_account 允许为空：用于匹配表里 NULL/空字符串的同一行
+    if (!sole || !prod) return false
+    const acctForPath = acct ? acct : EMPTY_CUSTOMER_ACCOUNT_TOKEN
     const key = `${sole}__${acct}__${prod}`
     setSalesOrderSaving((prev) => ({ ...prev, [key]: true }))
     try {
       const res = await fetchWithTimeout(
-        `${API_BASE}/api/config/sales-order/${encodeURIComponent(sole)}/${encodeURIComponent(acct)}/${encodeURIComponent(prod)}`,
+        `${API_BASE}/api/config/sales-order/${encodeURIComponent(sole)}/${encodeURIComponent(acctForPath)}/${encodeURIComponent(prod)}`,
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -1686,12 +1689,32 @@ function App() {
     try {
       const params = new URLSearchParams()
       params.set('product_name', productName)
-      if (navStartDate.trim()) params.set('start_date', navStartDate.trim())
+      // 始终拉全量（到 end_date 截止），再由前端做区间裁剪并补“起始日前锚点”。
+      // 这样可确保基期点（如上一年末 1/1）在任意区间下都可展示。
+      params.set('start_date', '1900-01-01')
       if (navEndDate.trim()) params.set('end_date', navEndDate.trim())
       const res = await fetchWithTimeout(`${API_BASE}/api/config/stock-position/nav-chart?${params}`)
       if (!res.ok) throw new Error(await res.text())
       const list: NavChartPoint[] = await res.json()
-      setNavSeries(Array.isArray(list) ? list : [])
+      const all = Array.isArray(list) ? list : []
+      const start = navStartDate.trim()
+      const end = navEndDate.trim()
+      if (!start) {
+        setNavSeries(all)
+      } else {
+        const inRange = all.filter((p) => {
+          const d = String(p.date || '')
+          if (!d) return false
+          if (d < start) return false
+          if (end && d > end) return false
+          return true
+        })
+        const before = [...all]
+          .filter((p) => String(p.date || '') < start)
+          .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))
+          .pop()
+        setNavSeries(before ? [before, ...inRange] : inRange)
+      }
       setNavHoverIndex(null)
     } catch (e) {
       const msg = e instanceof Error ? e.message : '加载净值失败'
@@ -1700,13 +1723,18 @@ function App() {
     } finally {
       setNavChartLoading(false)
     }
-  }, [getFirstProductName, stockPositionFilter, navStartDate, navEndDate])
+  }, [getFirstProductName, stockPositionFilter, navStartDate, navEndDate, navZoomMode])
 
   const openNavModal = async () => {
     setNavModalOpen(true)
     setNavHoverIndex(null)
     await loadNavSeries()
   }
+
+  useEffect(() => {
+    if (!navModalOpen) return
+    void loadNavSeries()
+  }, [navZoomMode, navModalOpen, loadNavSeries])
 
   const loadStockPositionPreviewPositionDetail = useCallback(async () => {
     const productName = getFirstProductName(stockPositionFilter)
@@ -1737,6 +1765,8 @@ function App() {
     try {
       const params = new URLSearchParams()
       params.set('product_name', productName)
+      // 预览“净值”Tab 也需要包含基期点
+      params.set('start_date', '1900-01-01')
       const res = await fetchWithTimeout(`${API_BASE}/api/config/stock-position/nav-chart?${params}`, {}, 60000)
       if (!res.ok) throw new Error(await res.text())
       const list: NavChartPoint[] = await res.json()

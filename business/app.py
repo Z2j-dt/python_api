@@ -974,11 +974,15 @@ async def update_sales_order_config(
     request: Request,
 ) -> Dict[str, Any]:
     _reject_if_readonly(request)
+    EMPTY_CUSTOMER_ACCOUNT_TOKEN = "__EMPTY_CUSTOMER_ACCOUNT__"
     sole = (sole_code or "").strip()
     acct = (customer_account or "").strip()
     prod = (product_name or "").strip()
-    if not sole or not acct or not prod:
+    # customer_account 允许为空：兼容表里 NULL/空字符串的情况
+    if not sole or not prod:
         raise HTTPException(status_code=400, detail="主键字段不能为空")
+    if acct == EMPTY_CUSTOMER_ACCOUNT_TOKEN:
+        acct = ""
     in_month = (str(body.get("in_month") or "").strip() or None)
     channel = (str(body.get("channel") or "").strip() or None)
     wechat_nick = (str(body.get("wechat_nick") or "").strip() or None)
@@ -993,7 +997,9 @@ async def update_sales_order_config(
                     wechat_nick = %s,
                     sales_owner = %s,
                     updated_time = NOW()
-                WHERE sole_code = %s AND customer_account = %s AND product_name = %s
+                WHERE sole_code = %s
+                  AND COALESCE(TRIM(customer_account), '') = %s
+                  AND product_name = %s
                 """,
                 (in_month, channel, wechat_nick, sales_owner, sole, acct, prod),
             )
@@ -2518,7 +2524,38 @@ async def get_stock_position_nav_chart(
                 (name, d_from, d_to),
             )
             rows = cur.fetchall()
+
+            # 基期锚点必须按“该产品首个交易日的上一个交易日”确定，不能用统一日期。
+            # 这里先取该产品首个 trade_date，再从净值结果表取其之前最近一个点作为锚点。
+            anchor_row = None
+            cur.execute(
+                f"SELECT MIN(trade_date) AS min_trade_date "
+                f"FROM `{CONFIG_STOCK_POSITION_TABLE}` "
+                f"WHERE product_name = %s AND trade_date IS NOT NULL",
+                (name,),
+            )
+            tr = cur.fetchone() or {}
+            min_trade_date = tr.get("min_trade_date")
+            if min_trade_date:
+                cur.execute(
+                    f"SELECT biz_date, nav, hs300_nav FROM `{PRODUCT_NAV_DAILY_DETAIL_TABLE}` "
+                    f"WHERE product_name = %s AND row_type = 3 "
+                    f"AND biz_date < %s "
+                    f"ORDER BY biz_date DESC LIMIT 1",
+                    (name, min_trade_date),
+                )
+                anchor_row = cur.fetchone() or None
         series = []
+        if anchor_row:
+            dt0 = _parse_date(anchor_row.get("biz_date"))
+            if dt0:
+                try:
+                    nav0 = float(anchor_row.get("nav") or 0)
+                    hs0_raw = anchor_row.get("hs300_nav")
+                    hs0 = float(hs0_raw) if hs0_raw is not None else None
+                    series.append({"date": dt0, "nav": round(nav0, 6), "hs300_nav": hs0})
+                except (TypeError, ValueError):
+                    pass
         for r in rows:
             dt = _parse_date(r.get("biz_date"))
             if not dt:
@@ -2532,6 +2569,9 @@ async def get_stock_position_nav_chart(
                 hs300_val = float(hs) if hs is not None else None
             except (TypeError, ValueError):
                 hs300_val = None
+            if series and series[-1].get("date") == dt:
+                # 避免补点与区间首点同日重复
+                continue
             series.append({"date": dt, "nav": round(nav_val, 6), "hs300_nav": hs300_val})
 
         # 只有 1 天数据时，前端会判定“<2点不可绘制”。这里补一个“初始点=1”以保证可画图。
