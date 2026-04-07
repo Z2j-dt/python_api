@@ -2496,6 +2496,8 @@ class NavChartPoint(BaseModel):
     date: str
     nav: float
     hs300_nav: Optional[float] = None
+    # 当日组合总仓位（来自 product_nav_daily_detail row_type=3.open_pct，百分比数值）
+    open_pct: Optional[float] = None
 
 
 class NavDetailRow(BaseModel):
@@ -2539,7 +2541,7 @@ async def get_stock_position_nav_chart(
                 d_from = (date.today() - timedelta(days=90)).strftime("%Y-%m-%d")
 
             cur.execute(
-                f"SELECT biz_date, nav, hs300_nav FROM `{PRODUCT_NAV_DAILY_DETAIL_TABLE}` "
+                f"SELECT biz_date, nav, hs300_nav, open_pct FROM `{PRODUCT_NAV_DAILY_DETAIL_TABLE}` "
                 f"WHERE product_name = %s AND row_type = 3 "
                 f"AND biz_date BETWEEN %s AND %s "
                 f"ORDER BY biz_date ASC",
@@ -2560,7 +2562,7 @@ async def get_stock_position_nav_chart(
             min_trade_date = tr.get("min_trade_date")
             if min_trade_date:
                 cur.execute(
-                    f"SELECT biz_date, nav, hs300_nav FROM `{PRODUCT_NAV_DAILY_DETAIL_TABLE}` "
+                    f"SELECT biz_date, nav, hs300_nav, open_pct FROM `{PRODUCT_NAV_DAILY_DETAIL_TABLE}` "
                     f"WHERE product_name = %s AND row_type = 3 "
                     f"AND biz_date < %s "
                     f"ORDER BY biz_date DESC LIMIT 1",
@@ -2592,7 +2594,9 @@ async def get_stock_position_nav_chart(
                     nav0 = float(anchor_row.get("nav") or 0)
                     hs0_raw = anchor_row.get("hs300_nav")
                     hs0 = float(hs0_raw) if hs0_raw is not None else None
-                    series.append({"date": dt0, "nav": round(nav0, 6), "hs300_nav": hs0})
+                    op0_raw = anchor_row.get("open_pct")
+                    op0 = float(op0_raw) if op0_raw is not None else None
+                    series.append({"date": dt0, "nav": round(nav0, 6), "hs300_nav": hs0, "open_pct": op0})
                 except (TypeError, ValueError):
                     pass
         for r in rows:
@@ -2608,10 +2612,15 @@ async def get_stock_position_nav_chart(
                 hs300_val = float(hs) if hs is not None else None
             except (TypeError, ValueError):
                 hs300_val = None
+            op = r.get("open_pct")
+            try:
+                open_pct_val = float(op) if op is not None else None
+            except (TypeError, ValueError):
+                open_pct_val = None
             if series and series[-1].get("date") == dt:
                 # 避免补点与区间首点同日重复
                 continue
-            series.append({"date": dt, "nav": round(nav_val, 6), "hs300_nav": hs300_val})
+            series.append({"date": dt, "nav": round(nav_val, 6), "hs300_nav": hs300_val, "open_pct": open_pct_val})
 
         # 只有 1 天数据时，前端会判定“<2点不可绘制”。这里补一个“初始点=1”以保证可画图。
         # 说明：补点日期取首日的前一自然日；不影响多日序列的正常展示。
@@ -2621,7 +2630,7 @@ async def get_stock_position_nav_chart(
 
                 first_d = datetime.strptime(series[0]["date"], "%Y-%m-%d").date()
                 prev_d = first_d - timedelta(days=1)
-                series.insert(0, {"date": prev_d.strftime("%Y-%m-%d"), "nav": 1.0, "hs300_nav": 1.0})
+                series.insert(0, {"date": prev_d.strftime("%Y-%m-%d"), "nav": 1.0, "hs300_nav": 1.0, "open_pct": None})
             except Exception:
                 pass
         return [NavChartPoint(**x) for x in series]

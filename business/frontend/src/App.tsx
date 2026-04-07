@@ -350,6 +350,7 @@ interface NavChartPoint {
   date: string
   nav: number
   hs300_nav?: number | null
+  open_pct?: number | null
 }
 
 interface NavDetailRow {
@@ -3420,6 +3421,13 @@ function App() {
                                 .map((p) => (p.hs300_nav == null ? NaN : Number(p.hs300_nav)))
                                 .filter((v) => Number.isFinite(v))
                               const allVals = [...navVals, ...hsVals]
+                              const rawOpenPctVals = visible
+                                .map((p) => (p.open_pct == null ? NaN : Number(p.open_pct)))
+                                .filter((v) => Number.isFinite(v) && v >= 0)
+                              // 兼容两种仓位口径：
+                              // - 百分比口径：80 表示 80%
+                              // - 小数口径：0.8 表示 80%
+                              const openPctUseFraction = rawOpenPctVals.length > 0 && Math.max(...rawOpenPctVals) <= 1.000001
                               // 强制包含基准 1.0000，并在顶部额外留白，避免最高点标注遮挡
                               const rawMin0 = Math.min(...allVals, 1.0)
                               const rawMax0 = Math.max(...allVals, 1.0)
@@ -3486,6 +3494,9 @@ function App() {
 
                               // 点位标记：每月最高净值点
                               const navNums = visible.map((p) => (Number.isFinite(Number(p.nav)) ? Number(p.nav) : NaN))
+                              const hsNums = visible.map((p) =>
+                                p.hs300_nav != null && Number.isFinite(Number(p.hs300_nav)) ? Number(p.hs300_nav) : NaN,
+                              )
                               const monthlyMaxIdx = new Map<string, number>()
                               for (let i = 0; i < visible.length; i++) {
                                 const p = visible[i]
@@ -3607,6 +3618,47 @@ function App() {
                                       {/* axes */}
                                       <line x1={padL} y1={padT} x2={padL} y2={h - padB} stroke="#94a3b8" strokeWidth="1" />
                                       <line x1={padL} y1={h - padB} x2={w - padR} y2={h - padB} stroke="#94a3b8" strokeWidth="1" />
+                                      {/* 右侧仓位刻度（20%~100%） */}
+                                      <text x={w - padR + 8} y={padT - 6} textAnchor="start" fontSize="10" fill="#111827">
+                                        仓位占比
+                                      </text>
+                                      {[20, 40, 60, 80, 100].map((pct) => {
+                                        const y = h - padB - ((h - padT - padB) * pct) / 100
+                                        return (
+                                          <g key={`pos-tick-${pct}`}>
+                                            <line x1={w - padR} y1={y} x2={w - padR + 4} y2={y} stroke="#94a3b8" strokeWidth="1" />
+                                            <text x={w - padR + 8} y={y + 4} textAnchor="start" fontSize="11" fill="#64748b">
+                                              {pct}%
+                                            </text>
+                                          </g>
+                                        )
+                                      })}
+
+                                      {/* 每日仓位总和背景（从 x 轴向上按百分比着色） */}
+                                      {visible.map((p, i) => {
+                                        const pctRaw = Number(p?.open_pct)
+                                        if (!Number.isFinite(pctRaw) || pctRaw <= 0) return null
+                                        const pctNorm = openPctUseFraction ? pctRaw * 100 : pctRaw
+                                        const pct = Math.max(0, Math.min(100, pctNorm))
+                                        const x = xOf(i)
+                                        const left = i === 0 ? padL : (xOf(i - 1) + x) / 2
+                                        const right = i === visible.length - 1 ? w - padR : (x + xOf(i + 1)) / 2
+                                        const barW = Math.max(1, right - left)
+                                        const yBottom = h - padB
+                                        const barH = ((h - padT - padB) * pct) / 100
+                                        const yTop = yBottom - barH
+                                        return (
+                                          <rect
+                                            key={`pos-bg-${String(p?.date || '')}-${i}`}
+                                            x={left}
+                                            y={yTop}
+                                            width={barW}
+                                            height={barH}
+                                            fill="#94a3b8"
+                                            opacity={0.3}
+                                          />
+                                        )
+                                      })}
 
                                       {/* series */}
                                       <path d={dNav} fill="none" stroke="#ef4444" strokeWidth="2.5" />
@@ -3653,6 +3705,28 @@ function App() {
                                           </g>
                                         )
                                       })}
+                                      {/* 沪深300：最后一天点位与净值标注 */}
+                                      {lastHs != null && (() => {
+                                        const idx = visible.length - 1
+                                        const x = xOf(idx)
+                                        const y = yOf(lastHs)
+                                        const hsPos = labelPosFor(hsNums, idx, x, y)
+                                        return (
+                                          <g>
+                                            <circle cx={x} cy={y} r={3} fill="#f59e0b" stroke="#ffffff" strokeWidth={1.5} />
+                                            <text
+                                              x={hsPos.x}
+                                              y={hsPos.y}
+                                              textAnchor="middle"
+                                              fontSize="12"
+                                              fill="#111827"
+                                              style={{ paintOrder: 'stroke', stroke: '#ffffff', strokeWidth: 3 }}
+                                            >
+                                              {fmt4(lastHs)}
+                                            </text>
+                                          </g>
+                                        )
+                                      })()}
 
                                       {/* x labels：多日期刻度 */}
                                       {xTicks.map((t, idx) => {
