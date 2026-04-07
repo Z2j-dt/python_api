@@ -2338,6 +2338,28 @@ def _parse_date(v: Any) -> Optional[str]:
     return None
 
 
+def _normalize_biz_date_to_yyyymmdd(v: Any) -> Optional[str]:
+    """
+    hsgt_price_deliver 的 biz_date 口径在不同查询结果里可能是：
+    - date/datetime 类型
+    - '20260403'（字符串）
+    - '2026-04-03'（字符串）
+    这里统一转成 'YYYYMMDD' 以保证 WHERE biz_date = %s 能命中。
+    """
+    if v is None:
+        return None
+    if hasattr(v, "strftime"):
+        return v.strftime("%Y%m%d")
+    s = str(v).strip()
+    if not s:
+        return None
+    # 去掉所有非数字字符（把 2026-04-03 变成 20260403）
+    digits = _re.sub(r"[^0-9]", "", s)
+    if len(digits) < 8:
+        return None
+    return digits[:8]
+
+
 def _compute_nav_series(product_name: str, cur) -> List[Dict[str, Any]]:
     """
     按 temp3 口径计算组合净值序列。
@@ -2768,7 +2790,8 @@ async def create_stock_position(body: StockPositionCreate, request: Request) -> 
                 )
                 max_d_row = cur.fetchone() or {}
                 max_d = max_d_row.get("max_d")
-                if max_d is not None:
+                max_d_norm = _normalize_biz_date_to_yyyymmdd(max_d)
+                if max_d_norm is not None:
                     placeholders = ",".join(["%s"] * len(candidate_codes))
                     cur.execute(
                         f"""
@@ -2780,7 +2803,7 @@ async def create_stock_position(body: StockPositionCreate, request: Request) -> 
                           AND TRIM(CAST(stock_name AS STRING)) != ''
                         LIMIT 1
                         """,
-                        (max_d, *candidate_codes),
+                        (max_d_norm, *candidate_codes),
                     )
                     expected_row = cur.fetchone() or {}
                     expected_name = (expected_row.get("stock_name") or "").strip()
@@ -2873,7 +2896,8 @@ async def update_stock_position(item_id: int, body: StockPositionUpdate, request
                 )
                 max_d_row = cur.fetchone() or {}
                 max_d = max_d_row.get("max_d")
-                if max_d is not None:
+                max_d_norm = _normalize_biz_date_to_yyyymmdd(max_d)
+                if max_d_norm is not None:
                     placeholders = ",".join(["%s"] * len(candidate_codes))
                     cur.execute(
                         f"""
@@ -2885,7 +2909,7 @@ async def update_stock_position(item_id: int, body: StockPositionUpdate, request
                           AND TRIM(CAST(stock_name AS STRING)) != ''
                         LIMIT 1
                         """,
-                        (max_d, *candidate_codes),
+                        (max_d_norm, *candidate_codes),
                     )
                     expected_row = cur.fetchone() or {}
                     expected_name = (expected_row.get("stock_name") or "").strip()
