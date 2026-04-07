@@ -849,13 +849,9 @@ function App() {
   const [stockPositionPreviewNavLoading, setStockPositionPreviewNavLoading] = useState(false)
   const [stockPositionPreviewNavError, setStockPositionPreviewNavError] = useState<string | null>(null)
   const [stockPositionPreviewNavItems, setStockPositionPreviewNavItems] = useState<NavChartPoint[]>([])
-  const [navStartDate, setNavStartDate] = useState<string>(() => {
-    const d = new Date()
-    d.setDate(d.getDate() - 90)
-    return d.toISOString().slice(0, 10)
-  })
+  const [navStartDate, setNavStartDate] = useState<string>('')
   const [navEndDate, setNavEndDate] = useState<string>(() => new Date().toISOString().slice(0, 10))
-  const [navZoomMode, setNavZoomMode] = useState<'30d' | '90d' | 'all'>('90d')
+  const [navZoomMode, setNavZoomMode] = useState<'30d' | '90d' | 'all'>('all')
 
   const isTestProductName = useCallback((name?: string | null) => {
     const s = String(name || '').trim()
@@ -1723,10 +1719,12 @@ function App() {
     } finally {
       setNavChartLoading(false)
     }
-  }, [getFirstProductName, stockPositionFilter, navStartDate, navEndDate, navZoomMode])
+  }, [getFirstProductName, stockPositionFilter, navStartDate, navEndDate])
 
   const openNavModal = async () => {
     setNavModalOpen(true)
+    setNavStartDate('')
+    setNavZoomMode('all')
     setNavHoverIndex(null)
     await loadNavSeries()
   }
@@ -1734,7 +1732,7 @@ function App() {
   useEffect(() => {
     if (!navModalOpen) return
     void loadNavSeries()
-  }, [navZoomMode, navModalOpen, loadNavSeries])
+  }, [navModalOpen, loadNavSeries])
 
   const loadStockPositionPreviewPositionDetail = useCallback(async () => {
     const productName = getFirstProductName(stockPositionFilter)
@@ -2918,7 +2916,7 @@ function App() {
                     <button
                       onClick={() => void openNavModal()}
                       className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-medium transition-colors"
-                      title="查看净值曲线（默认近 90 天）"
+                      title="查看净值曲线（默认全部）"
                     >
                       净值图
                     </button>
@@ -3303,7 +3301,7 @@ function App() {
                           <div className="text-base font-semibold text-slate-800">
                             净值图 · {getFirstProductName(stockPositionFilter)}
                           </div>
-                          <div className="text-sm text-slate-500 mt-0.5">默认展示近 90 天，可按日期筛选</div>
+                          <div className="text-sm text-slate-500 mt-0.5">默认展示全部净值数据，可按日期筛选</div>
                         </div>
                         <button
                           onClick={() => setNavModalOpen(false)}
@@ -3486,26 +3484,21 @@ function App() {
                                 return { idx, date: visible[idx].date }
                               })
 
-                              // 产品净值拐点（上升后转折的“尖尖”）：局部峰值
+                              // 点位标记：每月最高净值点
                               const navNums = visible.map((p) => (Number.isFinite(Number(p.nav)) ? Number(p.nav) : NaN))
-                              const rawPeaks: number[] = []
-                              for (let i = 1; i < navNums.length - 1; i++) {
-                                const a = navNums[i - 1]
-                                const b = navNums[i]
-                                const c = navNums[i + 1]
-                                if (!Number.isFinite(a) || !Number.isFinite(b) || !Number.isFinite(c)) continue
-                                if (a < b && b > c) rawPeaks.push(i)
+                              const monthlyMaxIdx = new Map<string, number>()
+                              for (let i = 0; i < visible.length; i++) {
+                                const p = visible[i]
+                                const v = navNums[i]
+                                const d = String(p?.date || '')
+                                if (!Number.isFinite(v) || d.length < 7) continue
+                                const monthKey = d.slice(0, 7)
+                                const prevIdx = monthlyMaxIdx.get(monthKey)
+                                if (prevIdx == null || v >= navNums[prevIdx]) {
+                                  monthlyMaxIdx.set(monthKey, i)
+                                }
                               }
-                              const PEAK_EPS = 0.0001
-                              let peaks = rawPeaks.filter((i) => navNums[i] - Math.max(navNums[i - 1], navNums[i + 1]) >= PEAK_EPS)
-                              // 峰值过多时只标注最“尖”的几个（避免满屏文字）
-                              if (peaks.length > 8) {
-                                peaks = [...peaks]
-                                  .sort((i, j) => navNums[j] - navNums[i])
-                                  .slice(0, 8)
-                                  .sort((a, b) => a - b)
-                              }
-                              const labelIdxSet = new Set<number>([...peaks, visible.length - 1])
+                              const labelIdxSet = new Set<number>(Array.from(monthlyMaxIdx.values()))
 
                               const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
                               const findPrevFinite = (arr: number[], idx: number) => {
@@ -3633,20 +3626,16 @@ function App() {
                                         )
                                       })()}
 
-                                      {/* 产品净值拐点 & 最后一天：标注净值 */}
+                                      {/* 每月最高净值点：标注净值 */}
                                       {Array.from(labelIdxSet).map((idx) => {
                                         const p = visible[idx]
                                         const v = Number(p?.nav)
                                         if (!Number.isFinite(v)) return null
                                         const x = xOf(idx)
                                         const y = yOf(v)
-                                        const isLast = idx === visible.length - 1
                                         const anchor = 'middle'
                                         const edgeDx = 0
-                                        // 最右端：放到点的右上方，利用右侧留白，避免压到左侧线段
-                                        const navPos = isLast
-                                          ? { x, y: clamp(y - 24, padT + 14, h - padB - 6) }
-                                          : labelPosFor(navNums, idx, x, y)
+                                        const navPos = labelPosFor(navNums, idx, x, y)
                                         return (
                                           <g key={`nav-label-${idx}`}>
                                             <circle cx={x} cy={y} r={3} fill="#ef4444" stroke="#ffffff" strokeWidth={1.5} />
@@ -3661,33 +3650,6 @@ function App() {
                                             >
                                               {fmt4(v)}
                                             </text>
-                                            {/* 最后一天：同时标注沪深300，且避免与组合净值标签互相遮挡/挡线 */}
-                                            {isLast && lastHs != null ? (() => {
-                                              const hv = lastHs
-                                              if (!Number.isFinite(hv)) return null
-                                              const hy = yOf(hv)
-                                              let hsPos = { x, y: clamp(hy - 24, padT + 14, h - padB - 6) }
-                                              // 与组合净值标签过近时，强制上下错开（都在上方，所以只能“再上移”一条）
-                                              if (Math.abs(hsPos.y - navPos.y) < 14) {
-                                                hsPos = { ...hsPos, y: clamp(hsPos.y - 16, padT + 14, h - padB - 6) }
-                                              }
-                                              return (
-                                                <g>
-                                                  <circle cx={x} cy={hy} r={3} fill="#f59e0b" stroke="#ffffff" strokeWidth={1.5} />
-                                                  <text
-                                                    x={hsPos.x}
-                                                    y={hsPos.y}
-                                                    dx={edgeDx}
-                                                    textAnchor={anchor}
-                                                    fontSize="12"
-                                                    fill="#111827"
-                                                    style={{ paintOrder: 'stroke', stroke: '#ffffff', strokeWidth: 3 }}
-                                                  >
-                                                    {fmt4(hv)}
-                                                  </text>
-                                                </g>
-                                              )
-                                            })() : null}
                                           </g>
                                         )
                                       })}
@@ -3733,7 +3695,11 @@ function App() {
                                   </div>
                                   {/* 右下角（不遮挡折线）：图例 + 最新/浮动数据（浮动放在最新日期下面） */}
                                   <div className="mt-2 flex justify-end">
-                                    <div className="bg-white/90 backdrop-blur rounded-lg border border-slate-200 shadow-sm px-3 py-2 text-xs text-slate-700 max-w-[560px] min-w-[520px]">
+                                    <div
+                                      className={`bg-white/90 backdrop-blur rounded-lg border border-slate-200 shadow-sm px-3 py-2 text-xs text-slate-700 inline-block ${
+                                        hover ? 'max-w-[560px] min-w-[520px]' : 'max-w-[320px]'
+                                      }`}
+                                    >
                                       <div className="flex items-center justify-end gap-3">
                                         <div className="flex items-center gap-1.5">
                                           <span className="inline-block w-2.5 h-2.5 rounded bg-red-500" />
@@ -3744,22 +3710,23 @@ function App() {
                                           <span>沪深300净值</span>
                                         </div>
                                       </div>
-                                      {/* 固定两列，避免 hover 时卡片尺寸变化 */}
-                                      <div className="mt-1 grid grid-cols-2 gap-x-4 gap-y-1">
-                                        {/* 左列：当前点 */}
-                                        <div className="text-right pr-3">
-                                          <div className="text-slate-500 text-[11px] whitespace-nowrap">当前日期：{hover?.date ?? '-'}</div>
-                                          <div className="mt-0.5 whitespace-nowrap">
-                                            <span className="text-slate-500">组合：</span>
-                                            <span className="font-medium text-slate-800">{hover ? fmt4(Number(hover.nav)) : '-'}</span>
-                                            <span className="ml-2 text-slate-500">沪深300：</span>
-                                            <span className="font-medium text-slate-800">
-                                              {hover && hover.hs300_nav != null && Number.isFinite(Number(hover.hs300_nav)) ? fmt4(Number(hover.hs300_nav)) : '-'}
-                                            </span>
+                                      <div className={`mt-1 grid ${hover ? 'grid-cols-2 gap-x-4 gap-y-1' : 'grid-cols-1'}`}>
+                                        {/* 左列：当前点（仅 hover 时显示） */}
+                                        {hover && (
+                                          <div className="text-right pr-3">
+                                            <div className="text-slate-500 text-[11px] whitespace-nowrap">当前日期：{hover.date}</div>
+                                            <div className="mt-0.5 whitespace-nowrap">
+                                              <span className="text-slate-500">组合：</span>
+                                              <span className="font-medium text-slate-800">{fmt4(Number(hover.nav))}</span>
+                                              <span className="ml-2 text-slate-500">沪深300：</span>
+                                              <span className="font-medium text-slate-800">
+                                                {hover.hs300_nav != null && Number.isFinite(Number(hover.hs300_nav)) ? fmt4(Number(hover.hs300_nav)) : '-'}
+                                              </span>
+                                            </div>
                                           </div>
-                                        </div>
+                                        )}
                                         {/* 右列：最新点（固定展示） */}
-                                        <div className="text-right border-l border-slate-200/70 pl-3">
+                                        <div className={`text-right ${hover ? 'border-l border-slate-200/70 pl-3' : ''}`}>
                                           <div className="text-slate-500 text-[11px] whitespace-nowrap">最新日期：{last.date}</div>
                                           <div className="mt-0.5 whitespace-nowrap">
                                             <span className="text-slate-500">组合：</span>

@@ -2567,6 +2567,23 @@ async def get_stock_position_nav_chart(
                     (name, min_trade_date),
                 )
                 anchor_row = cur.fetchone() or None
+
+            # 防止“锚点日期”落在当前净值区间内部，导致同一 biz_date（例如 2026-03-30）在
+            # 开头/结尾各出现一次，从而在图表和列表中看到重复日期。
+            if rows and anchor_row:
+                try:
+                    first_row_d = _parse_date(rows[0].get("biz_date"))
+                    last_row_d = _parse_date(rows[-1].get("biz_date"))
+                    anchor_d = _parse_date(anchor_row.get("biz_date"))
+                except Exception:
+                    first_row_d = last_row_d = anchor_d = None
+
+                if (
+                    anchor_d is None
+                    or (first_row_d is not None and last_row_d is not None and first_row_d <= anchor_d <= last_row_d)
+                ):
+                    # 若锚点日期已在当前区间内（或解析失败），则丢弃锚点，避免重复点
+                    anchor_row = None
         series = []
         if anchor_row:
             dt0 = _parse_date(anchor_row.get("biz_date"))

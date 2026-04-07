@@ -32,6 +32,7 @@ HSGT_PRICE_TABLE = "hsgt_price_deliver"
 DETAIL_TABLE = "product_nav_daily_detail"
 # 每个产品的初始资金配置表：product_name, init_capital
 PRODUCT_CAPITAL_TABLE = "config_product_nav_capital"
+MANUAL_NAV_PRODUCTS = {"同赢先锋"}
 
 NAV_INIT_CAPITAL = 10_000_000  # 默认初始资金 1000 万（配置表查不到时回退）
 HS300_CODE_DB = "000300"       # 沪深300 在价格表里的代码（标准写法）
@@ -808,6 +809,9 @@ def write_detail_to_sr(rows: List[Dict[str, Any]], update_from: Optional[date] =
 
     # 为了保证任务可重复执行：先删除本次计算日期区间内的旧数据，避免多跑叠加导致“多出股票/重复行”
     product_name = rows[0].get("product_name")
+    if str(product_name or "").strip() in MANUAL_NAV_PRODUCTS:
+        print(f"[SKIP] 产品={product_name} 为手工净值维护产品，禁止批量任务写入/删除。")
+        return
     biz_dates = [r.get("biz_date") for r in rows if r.get("biz_date") is not None]
     min_d = min(biz_dates) if biz_dates else None
     max_d = max(biz_dates) if biz_dates else None
@@ -887,15 +891,23 @@ def write_detail_to_sr(rows: List[Dict[str, Any]], update_from: Optional[date] =
                     WHERE product_name = %s
                 """
                 cur.execute(del_sql, (product_name,))
-            elif min_d and max_d:
-                # 增量：仅删除本次写入覆盖区间
+            elif max_d:
+                # 增量：删除区间起点必须严格使用 update_from。
+                # 说明：rows 里可能额外包含“锚点日”（早于 update_from），若用 min(rows.biz_date)
+                # 会误删 update_from 之前的历史数据。
+                del_start = update_from
+                if del_start is None and min_d is not None:
+                    # 理论上不会进入（上面已分支 update_from is None），仅保底
+                    del_start = min_d
+                if del_start is None:
+                    del_start = max_d
                 del_sql = f"""
                     DELETE FROM {DETAIL_TABLE}
                     WHERE product_name = %s
                       AND biz_date >= %s
                       AND biz_date <= %s
                 """
-                cur.execute(del_sql, (product_name, min_d, max_d))
+                cur.execute(del_sql, (product_name, del_start, max_d))
         cur.executemany(sql, vals)
         conn.commit()
     print(f"[OK] 写入 {DETAIL_TABLE} 行数: {len(rows)}")
@@ -912,6 +924,11 @@ def main(update_from: Optional[date] = None):
             print(f"[WARN] {PRODUCT_CAPITAL_TABLE} 中未找到有效产品配置，任务结束。")
             return
         for name, cap in products:
+            # 同赢先锋的历史净值已通过人工方式写入 product_nav_daily_detail，
+            # 后续将通过单独脚本从 2026-03-31 起增量续算，这里先跳过，避免被全量/增量任务覆盖。
+            if name.strip() in MANUAL_NAV_PRODUCTS:
+                print(f"[SKIP] 产品={name} 为手工净值维护产品，跳过本次批量任务。")
+                continue
             # compute_daily_detail 内部仍会按 name 再查一次资金；这里先确保表里有配置即可
             print(f"[RUN] 产品={name} 初始资金={cap}")
             rows = compute_daily_detail(name, cur, update_from=update_from)
