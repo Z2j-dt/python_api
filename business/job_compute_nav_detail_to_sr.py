@@ -50,17 +50,26 @@ def _d(v) -> Decimal:
 
 
 def _match_hs300_code(stock_code: Optional[str]) -> bool:
-    """判定价格表里的 stock_code 是否沪深300（兼容 000300 / 000300.SH / SH000300 等）。"""
+    """判定价格表里的 stock_code 是否沪深300（放宽匹配以适配不同编码格式）。"""
     if not stock_code:
         return False
     c = stock_code.strip().upper()
-    if c in ("000300", "000300.SH", "SH000300"):
-        return True
-    if c.startswith("SH") and c[2:] == "000300":
-        return True
-    if c.endswith(".SH") and c[:-3] == "000300":
-        return True
-    return False
+    return "000300" in c
+
+
+def _hs300_priority(stock_code: str) -> int:
+    """同一天多条 000300 口径时，优先选择更“标准”的编码。"""
+    c = (stock_code or "").strip().upper()
+    if c == "000300":
+        return 0
+    if c == "000300.SH":
+        return 1
+    if c == "SH000300":
+        return 2
+    # 兼容其它前缀/后缀写法：只要包含000300，就放在最后
+    if "000300" in c:
+        return 10
+    return 1000
 
 
 def _q2(x: Decimal) -> Decimal:
@@ -189,6 +198,27 @@ def load_trades(cur, product_name: str) -> List[Dict[str, Any]]:
     return cur.fetchall()
 
 
+def get_first_trade_date(cur, product_name: str) -> Optional[date]:
+    """
+    直接从交易配置表取该产品首个有效交易日（最小 trade_date）。
+    这里与 load_trades 保持同口径过滤，避免基期来源不一致。
+    """
+    sql = f"""
+        SELECT MIN(trade_date) AS first_trade_date
+        FROM {CONFIG_STOCK_POSITION_TABLE}
+        WHERE product_name = %s
+          AND trade_date IS NOT NULL
+          AND stock_code IS NOT NULL
+          AND side IS NOT NULL
+    """
+    try:
+        cur.execute(sql, (product_name,))
+        row = cur.fetchone() or {}
+        return _parse_date(row.get("first_trade_date"))
+    except Exception:
+        return None
+
+
 def load_prices_and_names(
     cur, min_d: date, max_d: date
 ) -> Tuple[Dict[Tuple[date, str], float], Dict[str, str]]:
@@ -291,21 +321,33 @@ def fetch_hs300_close_on_date(cur, biz_d: date) -> Optional[Decimal]:
     """指定日取沪深300收盘价（多代码兼容）；全表扫描 load 仍缺该日时补一条。"""
     ph = ",".join(["%s"] * len(HS300_CODE_SQL_IN))
     sql = f"""
-        SELECT last_price
+        SELECT stock_code, last_price
         FROM {HSGT_PRICE_TABLE}
         WHERE biz_date = %s
           AND last_price IS NOT NULL
-          AND stock_code IN ({ph})
-        LIMIT 1
+          AND stock_code LIKE %s
+        LIMIT 50
     """
     try:
-        cur.execute(sql, (biz_d,) + tuple(HS300_CODE_SQL_IN))
-        row = cur.fetchone() or {}
-        val = row.get("last_price")
-        if val is None:
-            return None
-        p = _d(val)
-        return p if p > 0 else None
+        cur.execute(sql, (biz_d, "%000300%"))
+        rows = cur.fetchall() or []
+        best = None
+        best_pr = None
+        for r in rows:
+            sc = (r.get("stock_code") or "").strip().upper()
+            val = r.get("last_price")
+            if val is None:
+                continue
+            try:
+                pr = _d(val)
+            except Exception:
+                continue
+            if pr <= 0:
+                continue
+            if best_pr is None or _hs300_priority(sc) < _hs300_priority(best or ""):
+                best_pr = pr
+                best = sc
+        return best_pr if best_pr is not None else None
     except Exception:
         return None
 
@@ -325,8 +367,13 @@ def compute_daily_detail(
             trade_dates.add(d)
     if not trade_dates:
         return []
-    min_d, max_d_trade = min(trade_dates), max(trade_dates)
-    sql_anchor = get_hs300_prev_trading_date(cur, min_d)
+    # 首个交易日优先从表中直接获取，基期锚点始终基于表内原始数据确定。
+    first_trade_d = get_first_trade_date(cur, product_name)
+    min_d = first_trade_d if first_trade_d is not None else min(trade_dates)
+    max_d_trade = max(trade_dates)
+    # 基期规则（按业务约定）：
+    # 直接取产品首个交易日的自然日前一天，不再按沪深300交易日回溯。
+    sql_anchor = min_d - timedelta(days=1)
     price_floor = min_d - timedelta(days=PRICE_LOOKBACK_BEFORE_FIRST_TRADE_DAYS)
     price_load_min = price_floor
     if sql_anchor is not None and sql_anchor < min_d:
@@ -340,16 +387,12 @@ def compute_daily_detail(
     # 价格 + 股票名称（名称优先用价格表，若缺失再用交易配置表）
     price_map, price_name_map = load_prices_and_names(cur, price_load_min, max_d)
 
-    # 基期：优先 SQL；若未命中或异常，用已加载的 300 日线中「早于首笔交易日」的最近一天（与库中 4526/4576 这类口径一致）
+    # 基期固定为首个交易日的自然日前一天（不做交易日校正）
     anchor_d: Optional[date] = sql_anchor
-    if anchor_d is None or (min_d is not None and anchor_d >= min_d):
-        older_hs300 = sorted(
-            d
-            for (d, c) in price_map.keys()
-            if _match_hs300_code(c) and d < min_d
-        )
-        if older_hs300:
-            anchor_d = older_hs300[-1]
+    print(
+        f"[INFO] product={product_name} first_trade_date={min_d} "
+        f"sql_anchor={sql_anchor} anchor_d={anchor_d}"
+    )
     trade_name_map: Dict[str, str] = {}
     for r in trades:
         code = (r.get("stock_code") or "").strip()
@@ -393,14 +436,25 @@ def compute_daily_detail(
             last_close[code] = day[code]
         return last_close.get(code, Decimal("0"))
 
-    # 沪深300净值：有 anchor_d 时基期固定为 anchor_d（永不用「区间内首个 300 日线」顶替）；无 anchor 才退回区间首日。
+    # 沪深300净值：基期=anchor_d当日（若该日有 000300 收盘价），否则取该日前最近一个有值的日期。
     hs300_prices: Dict[date, Decimal] = {}
+    hs300_code_for_date: Dict[date, str] = {}
     for (d, c), p in price_map.items():
-        if _match_hs300_code(c):
-            try:
-                hs300_prices[d] = _d(p)
-            except Exception:
-                pass
+        if not _match_hs300_code(c):
+            continue
+        try:
+            pr = _d(p)
+        except Exception:
+            continue
+        cur_code = (c or "").strip().upper()
+        if d not in hs300_prices:
+            hs300_prices[d] = pr
+            hs300_code_for_date[d] = cur_code
+        else:
+            # 同一天多条编码时，优先选择标准编码（如 '000300'）
+            if _hs300_priority(cur_code) < _hs300_priority(hs300_code_for_date.get(d, "")):
+                hs300_prices[d] = pr
+                hs300_code_for_date[d] = cur_code
     if anchor_d is not None and anchor_d not in hs300_prices:
         px_anchor = fetch_hs300_close_on_date(cur, anchor_d)
         if px_anchor is not None:
@@ -409,11 +463,35 @@ def compute_daily_detail(
     hs300_nav_map: Dict[date, float] = {}
     base_d: Optional[date] = None
     base_price: Optional[Decimal] = None
-    if anchor_d is not None and anchor_d in hs300_prices:
-        base_d, base_price = anchor_d, hs300_prices[anchor_d]
-    elif anchor_d is None and hs300_dates:
-        base_d = hs300_dates[0]
-        base_price = hs300_prices[base_d]
+    anchor_d_before_hs300: Optional[date] = anchor_d
+    if hs300_dates:
+        if anchor_d is not None:
+            # 优先用 anchor_d 对应的 hs300 收盘价；若取不到则用最近一条 <= anchor_d
+            candidates = [d for d in hs300_dates if d <= anchor_d]
+            if candidates:
+                base_d = candidates[-1]
+            else:
+                base_d = hs300_dates[0]
+        else:
+            base_d = hs300_dates[0]
+        base_price = hs300_prices.get(base_d)
+    # 若 anchor_d 当天没有 000300 值，则把“组合基期起点”也回退到最近的可用基准日
+    # （这样 row_type=3 的初始净值/hs300_nav 才会对齐你的口径）
+    if (
+        anchor_d_before_hs300 is not None
+        and base_d is not None
+        and base_d != anchor_d_before_hs300
+    ):
+        anchor_d = base_d
+        all_dates = sorted(d for d in (trade_dates | price_dates) if anchor_d <= d <= max_d)
+        if anchor_d not in all_dates:
+            all_dates = [anchor_d] + all_dates
+
+    print(
+        f"[INFO] product={product_name} hs300_anchor_d={anchor_d_before_hs300} "
+        f"hs300_base_d={base_d} hs300_base_price={base_price} "
+        f"effective_anchor_d={anchor_d} hs300_dates_count={len(hs300_dates)}"
+    )
     if base_d is not None and base_price is not None and base_price > 0:
         for d in hs300_dates:
             if d >= base_d:
@@ -723,7 +801,7 @@ def compute_daily_detail(
     return detail_rows
 
 
-def write_detail_to_sr(rows: List[Dict[str, Any]]):
+def write_detail_to_sr(rows: List[Dict[str, Any]], update_from: Optional[date] = None):
     if not rows:
         print("[INFO] 无明细数据可写入")
         return
@@ -801,14 +879,23 @@ def write_detail_to_sr(rows: List[Dict[str, Any]]):
         )
 
     with get_conn() as conn, conn.cursor() as cur:
-        if product_name and min_d and max_d:
-            del_sql = f"""
-                DELETE FROM {DETAIL_TABLE}
-                WHERE product_name = %s
-                  AND biz_date >= %s
-                  AND biz_date <= %s
-            """
-            cur.execute(del_sql, (product_name, min_d, max_d))
+        if product_name:
+            if update_from is None:
+                # 全量：先清空该产品历史，避免旧基期/旧口径残留
+                del_sql = f"""
+                    DELETE FROM {DETAIL_TABLE}
+                    WHERE product_name = %s
+                """
+                cur.execute(del_sql, (product_name,))
+            elif min_d and max_d:
+                # 增量：仅删除本次写入覆盖区间
+                del_sql = f"""
+                    DELETE FROM {DETAIL_TABLE}
+                    WHERE product_name = %s
+                      AND biz_date >= %s
+                      AND biz_date <= %s
+                """
+                cur.execute(del_sql, (product_name, min_d, max_d))
         cur.executemany(sql, vals)
         conn.commit()
     print(f"[OK] 写入 {DETAIL_TABLE} 行数: {len(rows)}")
@@ -832,7 +919,7 @@ def main(update_from: Optional[date] = None):
                 print(f"[SKIP] 产品={name} 无交易数据或增量区间内无可写日期")
                 continue
             print(f"[INFO] 产品={name} 计算得到明细行数: {len(rows)}")
-            write_detail_to_sr(rows)
+            write_detail_to_sr(rows, update_from=update_from)
             total_written += len(rows)
     print(f"[OK] 批量任务完成，总写入行数: {total_written}")
 
