@@ -238,6 +238,7 @@ class OpenChannelTagOut(OpenChannelTagBase):
 class ChannelStaffBase(BaseModel):
     branch_name: str  # 营业部
     staff_name: str   # 姓名
+    channel_type: str  # 渠道类型（活动渠道/开户渠道）
 
 
 class ChannelStaffCreate(ChannelStaffBase):
@@ -247,6 +248,7 @@ class ChannelStaffCreate(ChannelStaffBase):
 class ChannelStaffUpdate(BaseModel):
     branch_name: Optional[str] = None
     staff_name: Optional[str] = None
+    channel_type: Optional[str] = None
 
 
 class ChannelStaffOut(ChannelStaffBase):
@@ -707,13 +709,16 @@ async def delete_open_channel_tag(item_id: int, request: Request) -> Dict[str, A
 
 
 # -------------------- API：投流渠道承接员工配置表 --------------------
+CHANNEL_STAFF_ALLOWED_TYPES = ("活动渠道", "开户渠道")
 
 @app.get("/api/config/channel-staff", response_model=List[ChannelStaffOut])
 async def list_channel_staff() -> List[ChannelStaffOut]:
     try:
         with _db_cursor() as cur:
             cur.execute(
-                f"SELECT id, branch_name, staff_name, created_at, updated_at "
+                f"SELECT id, branch_name, staff_name, "
+                f"COALESCE(NULLIF(TRIM(channel_type), ''), '开户渠道') AS channel_type, "
+                f"created_at, updated_at "
                 f"FROM `{CONFIG_CHANNEL_STAFF_TABLE}` ORDER BY id ASC"
             )
             rows = cur.fetchall()
@@ -725,18 +730,22 @@ async def list_channel_staff() -> List[ChannelStaffOut]:
 @app.post("/api/config/channel-staff", response_model=ChannelStaffOut)
 async def create_channel_staff(body: ChannelStaffCreate, request: Request) -> ChannelStaffOut:
     _reject_if_readonly(request)
+    if body.channel_type not in CHANNEL_STAFF_ALLOWED_TYPES:
+        raise HTTPException(status_code=400, detail="channel_type 仅支持：活动渠道/开户渠道")
     try:
         now_str = datetime.now().strftime(_DT_FMT)
         with _db_cursor() as cur:
             next_id = _next_config_id(cur, CONFIG_CHANNEL_STAFF_TABLE)
             cur.execute(
                 f"INSERT INTO `{CONFIG_CHANNEL_STAFF_TABLE}` "
-                f"(id, branch_name, staff_name, created_at, updated_at) "
-                f"VALUES (%s, %s, %s, %s, %s)",
-                (next_id, body.branch_name, body.staff_name, now_str, now_str),
+                f"(id, branch_name, staff_name, channel_type, created_at, updated_at) "
+                f"VALUES (%s, %s, %s, %s, %s, %s)",
+                (next_id, body.branch_name, body.staff_name, body.channel_type, now_str, now_str),
             )
             cur.execute(
-                f"SELECT id, branch_name, staff_name, created_at, updated_at "
+                f"SELECT id, branch_name, staff_name, "
+                f"COALESCE(NULLIF(TRIM(channel_type), ''), '开户渠道') AS channel_type, "
+                f"created_at, updated_at "
                 f"FROM `{CONFIG_CHANNEL_STAFF_TABLE}` WHERE id = %s",
                 (next_id,),
             )
@@ -753,15 +762,19 @@ async def create_channel_staff(body: ChannelStaffCreate, request: Request) -> Ch
 @app.put("/api/config/channel-staff/{item_id}", response_model=ChannelStaffOut)
 async def update_channel_staff(item_id: int, body: ChannelStaffUpdate, request: Request) -> ChannelStaffOut:
     _reject_if_readonly(request)
-    if body.branch_name is None and body.staff_name is None:
+    if body.branch_name is None and body.staff_name is None and body.channel_type is None:
         raise HTTPException(status_code=400, detail="至少提供一个需要更新的字段")
+    if body.channel_type is not None and body.channel_type not in CHANNEL_STAFF_ALLOWED_TYPES:
+        raise HTTPException(status_code=400, detail="channel_type 仅支持：活动渠道/开户渠道")
     try:
         # StarRocks 部分表不支持 UPDATE（会报 1064 does not support update）
         # 这里用“查旧值 -> DELETE -> INSERT”实现修改。
         now_str = datetime.now().strftime(_DT_FMT)
         with _db_cursor() as cur:
             cur.execute(
-                f"SELECT id, branch_name, staff_name, created_at, updated_at "
+                f"SELECT id, branch_name, staff_name, "
+                f"COALESCE(NULLIF(TRIM(channel_type), ''), '开户渠道') AS channel_type, "
+                f"created_at, updated_at "
                 f"FROM `{CONFIG_CHANNEL_STAFF_TABLE}` WHERE id = %s",
                 (item_id,),
             )
@@ -771,6 +784,11 @@ async def update_channel_staff(item_id: int, body: ChannelStaffUpdate, request: 
 
             new_branch = body.branch_name if body.branch_name is not None else old.get("branch_name")
             new_staff = body.staff_name if body.staff_name is not None else old.get("staff_name")
+            new_channel_type = (
+                body.channel_type
+                if body.channel_type is not None
+                else (old.get("channel_type") or "开户渠道")
+            )
             created_at = _fmt_dt(old.get("created_at")) or now_str
 
             cur.execute(
@@ -779,12 +797,14 @@ async def update_channel_staff(item_id: int, body: ChannelStaffUpdate, request: 
             )
             cur.execute(
                 f"INSERT INTO `{CONFIG_CHANNEL_STAFF_TABLE}` "
-                f"(id, branch_name, staff_name, created_at, updated_at) "
-                f"VALUES (%s, %s, %s, %s, %s)",
-                (item_id, new_branch, new_staff, created_at, now_str),
+                f"(id, branch_name, staff_name, channel_type, created_at, updated_at) "
+                f"VALUES (%s, %s, %s, %s, %s, %s)",
+                (item_id, new_branch, new_staff, new_channel_type, created_at, now_str),
             )
             cur.execute(
-                f"SELECT id, branch_name, staff_name, created_at, updated_at "
+                f"SELECT id, branch_name, staff_name, "
+                f"COALESCE(NULLIF(TRIM(channel_type), ''), '开户渠道') AS channel_type, "
+                f"created_at, updated_at "
                 f"FROM `{CONFIG_CHANNEL_STAFF_TABLE}` WHERE id = %s",
                 (item_id,),
             )

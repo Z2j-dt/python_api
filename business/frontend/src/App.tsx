@@ -292,6 +292,7 @@ const CHANNEL_STAFF_ALLOWED_BRANCHES = [
   '浙分',
   '海分',
 ]
+const CHANNEL_STAFF_TYPES: Array<'活动渠道' | '开户渠道'> = ['活动渠道', '开户渠道']
 
 // -------------------- 配置模块类型定义 --------------------
 
@@ -307,6 +308,7 @@ interface ChannelStaffItem {
   id: number
   branch_name: string
   staff_name: string
+  channel_type: '活动渠道' | '开户渠道'
   created_at?: string
   updated_at?: string
 }
@@ -730,9 +732,14 @@ function App() {
   const [openModal, setOpenModal] = useState<'add' | 'edit' | null>(null)
 
   const [editingStaffItem, setEditingStaffItem] = useState<ChannelStaffItem | null>(null)
-  const [staffForm, setStaffForm] = useState<{ branch_name: string; staff_name: string }>({
+  const [staffForm, setStaffForm] = useState<{
+    branch_name: string
+    staff_name: string
+    channel_type: '' | '活动渠道' | '开户渠道'
+  }>({
     branch_name: '',
     staff_name: '',
+    channel_type: '',
   })
   const [staffModal, setStaffModal] = useState<'add' | 'edit' | null>(null)
   const [staffModalError, setStaffModalError] = useState<string | null>(null)
@@ -1880,8 +1887,8 @@ function App() {
       setConfigError('只读账号不可修改')
       return
     }
-    if (!staffForm.branch_name.trim() || !staffForm.staff_name.trim()) {
-      setConfigError('营业部和姓名不能为空')
+    if (!staffForm.branch_name.trim() || !staffForm.staff_name.trim() || !staffForm.channel_type) {
+      setConfigError('营业部、姓名、渠道类型不能为空')
       return
     }
     if (!CHANNEL_STAFF_ALLOWED_BRANCHES.includes(staffForm.branch_name.trim())) {
@@ -1902,12 +1909,13 @@ function App() {
         body: JSON.stringify({
           branch_name: staffForm.branch_name.trim(),
           staff_name: staffForm.staff_name.trim(),
+          channel_type: staffForm.channel_type,
         }),
       })
       if (!res.ok) throw new Error(await res.text())
       await refreshCurrentConfig()
       setEditingStaffItem(null)
-      setStaffForm({ branch_name: '', staff_name: '' })
+      setStaffForm({ branch_name: '', staff_name: '', channel_type: '' })
       setStaffModal(null)
       setStaffModalError(null)
     } catch (e) {
@@ -1920,6 +1928,7 @@ function App() {
     setStaffForm({
       branch_name: item.branch_name,
       staff_name: item.staff_name,
+      channel_type: item.channel_type,
     })
     setStaffModalError(null)
     setStaffModal('edit')
@@ -2302,7 +2311,7 @@ function App() {
                         setOpenModal('add')
                       } else if (configTab === 'channel_staff') {
                         setEditingStaffItem(null)
-                        setStaffForm({ branch_name: '', staff_name: '' })
+                        setStaffForm({ branch_name: '', staff_name: '', channel_type: '' })
                         setStaffModalError(null)
                         setStaffModal('add')
                       } else if (configTab === 'opportunity_lead') {
@@ -2451,6 +2460,9 @@ function App() {
                               姓名
                             </th>
                             <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">
+                              渠道类型
+                            </th>
+                            <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">
                               创建时间
                             </th>
                             <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">
@@ -2475,6 +2487,9 @@ function App() {
                               </td>
                               <td className="px-4 py-3 text-slate-700 whitespace-nowrap">
                                 {item.staff_name}
+                              </td>
+                              <td className="px-4 py-3 text-slate-700 whitespace-nowrap">
+                                {item.channel_type}
                               </td>
                               <td className="px-4 py-3 text-slate-500 whitespace-nowrap">
                                 {item.created_at ?? '-'}
@@ -4826,7 +4841,7 @@ function App() {
                 onClick={() => {
                   setStaffModal(null)
                   setEditingStaffItem(null)
-                  setStaffForm({ branch_name: '', staff_name: '' })
+                  setStaffForm({ branch_name: '', staff_name: '', channel_type: '' })
                   setStaffModalError(null)
                 }}
               >
@@ -4860,6 +4875,26 @@ function App() {
                         placeholder="请输入姓名"
                       />
                     </div>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[11px] text-slate-500">渠道类型</span>
+                      <select
+                        className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        value={staffForm.channel_type}
+                        onChange={(e) =>
+                          setStaffForm((prev) => ({
+                            ...prev,
+                            channel_type: e.target.value as '' | '活动渠道' | '开户渠道',
+                          }))
+                        }
+                      >
+                        <option value="">请选择渠道类型</option>
+                        {CHANNEL_STAFF_TYPES.map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                   {staffModalError && (
                     <p className="mt-3 text-xs text-red-700 rounded-lg bg-red-50 border border-red-200 px-2.5 py-1.5">
@@ -4871,7 +4906,7 @@ function App() {
                       onClick={() => {
                         setStaffModal(null)
                         setEditingStaffItem(null)
-                        setStaffForm({ branch_name: '', staff_name: '' })
+                        setStaffForm({ branch_name: '', staff_name: '', channel_type: '' })
                         setStaffModalError(null)
                       }}
                       className="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-medium"
