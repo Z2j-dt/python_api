@@ -1706,8 +1706,15 @@ async def sales_order_detail_export_csv(date: Optional[str] = None, month: Optio
                     v = _mask_customer_phone(v)
                 if en == "in_month" and v is not None:
                     s = str(v).strip()
-                    if _re.match(r"^\d{4}-\d{2}$", s):
-                        v = "'" + s
+                    # 清理导出时可能出现的前导标点，统一输出 YYYY-MM。
+                    s = s.lstrip(",，' ")
+                    m = _re.search(r"\d{4}-\d{2}", s)
+                    if m:
+                        ym = m.group(0)
+                        # 用公式文本形式导出，避免 Excel 自动显示为 Apr-26。
+                        v = f'="{ym}"'
+                    else:
+                        v = s
                 out[cn] = v
             writer.writerow(out)
 
