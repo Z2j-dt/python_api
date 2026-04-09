@@ -474,8 +474,19 @@ interface SignCustomerGroupListResp {
   items: SignCustomerGroupItem[]
 }
 
+interface SalesDailyLeadItem {
+  name?: string | null
+  user_id?: string | null
+  user_name?: string | null
+  add_time?: string | null // yyyymmdd
+  tag_name?: string | null
+  group_name?: string | null
+  open_channel?: string | null
+}
+
 type ConfigTab =
   | 'open_channel_tag'
+  | 'activity_channel_tag'
   | 'channel_staff'
   | 'code_mapping'
   | 'stock_position'
@@ -484,7 +495,7 @@ type ConfigTab =
   | 'sales_order'
   | 'sign_customer_group'
 
-type ViewMode = 'realtime' | 'open_channel_daily' | 'config'
+type ViewMode = 'realtime' | 'open_channel_daily' | 'sales_daily_leads' | 'config'
 
 // const CONFIG_TAB_LABEL: Record<ConfigTab, string> = {
 //   open_channel_tag: '开户渠道 & 企微客户标签',
@@ -494,6 +505,7 @@ type ViewMode = 'realtime' | 'open_channel_daily' | 'config'
 // }
 const CONFIG_TAB_LABEL: Record<ConfigTab, string> = {
   open_channel_tag: '',
+  activity_channel_tag: '',
   channel_staff: '',
   code_mapping:  '',
   stock_position: '',
@@ -508,6 +520,7 @@ function getViewFromLocation(): ViewMode {
     const v = new URLSearchParams(window.location.search).get('view')
     if (v === 'config') return 'config'
     if (v === 'open_channel_daily') return 'open_channel_daily'
+    if (v === 'sales_daily_leads') return 'sales_daily_leads'
     return 'realtime'
   } catch {
     return 'realtime'
@@ -520,6 +533,7 @@ function getConfigTabFromLocation(): ConfigTab {
     if (tab === 'stock_position') return 'stock_position'
     if (tab === 'code_mapping') return 'code_mapping'
     if (tab === 'channel_staff') return 'channel_staff'
+    if (tab === 'activity_channel_tag') return 'activity_channel_tag'
     if (tab === 'opportunity_lead') return 'opportunity_lead'
     if (tab === 'morning_hot_stock_track') return 'morning_hot_stock_track'
     if (tab === 'sales_order') return 'sales_order'
@@ -534,6 +548,7 @@ function App() {
   const [view] = useState<ViewMode>(() => getViewFromLocation())
   const isConfigMode = view === 'config'
   const isDailyStatsMode = view === 'open_channel_daily'
+  const isSalesDailyLeadsMode = view === 'sales_daily_leads'
   const isConfigReadOnly = (() => {
     try {
       const p = new URLSearchParams(window.location.search)
@@ -559,6 +574,70 @@ function App() {
   // 自营渠道页：仅日期选择。'' 表示默认今天+昨天，非空为选中日；dailyStatsShowAll 为 true 时请求全部日期
   const [dailyStatsDate, setDailyStatsDate] = useState<string>('')
   const [dailyStatsShowAll, setDailyStatsShowAll] = useState(false)
+
+  // -------------------- 投顾中心：销售每日进线数据表 --------------------
+  const [salesDailyDate, setSalesDailyDate] = useState<string>('') // YYYY-MM-DD
+  const [salesDailyItems, setSalesDailyItems] = useState<SalesDailyLeadItem[]>([])
+  const [salesDailyLoading, setSalesDailyLoading] = useState(false)
+  const [salesDailyError, setSalesDailyError] = useState<string | null>(null)
+  const [salesDailyDownloadOpen, setSalesDailyDownloadOpen] = useState(false)
+  const [salesDailyDownloadFrom, setSalesDailyDownloadFrom] = useState<string>('') // YYYY-MM-DD
+  const [salesDailyDownloadTo, setSalesDailyDownloadTo] = useState<string>('') // YYYY-MM-DD
+
+  const _dateToYyyymmdd = (d: string) => String(d || '').trim().replaceAll('-', '')
+  const _yyyymmddToDateInput = (s: string) => {
+    const t = String(s || '').trim()
+    if (t.length !== 8) return ''
+    return `${t.slice(0, 4)}-${t.slice(4, 6)}-${t.slice(6, 8)}`
+  }
+
+  const loadSalesDailyLatestDate = useCallback(async () => {
+    const res = await fetchWithTimeout(`${API_BASE}/api/sales-daily-leads/latest-date`)
+    if (!res.ok) throw new Error(await res.text())
+    const j: { date?: string } = await res.json()
+    return (j.date || '').trim()
+  }, [])
+
+  const loadSalesDailyLeads = useCallback(async (dateInput: string) => {
+    setSalesDailyLoading(true)
+    setSalesDailyError(null)
+    try {
+      const ymd = _dateToYyyymmdd(dateInput)
+      const params = new URLSearchParams()
+      if (ymd) params.set('date', ymd)
+      const res = await fetchWithTimeout(`${API_BASE}/api/sales-daily-leads?${params}`)
+      if (!res.ok) throw new Error(await res.text())
+      const list: SalesDailyLeadItem[] = await res.json()
+      setSalesDailyItems(Array.isArray(list) ? list : [])
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '加载失败'
+      setSalesDailyError(msg === 'The operation was aborted.' ? '请求超时' : msg)
+      setSalesDailyItems([])
+    } finally {
+      setSalesDailyLoading(false)
+    }
+  }, [])
+
+  const exportSalesDailyLeadsCsv = useCallback(async () => {
+    const f = _dateToYyyymmdd(salesDailyDownloadFrom)
+    const t = _dateToYyyymmdd(salesDailyDownloadTo)
+    if (!f || !t) {
+      setSalesDailyError('请选择下载的起止日期')
+      return
+    }
+    if (f > t) {
+      setSalesDailyError('起始日期不能大于结束日期')
+      return
+    }
+    try {
+      const url = `${API_BASE}/api/sales-daily-leads/export.csv?dt_from=${encodeURIComponent(f)}&dt_to=${encodeURIComponent(t)}`
+      // 直接打开下载（浏览器处理 Content-Disposition）
+      window.open(url, '_blank')
+      setSalesDailyDownloadOpen(false)
+    } catch (e) {
+      setSalesDailyError(e instanceof Error ? e.message : '下载失败')
+    }
+  }, [API_BASE, salesDailyDownloadFrom, salesDailyDownloadTo])
 
   const fetchTables = useCallback(async () => {
     try {
@@ -640,6 +719,7 @@ function App() {
   useEffect(() => {
     if (!selectedTable) return
     if (isConfigMode) return
+    if (isSalesDailyLeadsMode) return
 
     if (isDailyStatsMode) {
       // 自营渠道：一次请求拿全量（今天+昨天），不先展示部分再替换，避免空白/闪烁
@@ -657,6 +737,23 @@ function App() {
     }, 5 * 60 * 1000)
     return () => clearInterval(timer)
   }, [selectedTable, isConfigMode, isDailyStatsMode, fetchData])
+
+  useEffect(() => {
+    if (!isSalesDailyLeadsMode) return
+    ;(async () => {
+      try {
+        const latest = await loadSalesDailyLatestDate()
+        const d = _yyyymmddToDateInput(latest)
+        setSalesDailyDate(d)
+        setSalesDailyDownloadFrom(d)
+        setSalesDailyDownloadTo(d)
+        await loadSalesDailyLeads(d)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : '加载失败'
+        setSalesDailyError(msg)
+      }
+    })()
+  }, [isSalesDailyLeadsMode, loadSalesDailyLatestDate, loadSalesDailyLeads])
 
   const columns = data.length > 0 ? getDisplayColumns(Object.keys(data[0])) : []
   const totalCount = data.length
@@ -679,6 +776,11 @@ function App() {
 
   // -------------------- 配置界面：状态 --------------------
   const [configTab] = useState<ConfigTab>(() => getConfigTabFromLocation())
+  const isActivityChannelTab = configTab === 'activity_channel_tag'
+  const isChannelDictTab = configTab === 'open_channel_tag' || configTab === 'activity_channel_tag'
+  const channelFieldLabel = isActivityChannelTab ? '活动渠道' : '开户渠道'
+  const getOpenChannelApiBase = () =>
+    `${API_BASE}/api/config/${isActivityChannelTab ? 'activity-channel-tags' : 'open-channel-tags'}`
   const [openChannelItems, setOpenChannelItems] = useState<OpenChannelTagItem[]>([])
   const [channelStaffItems, setChannelStaffItems] = useState<ChannelStaffItem[]>([])
   const [configLoading, setConfigLoading] = useState(false)
@@ -929,12 +1031,12 @@ function App() {
     setConfigLoading(true)
     setConfigError(null)
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/config/open-channel-tags`)
+      const res = await fetchWithTimeout(getOpenChannelApiBase())
       if (!res.ok) throw new Error(await res.text())
       const list: OpenChannelTagItem[] = await res.json()
       setOpenChannelItems(list)
     } catch (e) {
-      const msg = e instanceof Error ? e.message : '加载开户渠道配置失败'
+      const msg = e instanceof Error ? e.message : `加载${channelFieldLabel}配置失败`
       const display = msg === 'The operation was aborted.' || msg.includes('fetch') || msg.includes('Failed')
         ? '请求超时或网络不可达，请检查内网连接'
         : msg
@@ -942,7 +1044,7 @@ function App() {
     } finally {
       setConfigLoading(false)
     }
-  }, [])
+  }, [channelFieldLabel, isActivityChannelTab])
 
   const loadChannelStaff = useCallback(async () => {
     setConfigLoading(true)
@@ -1353,7 +1455,7 @@ function App() {
   }, [])
 
   const refreshCurrentConfig = () => {
-    if (configTab === 'open_channel_tag') {
+    if (isChannelDictTab) {
       void loadOpenChannelTags()
     } else if (configTab === 'sales_order') {
       void (async () => {
@@ -1377,7 +1479,7 @@ function App() {
   // 配置界面数据加载：进入配置视图时加载一次，切换 Tab 时按需加载
   useEffect(() => {
     if (!isConfigMode) return
-    if (configTab === 'open_channel_tag') {
+    if (isChannelDictTab) {
       void loadOpenChannelTags()
     } else if (configTab === 'sales_order') {
       void (async () => {
@@ -1394,7 +1496,7 @@ function App() {
     } else {
       void loadChannelStaff()
     }
-  }, [isConfigMode, configTab, loadOpenChannelTags, loadSalesOrderConfig, loadSalesOrderLatestDate, loadSignCustomerGroup, loadOpportunityLeads, loadMorningHotStockTrackTgNames, loadMorningHotStockTrack, loadChannelStaff])
+  }, [isConfigMode, configTab, isChannelDictTab, loadOpenChannelTags, loadSalesOrderConfig, loadSalesOrderLatestDate, loadSignCustomerGroup, loadOpportunityLeads, loadMorningHotStockTrackTgNames, loadMorningHotStockTrack, loadChannelStaff])
 
   useEffect(() => {
     if (!isConfigMode) return
@@ -1814,22 +1916,22 @@ function App() {
     await Promise.all([loadStockPositionPreviewPositionDetail(), loadStockPositionPreviewNav(), loadNavDetail()])
   }, [loadStockPositionPreviewPositionDetail, loadStockPositionPreviewNav, loadNavDetail])
 
-  // 新增 / 保存：开户渠道 & 标签
+  // 新增 / 保存：渠道字典
   const handleSaveOpenChannel = async () => {
     if (isConfigReadOnly) {
       setConfigError('只读账号不可修改')
       return
     }
     if (!openForm.open_channel.trim() || !openForm.wechat_customer_tag.trim()) {
-      setConfigError('开户渠道和企微客户标签不能为空')
+      setConfigError(`${channelFieldLabel}和企微客户标签不能为空`)
       return
     }
     setConfigError(null)
     try {
       const isEdit = !!editingOpenItem
       const url = isEdit
-        ? `${API_BASE}/api/config/open-channel-tags/${editingOpenItem!.id}`
-        : `${API_BASE}/api/config/open-channel-tags`
+        ? `${getOpenChannelApiBase()}/${editingOpenItem!.id}`
+        : getOpenChannelApiBase()
       const method = isEdit ? 'PUT' : 'POST'
       const body =
         method === 'PUT'
@@ -1869,7 +1971,7 @@ function App() {
     }
     setConfigError(null)
     try {
-      const res = await fetch(`${API_BASE}/api/config/open-channel-tags/${item.id}`, {
+      const res = await fetch(`${getOpenChannelApiBase()}/${item.id}`, {
         method: 'DELETE',
       })
       if (!res.ok) throw new Error(await res.text())
@@ -2094,11 +2196,13 @@ function App() {
     if (!isConfigMode) {
       if (view === 'realtime') return '实时加微名单'
       if (view === 'open_channel_daily') return '自营渠道加微统计'
+      if (view === 'sales_daily_leads') return '销售每日进线数据表'
       return 'StarRocks 业务应用'
     }
     // 配置视图下按 tab 区分
     if (configTab === 'code_mapping') return '抖音投流账号配置'
     if (configTab === 'open_channel_tag') return '渠道字典配置'
+    if (configTab === 'activity_channel_tag') return '活动渠道字典配置'
     if (configTab === 'channel_staff') return '承接人员配置'
     if (configTab === 'stock_position') return '产品净值'
     if (configTab === 'sales_order') return '销售订单配置'
@@ -2143,10 +2247,12 @@ function App() {
             </h1>
             {!isConfigMode ? (
               <>
-                <p className="text-sm text-slate-500 mt-0.5">
-                  {isDailyStatsMode ? '实时数据' : '实时数据'} · 每 5 分钟自动刷新 · 上次刷新时间:{' '}
-                  {lastRefresh ? lastRefresh.toLocaleTimeString('zh-CN') : '-'}
-                </p>
+                {!isSalesDailyLeadsMode && (
+                  <p className="text-sm text-slate-500 mt-0.5">
+                    {isDailyStatsMode ? '实时数据' : '实时数据'} · 每 5 分钟自动刷新 · 上次刷新时间:{' '}
+                    {lastRefresh ? lastRefresh.toLocaleTimeString('zh-CN') : '-'}
+                  </p>
+                )}
                 {selectedTable && (
                   <p className="text-base font-medium text-amber-600 mt-1">
                     共 {totalCount} 条记录
@@ -2173,123 +2279,204 @@ function App() {
               </div>
             )}
 
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              {!isDailyStatsMode ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-slate-500 whitespace-nowrap">当前标签:</span>
-                  <span className="px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-300 text-slate-700 text-sm">
-                    {DEFAULT_TAG}
-                  </span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-3 flex-wrap items-center">
-                  <label className="text-sm font-medium text-slate-600 whitespace-nowrap">选择日期</label>
-                  <input
-                    type="date"
-                    value={dailyStatsDate}
-                    onChange={(e) => {
-                      setDailyStatsDate(e.target.value)
-                      setDailyStatsShowAll(false)
-                    }}
-                    className="px-3 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm bg-white"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDailyStatsShowAll(true)
-                      setDailyStatsDate('')
-                    }}
-                    className={`text-sm py-1 px-2 rounded ${dailyStatsShowAll ? 'bg-slate-200 font-medium text-slate-800' : 'text-slate-600 hover:text-sky-600'}`}
-                  >
-                    全部日期
-                  </button>
-                </div>
-              )}
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => void fetchData({ limit: 5000 })}
-                  disabled={loading}
-                  className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium transition-colors"
-                >
-                  {loading ? '加载中...' : '刷新'}
-                </button>
-                <button
-                  onClick={downloadExcel}
-                  disabled={data.length === 0}
-                  className="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed text-slate-800 font-medium transition-colors"
-                  title="导出全部数据"
-                >
-                  导出 Excel（全部）
-                </button>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
-              <div className="overflow-x-auto">
-                {loading && data.length === 0 ? (
-                  <div className="py-20 text-center text-slate-500">加载中...</div>
-                ) : data.length === 0 ? (
-                  <div className="py-20 text-center text-slate-500">
-                    {selectedTable ? '暂无数据' : '加载中...'}
+            {isSalesDailyLeadsMode ? (
+              <>
+                {salesDailyError && (
+                  <div className="mb-4 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700">
+                    {salesDailyError}
                   </div>
-                ) : (
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-200 bg-slate-100">
-                        {columns.map((col) => (
-                          <th
-                            key={col}
-                            className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap"
-                          >
-                            {getColumnLabel(col)}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pageData.map((row, i) => (
-                        <tr
-                          key={(currentPage - 1) * PAGE_SIZE + i}
-                          className="border-b border-slate-200 hover:bg-slate-100/80 transition-colors"
-                        >
-                          {columns.map((col) => (
-                            <td key={col} className="px-4 py-3 text-slate-700 whitespace-nowrap max-w-xs truncate">
-                              {String(row[col] ?? '-')}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
                 )}
-              </div>
-              {data.length > 0 && (
-                <div className="px-4 py-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 bg-white">
-                  <span className="text-slate-600 text-sm">
-                    第 {(currentPage - 1) * PAGE_SIZE + 1}-{Math.min(currentPage * PAGE_SIZE, totalCount)} 条 / 共 {totalCount} 条
-                  </span>
-                  <div className="flex items-center gap-2">
+
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 flex-wrap items-center">
+                    <label className="text-sm font-medium text-slate-600 whitespace-nowrap">选择日期</label>
+                    <input
+                      type="date"
+                      value={salesDailyDate}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        setSalesDailyDate(v)
+                        void loadSalesDailyLeads(v)
+                      }}
+                      className="px-3 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm bg-white"
+                    />
+                  </div>
+                  <div className="flex items-center gap-3">
                     <button
-                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                      disabled={currentPage <= 1}
-                      className="px-3 py-1 rounded bg-slate-200 hover:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 text-sm"
+                      onClick={() => void loadSalesDailyLeads(salesDailyDate)}
+                      disabled={salesDailyLoading}
+                      className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium transition-colors"
                     >
-                      上一页
+                      {salesDailyLoading ? '加载中...' : '刷新'}
                     </button>
-                    <span className="text-slate-500 text-sm">
-                      {currentPage} / {totalPages}
-                    </span>
                     <button
-                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                      disabled={currentPage >= totalPages}
-                      className="px-3 py-1 rounded bg-slate-200 hover:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 text-sm"
+                      onClick={() => setSalesDailyDownloadOpen(true)}
+                      className="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 font-medium transition-colors"
+                      title="选择日期范围下载（建议区间不要太大）"
                     >
-                      下一页
+                      下载数据
                     </button>
                   </div>
                 </div>
-              )}
-            </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    {salesDailyLoading && salesDailyItems.length === 0 ? (
+                      <div className="py-20 text-center text-slate-500">加载中...</div>
+                    ) : salesDailyItems.length === 0 ? (
+                      <div className="py-20 text-center text-slate-500">暂无数据</div>
+                    ) : (
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-200 bg-slate-100">
+                            <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">微信昵称</th>
+                            <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">员工id</th>
+                            <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">员工名称</th>
+                            <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">添加时间</th>
+                            <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">标签名称</th>
+                            <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">标签组名称</th>
+                            <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">渠道</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {salesDailyItems.map((it, idx) => (
+                            <tr key={idx} className="border-b border-slate-200 hover:bg-slate-100/80 transition-colors">
+                              <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{String(it.name ?? '-')}</td>
+                              <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{String(it.user_id ?? '-')}</td>
+                              <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{String(it.user_name ?? '-')}</td>
+                              <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{String(it.add_time ?? '-')}</td>
+                              <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{String(it.tag_name ?? '-')}</td>
+                              <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{String(it.group_name ?? '-')}</td>
+                              <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{String(it.open_channel ?? '-')}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  {!isDailyStatsMode ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-slate-500 whitespace-nowrap">当前标签:</span>
+                      <span className="px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-300 text-slate-700 text-sm">
+                        {DEFAULT_TAG}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3 flex-wrap items-center">
+                      <label className="text-sm font-medium text-slate-600 whitespace-nowrap">选择日期</label>
+                      <input
+                        type="date"
+                        value={dailyStatsDate}
+                        onChange={(e) => {
+                          setDailyStatsDate(e.target.value)
+                          setDailyStatsShowAll(false)
+                        }}
+                        className="px-3 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDailyStatsShowAll(true)
+                          setDailyStatsDate('')
+                        }}
+                        className={`text-sm py-1 px-2 rounded ${dailyStatsShowAll ? 'bg-slate-200 font-medium text-slate-800' : 'text-slate-600 hover:text-sky-600'}`}
+                      >
+                        全部日期
+                      </button>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => void fetchData({ limit: 5000 })}
+                      disabled={loading}
+                      className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium transition-colors"
+                    >
+                      {loading ? '加载中...' : '刷新'}
+                    </button>
+                    <button
+                      onClick={downloadExcel}
+                      disabled={data.length === 0}
+                      className="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed text-slate-800 font-medium transition-colors"
+                      title="导出全部数据"
+                    >
+                      导出 Excel（全部）
+                    </button>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    {loading && data.length === 0 ? (
+                      <div className="py-20 text-center text-slate-500">加载中...</div>
+                    ) : data.length === 0 ? (
+                      <div className="py-20 text-center text-slate-500">
+                        {selectedTable ? '暂无数据' : '加载中...'}
+                      </div>
+                    ) : (
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-200 bg-slate-100">
+                            {columns.map((col) => (
+                              <th
+                                key={col}
+                                className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap"
+                              >
+                                {getColumnLabel(col)}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pageData.map((row, i) => (
+                            <tr
+                              key={(currentPage - 1) * PAGE_SIZE + i}
+                              className="border-b border-slate-200 hover:bg-slate-100/80 transition-colors"
+                            >
+                              {columns.map((col) => (
+                                <td key={col} className="px-4 py-3 text-slate-700 whitespace-nowrap max-w-xs truncate">
+                                  {String(row[col] ?? '-')}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                  {data.length > 0 && (
+                    <div className="px-4 py-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 bg-white">
+                      <span className="text-slate-600 text-sm">
+                        第 {(currentPage - 1) * PAGE_SIZE + 1}-{Math.min(currentPage * PAGE_SIZE, totalCount)} 条 / 共 {totalCount} 条
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                          disabled={currentPage <= 1}
+                          className="px-3 py-1 rounded bg-slate-200 hover:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 text-sm"
+                        >
+                          上一页
+                        </button>
+                        <span className="text-slate-500 text-sm">
+                          {currentPage} / {totalPages}
+                        </span>
+                        <button
+                          onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                          disabled={currentPage >= totalPages}
+                          className="px-3 py-1 rounded bg-slate-200 hover:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 text-sm"
+                        >
+                          下一页
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
               </>
             ) : (
               <>
@@ -2305,7 +2492,7 @@ function App() {
                   <button
                     onClick={() => {
                       if (isConfigReadOnly) return
-                      if (configTab === 'open_channel_tag') {
+                      if (isChannelDictTab) {
                         setEditingOpenItem(null)
                         setOpenForm({ open_channel: '', wechat_customer_tag: '' })
                         setOpenModal('add')
@@ -2357,7 +2544,7 @@ function App() {
               </div>
             )}
 
-            {configTab === 'open_channel_tag' ? (
+            {isChannelDictTab ? (
               <div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
                   <div className="overflow-x-auto">
@@ -2373,7 +2560,7 @@ function App() {
                               ID
                             </th>
                             <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">
-                              开户渠道
+                              {channelFieldLabel}
                             </th>
                             <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">
                               企微客户标签
@@ -4762,7 +4949,7 @@ function App() {
               </div>
             )}
 
-            {/* 开户渠道 & 企微客户标签 弹窗 */}
+            {/* 渠道字典配置弹窗 */}
             {openModal && (
               <div
                 className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
@@ -4777,13 +4964,13 @@ function App() {
                   onClick={(e) => e.stopPropagation()}
                 >
                   <h2 className="text-sm font-semibold text-slate-800 mb-3">
-                    {/* {openModal === 'edit' ? '修改配置' : '新增配置'} · 开户渠道 & 企微客户标签 */}
+                    {/* {openModal === 'edit' ? '修改配置' : '新增配置'} · 渠道字典配置 */}
                   </h2>
                   <div className="space-y-3">
                     <div
                       className={`flex flex-col gap-0.5 ${openModal === 'edit' ? 'cursor-not-allowed' : ''}`}
                     >
-                      <span className="text-[11px] text-slate-500">开户渠道</span>
+                      <span className="text-[11px] text-slate-500">{channelFieldLabel}</span>
                       <input
                         readOnly={openModal === 'edit'}
                         tabIndex={openModal === 'edit' ? -1 : 0}
@@ -4796,7 +4983,7 @@ function App() {
                         onChange={(e) =>
                           setOpenForm((prev) => ({ ...prev, open_channel: e.target.value }))
                         }
-                        placeholder="请输入开户渠道"
+                        placeholder={`请输入${channelFieldLabel}`}
                       />
                     </div>
                     <div className="flex flex-col gap-0.5">
@@ -5124,6 +5311,56 @@ function App() {
             )}
         </section>
       </main>
+
+      {/* 销售每日进线：下载弹窗（选择日期范围） */}
+      {salesDailyDownloadOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => setSalesDailyDownloadOpen(false)}
+        >
+          <div
+            className="rounded-xl border border-slate-200 bg-white p-4 shadow-xl w-full max-w-md mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-sm font-semibold text-slate-800 mb-2">下载数据</h2>
+            <p className="text-xs text-slate-500 mb-3">请选择下载的日期范围（建议区间不要太大）。</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1">
+                <span className="text-[11px] text-slate-500">开始日期</span>
+                <input
+                  type="date"
+                  value={salesDailyDownloadFrom}
+                  onChange={(e) => setSalesDailyDownloadFrom(e.target.value)}
+                  className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-300 text-sm text-slate-800"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[11px] text-slate-500">结束日期</span>
+                <input
+                  type="date"
+                  value={salesDailyDownloadTo}
+                  onChange={(e) => setSalesDailyDownloadTo(e.target.value)}
+                  className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-300 text-sm text-slate-800"
+                />
+              </div>
+            </div>
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setSalesDailyDownloadOpen(false)}
+                className="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 font-medium transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => void exportSalesDailyLeadsCsv()}
+                className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-medium transition-colors"
+              >
+                下载
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

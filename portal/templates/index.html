@@ -109,6 +109,12 @@
                         <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_sign_customer_group" href="#sr_api_config_sign_customer_group">
                             <span>签约客户群管理配置</span>
                         </a>
+                        <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_activity_channel" href="#sr_api_config_activity_channel">
+                            <span>活动渠道字典配置</span>
+                        </a>
+                        <a class="nav-item nav-item-child" data-module="sr_api" data-view="sales_daily_leads" href="#sr_api_sales_daily_leads">
+                            <span>销售每日进线数据表</span>
+                        </a>
                     </div>
                 </div>
 
@@ -193,6 +199,8 @@
                 "sr_api_config_stock_position": { module: "sr_api", view: "config_stock_position" },
                 "sr_api_config_sales_order": { module: "sr_api", view: "config_sales_order" },
                 "sr_api_config_sign_customer_group": { module: "sr_api", view: "config_sign_customer_group" },
+                "sr_api_config_activity_channel": { module: "sr_api", view: "config_activity_channel" },
+                "sr_api_sales_daily_leads": { module: "sr_api", view: "sales_daily_leads" },
                 "sr_api_config_opportunity_lead": { module: "sr_api", view: "config_opportunity_lead" },
                 "sr_api_config_morning_hot_stock_track": { module: "sr_api", view: "config_morning_hot_stock_track" }
             };
@@ -297,6 +305,10 @@
                         title = "投顾中心-销售订单配置";
                     } else if (view === "config_sign_customer_group") {
                         title = "投顾中心-签约客户群管理配置";
+                    } else if (view === "config_activity_channel") {
+                        title = "投顾中心-活动渠道字典配置";
+                    } else if (view === "sales_daily_leads") {
+                        title = "投顾中心-销售每日进线数据表";
                     } else if (view === "config_opportunity_lead") {
                         title = "客户中心-商机线索配置";
                     } else if (view === "config_morning_hot_stock_track") {
@@ -330,6 +342,10 @@
                         url = url + sep + "view=config&tab=sales_order";
                     } else if (view === "config_sign_customer_group") {
                         url = url + sep + "view=config&tab=sign_customer_group";
+                    } else if (view === "config_activity_channel") {
+                        url = url + sep + "view=config&tab=activity_channel_tag";
+                    } else if (view === "sales_daily_leads") {
+                        url = url + sep + "view=sales_daily_leads";
                     } else if (view === "config_opportunity_lead") {
                         url = url + sep + "view=config&tab=opportunity_lead";
                     } else if (view === "config_morning_hot_stock_track") {
@@ -411,7 +427,7 @@
                         }
                     });
                     var v = (params.view || "realtime").trim();
-                    if (["realtime", "open_channel_daily", "config_open", "config_staff", "config_code_mapping", "config_stock_position", "config_sales_order", "config_sign_customer_group", "config_opportunity_lead", "config_morning_hot_stock_track"].indexOf(v) >= 0) view = v;
+                    if (["realtime", "open_channel_daily", "sales_daily_leads", "config_open", "config_staff", "config_code_mapping", "config_stock_position", "config_sales_order", "config_sign_customer_group", "config_activity_channel", "config_opportunity_lead", "config_morning_hot_stock_track"].indexOf(v) >= 0) view = v;
                     else view = "realtime";
                 }
                 var item = findNavItem(moduleId, view);

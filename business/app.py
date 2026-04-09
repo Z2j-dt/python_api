@@ -206,6 +206,7 @@ def _get_table_columns(table_name: str) -> List[Dict]:
 # -------------------- 配置表：开户渠道 & 企微客户标签 --------------------
 
 CONFIG_OPEN_CHANNEL_TABLE = "config_open_channel_tag"
+CONFIG_ACTIVITY_CHANNEL_TABLE = "config_activity_channel_tag"
 CONFIG_CHANNEL_STAFF_TABLE = "config_channel_staff"
 CONFIG_CODE_MAPPING_TABLE = "code_mapping"
 CONFIG_STOCK_POSITION_TABLE = "config_stock_position"
@@ -213,6 +214,33 @@ CONFIG_OPPORTUNITY_LEAD_TABLE = "config_opportunity_lead"
 CONFIG_MORNING_HOT_STOCK_TRACK_TABLE = "config_morning_hot_stock_track"
 CONFIG_SALES_ORDER_TABLE = "branch_customer_ext_config"
 CONFIG_SIGN_CUSTOMER_GROUP_TABLE = "config_sign_customer_group"
+
+# -------------------- 物化视图：销售每日进线（活动渠道） --------------------
+MV_SALES_DAILY_LEADS_ACT_TABLE = "mv_scrm_tagged_customers_act"
+
+
+def _norm_yyyymmdd(s: Optional[str]) -> Optional[str]:
+    if s is None:
+        return None
+    t = str(s).strip()
+    if not t:
+        return None
+    # 兼容 YYYY-MM-DD / YYYYMMDD
+    if _re.match(r"^\d{4}-\d{2}-\d{2}$", t):
+        return t.replace("-", "")
+    if _re.match(r"^\d{8}$", t):
+        return t
+    return None
+
+
+class SalesDailyLeadOut(BaseModel):
+    name: Optional[str] = None
+    user_id: Optional[str] = None
+    user_name: Optional[str] = None
+    add_time: Optional[str] = None  # yyyymmdd
+    tag_name: Optional[str] = None
+    group_name: Optional[str] = None
+    open_channel: Optional[str] = None
 
 
 class OpenChannelTagBase(BaseModel):
@@ -706,6 +734,231 @@ async def delete_open_channel_tag(item_id: int, request: Request) -> Dict[str, A
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# -------------------- API：活动渠道字典配置 --------------------
+
+@app.get("/api/config/activity-channel-tags", response_model=List[OpenChannelTagOut])
+async def list_activity_channel_tags() -> List[OpenChannelTagOut]:
+    try:
+        with _db_cursor() as cur:
+            cur.execute(
+                f"SELECT id, open_channel, wechat_customer_tag, created_at, updated_at "
+                f"FROM `{CONFIG_ACTIVITY_CHANNEL_TABLE}` ORDER BY id ASC"
+            )
+            rows = cur.fetchall()
+        return [OpenChannelTagOut(**_row_config_time_fix(row)) for row in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/config/activity-channel-tags", response_model=OpenChannelTagOut)
+async def create_activity_channel_tag(body: OpenChannelTagCreate, request: Request) -> OpenChannelTagOut:
+    _reject_if_readonly(request)
+    try:
+        now_str = datetime.now().strftime(_DT_FMT)
+        with _db_cursor() as cur:
+            next_id = _next_config_id(cur, CONFIG_ACTIVITY_CHANNEL_TABLE)
+            cur.execute(
+                f"INSERT INTO `{CONFIG_ACTIVITY_CHANNEL_TABLE}` "
+                f"(id, open_channel, wechat_customer_tag, created_at, updated_at) "
+                f"VALUES (%s, %s, %s, %s, %s)",
+                (next_id, body.open_channel, body.wechat_customer_tag, now_str, now_str),
+            )
+            cur.execute(
+                f"SELECT id, open_channel, wechat_customer_tag, created_at, updated_at "
+                f"FROM `{CONFIG_ACTIVITY_CHANNEL_TABLE}` WHERE id = %s",
+                (next_id,),
+            )
+            row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=500, detail="创建失败")
+        return OpenChannelTagOut(**_row_config_time_fix(row))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/config/activity-channel-tags/{item_id}", response_model=OpenChannelTagOut)
+async def update_activity_channel_tag(item_id: int, body: OpenChannelTagUpdate, request: Request) -> OpenChannelTagOut:
+    _reject_if_readonly(request)
+    if body.open_channel is None and body.wechat_customer_tag is None:
+        raise HTTPException(status_code=400, detail="至少提供一个需要更新的字段")
+    try:
+        now_str = datetime.now().strftime(_DT_FMT)
+        with _db_cursor() as cur:
+            cur.execute(
+                f"SELECT id, open_channel, wechat_customer_tag, created_at, updated_at "
+                f"FROM `{CONFIG_ACTIVITY_CHANNEL_TABLE}` WHERE id = %s",
+                (item_id,),
+            )
+            old = cur.fetchone()
+            if not old:
+                raise HTTPException(status_code=404, detail="记录不存在")
+
+            new_open = body.open_channel if body.open_channel is not None else old.get("open_channel")
+            new_tag = body.wechat_customer_tag if body.wechat_customer_tag is not None else old.get("wechat_customer_tag")
+            created_at = _fmt_dt(old.get("created_at")) or now_str
+
+            cur.execute(
+                f"DELETE FROM `{CONFIG_ACTIVITY_CHANNEL_TABLE}` WHERE id = %s",
+                (item_id,),
+            )
+            cur.execute(
+                f"INSERT INTO `{CONFIG_ACTIVITY_CHANNEL_TABLE}` "
+                f"(id, open_channel, wechat_customer_tag, created_at, updated_at) "
+                f"VALUES (%s, %s, %s, %s, %s)",
+                (item_id, new_open, new_tag, created_at, now_str),
+            )
+            cur.execute(
+                f"SELECT id, open_channel, wechat_customer_tag, created_at, updated_at "
+                f"FROM `{CONFIG_ACTIVITY_CHANNEL_TABLE}` WHERE id = %s",
+                (item_id,),
+            )
+            row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="记录不存在")
+        return OpenChannelTagOut(**_row_config_time_fix(row))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/config/activity-channel-tags/{item_id}")
+async def delete_activity_channel_tag(item_id: int, request: Request) -> Dict[str, Any]:
+    _reject_if_readonly(request)
+    try:
+        with _db_cursor() as cur:
+            cur.execute(
+                f"DELETE FROM `{CONFIG_ACTIVITY_CHANNEL_TABLE}` WHERE id = %s",
+                (item_id,),
+            )
+            if cur.rowcount == 0:
+                raise HTTPException(status_code=404, detail="记录不存在")
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# -------------------- API：销售每日进线数据表（活动渠道） --------------------
+
+@app.get("/api/sales-daily-leads/latest-date")
+async def sales_daily_leads_latest_date() -> Dict[str, Any]:
+    try:
+        with _db_cursor() as cur:
+            cur.execute(f"SELECT MAX(add_time) AS d FROM `{MV_SALES_DAILY_LEADS_ACT_TABLE}`")
+            row = cur.fetchone() or {}
+        d = _norm_yyyymmdd(row.get("d"))
+        return {"date": d or ""}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/sales-daily-leads", response_model=List[SalesDailyLeadOut])
+async def sales_daily_leads_list(date: Optional[str] = None) -> List[SalesDailyLeadOut]:
+    """
+    默认返回最新一天；传 date 支持 YYYY-MM-DD 或 YYYYMMDD（按 add_time=yyyymmdd 过滤）。
+    """
+    try:
+        target = _norm_yyyymmdd(date)
+        if not target:
+            with _db_cursor() as cur:
+                cur.execute(f"SELECT MAX(add_time) AS d FROM `{MV_SALES_DAILY_LEADS_ACT_TABLE}`")
+                row = cur.fetchone() or {}
+                target = _norm_yyyymmdd(row.get("d"))
+        if not target:
+            return []
+
+        with _db_cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT
+                  name,
+                  CAST(user_id AS STRING) AS user_id,
+                  user_name,
+                  add_time,
+                  tag_name,
+                  group_name,
+                  open_channel
+                FROM `{MV_SALES_DAILY_LEADS_ACT_TABLE}`
+                WHERE add_time = %s
+                ORDER BY user_name ASC, name ASC
+                """,
+                (target,),
+            )
+            rows = cur.fetchall() or []
+        return [SalesDailyLeadOut(**dict(r)) for r in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/sales-daily-leads/export.csv")
+async def sales_daily_leads_export_csv(dt_from: Optional[str] = None, dt_to: Optional[str] = None):
+    """
+    按 add_time(yyyymmdd) 导出区间数据。dt_from/dt_to 支持 YYYY-MM-DD 或 YYYYMMDD。
+    """
+    try:
+        f = _norm_yyyymmdd(dt_from)
+        t = _norm_yyyymmdd(dt_to)
+        if not f or not t:
+            raise HTTPException(status_code=400, detail="dt_from/dt_to 必填，格式支持 YYYY-MM-DD 或 YYYYMMDD")
+        if f > t:
+            raise HTTPException(status_code=400, detail="dt_from 不能大于 dt_to")
+
+        with _db_cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT
+                  name,
+                  CAST(user_id AS STRING) AS user_id,
+                  user_name,
+                  add_time,
+                  tag_name,
+                  group_name,
+                  open_channel
+                FROM `{MV_SALES_DAILY_LEADS_ACT_TABLE}`
+                WHERE add_time BETWEEN %s AND %s
+                ORDER BY add_time DESC, user_name ASC, name ASC
+                """,
+                (f, t),
+            )
+            rows = cur.fetchall() or []
+
+        cols = [
+            ("微信昵称", "name"),
+            ("员工id", "user_id"),
+            ("员工名称", "user_name"),
+            ("添加时间", "add_time"),
+            ("标签名称", "tag_name"),
+            ("标签组名称", "group_name"),
+            ("渠道", "open_channel"),
+        ]
+
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=[c[0] for c in cols])
+        writer.writeheader()
+        for r in rows:
+            d = dict(r)
+            out: Dict[str, Any] = {}
+            for cn, en in cols:
+                out[cn] = d.get(en)
+            writer.writerow(out)
+
+        data = output.getvalue().encode("utf-8-sig")
+        filename = quote(f"sales_daily_leads_{f}_{t}.csv")
+        return StreamingResponse(
+            io.BytesIO(data),
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"导出CSV失败: {e}")
 
 
 # -------------------- API：投流渠道承接员工配置表 --------------------
