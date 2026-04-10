@@ -500,6 +500,77 @@ interface SalesDailySummaryMonthlyItem {
   total_add_cnt?: number | null
 }
 
+/** 月度转化率·简易（与物化视图列一致） */
+interface SalesInflowConversionSimpleItem {
+  sales_name?: string | null
+  month?: string | null
+  total_add_cnt?: number | null
+  cash_order_total?: number | null
+  commission_order_total?: number | null
+  total_order_cnt?: number | null
+  conversion_rate_total?: number | null
+}
+
+/** 月度转化率·未开户（仅展示所需列） */
+interface SalesInflowConversionUnopenedItem {
+  sales_name?: string | null
+  month?: string | null
+  total_add_cnt?: number | null
+  total_order_cnt?: number | null
+  conversion_rate_total?: number | null
+}
+
+/** 月度转化率·复杂 */
+interface SalesInflowConversionComplexItem {
+  sales_name?: string | null
+  month?: string | null
+  total_add_cnt?: number | null
+  activity_add_cnt?: number | null
+  inherit_add_cnt?: number | null
+  share_add_cnt?: number | null
+  commission_order_total?: number | null
+  commission_order_activity?: number | null
+  commission_order_inherit?: number | null
+  commission_order_share?: number | null
+  cash_order_total?: number | null
+  cash_order_activity?: number | null
+  cash_order_inherit?: number | null
+  cash_order_share?: number | null
+  total_order_cnt?: number | null
+  order_total_activity?: number | null
+  order_total_inherit?: number | null
+  order_total_share?: number | null
+  conversion_rate_activity?: number | null
+  conversion_rate_inherit?: number | null
+  conversion_rate_share?: number | null
+  conversion_rate_total?: number | null
+}
+
+const SALES_CONVERSION_COMPLEX_COLS: { key: keyof SalesInflowConversionComplexItem; label: string }[] = [
+  { key: 'sales_name', label: '销售' },
+  { key: 'month', label: '月份' },
+  { key: 'total_add_cnt', label: '总加微数' },
+  { key: 'activity_add_cnt', label: '活动加微' },
+  { key: 'inherit_add_cnt', label: '继承加微' },
+  { key: 'share_add_cnt', label: '共享加微' },
+  { key: 'commission_order_total', label: '升佣总订单' },
+  { key: 'commission_order_activity', label: '升佣·活动' },
+  { key: 'commission_order_inherit', label: '升佣·继承' },
+  { key: 'commission_order_share', label: '升佣·共享' },
+  { key: 'cash_order_total', label: '现金总订单' },
+  { key: 'cash_order_activity', label: '现金·活动' },
+  { key: 'cash_order_inherit', label: '现金·继承' },
+  { key: 'cash_order_share', label: '现金·共享' },
+  { key: 'total_order_cnt', label: '总订单数' },
+  { key: 'order_total_activity', label: '订单·活动' },
+  { key: 'order_total_inherit', label: '订单·继承' },
+  { key: 'order_total_share', label: '订单·共享' },
+  { key: 'conversion_rate_activity', label: '转化率·活动' },
+  { key: 'conversion_rate_inherit', label: '转化率·继承' },
+  { key: 'conversion_rate_share', label: '转化率·共享' },
+  { key: 'conversion_rate_total', label: '转化率·总计' },
+]
+
 type ConfigTab =
   | 'open_channel_tag'
   | 'activity_channel_tag'
@@ -608,6 +679,113 @@ function App() {
   const [salesDailySummaryLoading, setSalesDailySummaryLoading] = useState(false)
   const [salesDailySummaryError, setSalesDailySummaryError] = useState<string | null>(null)
 
+  const [salesConversionOpen, setSalesConversionOpen] = useState(false)
+  const [salesConversionMode, setSalesConversionMode] = useState<'simple' | 'complex' | 'unopened'>('simple')
+  const [salesConversionMonth, setSalesConversionMonth] = useState<string>(getCurrentYearMonthValue())
+  const [salesConversionSimpleItems, setSalesConversionSimpleItems] = useState<SalesInflowConversionSimpleItem[]>([])
+  const [salesConversionComplexItems, setSalesConversionComplexItems] = useState<SalesInflowConversionComplexItem[]>([])
+  const [salesConversionUnopenedItems, setSalesConversionUnopenedItems] = useState<SalesInflowConversionUnopenedItem[]>([])
+  const [salesConversionLoading, setSalesConversionLoading] = useState(false)
+  const [salesConversionError, setSalesConversionError] = useState<string | null>(null)
+
+  const _fmtPct = (v: unknown, digits = 2) => {
+    const n = Number(v)
+    if (v === null || v === undefined || Number.isNaN(n)) return '-'
+    return `${(n * 100).toFixed(digits)}%`
+  }
+
+  const _buildConversionTotalSimple = (items: SalesInflowConversionSimpleItem[]) => {
+    if (!Array.isArray(items) || items.length === 0) return null
+    const sum = items.reduce(
+      (
+        acc: { total_add_cnt: number; cash_order_total: number; commission_order_total: number; total_order_cnt: number },
+        it
+      ) => {
+        acc.total_add_cnt += Number(it.total_add_cnt ?? 0) || 0
+        acc.cash_order_total += Number(it.cash_order_total ?? 0) || 0
+        acc.commission_order_total += Number(it.commission_order_total ?? 0) || 0
+        acc.total_order_cnt += Number(it.total_order_cnt ?? 0) || 0
+        return acc
+      },
+      { total_add_cnt: 0, cash_order_total: 0, commission_order_total: 0, total_order_cnt: 0 }
+    )
+    const rate = sum.total_add_cnt > 0 ? sum.total_order_cnt / sum.total_add_cnt : null
+    return {
+      sales_name: '汇总',
+      month: salesConversionMonth,
+      total_add_cnt: sum.total_add_cnt,
+      cash_order_total: sum.cash_order_total,
+      commission_order_total: sum.commission_order_total,
+      total_order_cnt: sum.total_order_cnt,
+      conversion_rate_total: rate,
+    } as SalesInflowConversionSimpleItem
+  }
+
+  const _buildConversionTotalUnopened = (items: SalesInflowConversionUnopenedItem[]) => {
+    if (!Array.isArray(items) || items.length === 0) return null
+    const sum = items.reduce(
+      (acc: { total_add_cnt: number; total_order_cnt: number }, it) => {
+        acc.total_add_cnt += Number(it.total_add_cnt ?? 0) || 0
+        acc.total_order_cnt += Number(it.total_order_cnt ?? 0) || 0
+        return acc
+      },
+      { total_add_cnt: 0, total_order_cnt: 0 }
+    )
+    const rate = sum.total_add_cnt > 0 ? sum.total_order_cnt / sum.total_add_cnt : null
+    return {
+      sales_name: '汇总',
+      month: salesConversionMonth,
+      total_add_cnt: sum.total_add_cnt,
+      total_order_cnt: sum.total_order_cnt,
+      conversion_rate_total: rate,
+    } as SalesInflowConversionUnopenedItem
+  }
+
+  const _buildConversionTotalComplex = (items: SalesInflowConversionComplexItem[]) => {
+    if (!Array.isArray(items) || items.length === 0) return null
+    const sum = items.reduce(
+      (acc, it) => {
+        const add = (k: keyof SalesInflowConversionComplexItem) => {
+          const v = Number(it[k] ?? 0)
+          acc[k] = (Number(acc[k] ?? 0) || 0) + (Number.isFinite(v) ? v : 0)
+        }
+        ;[
+          'total_add_cnt',
+          'activity_add_cnt',
+          'inherit_add_cnt',
+          'share_add_cnt',
+          'commission_order_total',
+          'commission_order_activity',
+          'commission_order_inherit',
+          'commission_order_share',
+          'cash_order_total',
+          'cash_order_activity',
+          'cash_order_inherit',
+          'cash_order_share',
+          'total_order_cnt',
+          'order_total_activity',
+          'order_total_inherit',
+          'order_total_share',
+        ].forEach((k) => add(k as keyof SalesInflowConversionComplexItem))
+        return acc
+      },
+      {} as Record<string, number>
+    )
+    const rAct = sum.activity_add_cnt > 0 ? sum.order_total_activity / sum.activity_add_cnt : null
+    const rInh = sum.inherit_add_cnt > 0 ? sum.order_total_inherit / sum.inherit_add_cnt : null
+    const rShr = sum.share_add_cnt > 0 ? sum.order_total_share / sum.share_add_cnt : null
+    const rTot = sum.total_add_cnt > 0 ? sum.total_order_cnt / sum.total_add_cnt : null
+    return {
+      sales_name: '汇总',
+      month: salesConversionMonth,
+      ...sum,
+      conversion_rate_activity: rAct,
+      conversion_rate_inherit: rInh,
+      conversion_rate_share: rShr,
+      conversion_rate_total: rTot,
+    } as SalesInflowConversionComplexItem
+  }
+
   const _dateToYyyymmdd = (d: string) => String(d || '').trim().replaceAll('-', '')
   const _yyyymmddToDateInput = (s: string) => {
     const t = String(s || '').trim()
@@ -710,6 +888,54 @@ function App() {
       setSalesDailySummaryLoading(false)
     }
   }, [salesDailySummaryMonth])
+
+  const loadSalesConversion = useCallback(
+    async (monthInput: string, mode: 'simple' | 'complex' | 'unopened') => {
+      setSalesConversionLoading(true)
+      setSalesConversionError(null)
+      setSalesConversionMode(mode)
+      try {
+        const m = String(monthInput || '').trim().slice(0, 7) || getCurrentYearMonthValue()
+        const params = new URLSearchParams()
+        params.set('month', m)
+        params.set('mode', mode)
+        const res = await fetchWithTimeout(
+          `${API_BASE}/api/sales-daily-leads/conversion/monthly?${params}`,
+          {},
+          120000
+        )
+        if (!res.ok) throw new Error(await res.text())
+        setSalesConversionMonth(m)
+        if (mode === 'simple') {
+          const list: SalesInflowConversionSimpleItem[] = await res.json()
+          setSalesConversionSimpleItems(Array.isArray(list) ? list : [])
+          setSalesConversionComplexItems([])
+          setSalesConversionUnopenedItems([])
+        } else {
+          if (mode === 'complex') {
+            const list: SalesInflowConversionComplexItem[] = await res.json()
+            setSalesConversionComplexItems(Array.isArray(list) ? list : [])
+            setSalesConversionSimpleItems([])
+            setSalesConversionUnopenedItems([])
+          } else {
+            const list: SalesInflowConversionUnopenedItem[] = await res.json()
+            setSalesConversionUnopenedItems(Array.isArray(list) ? list : [])
+            setSalesConversionSimpleItems([])
+            setSalesConversionComplexItems([])
+          }
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : '加载转化率失败'
+        setSalesConversionError(msg === 'The operation was aborted.' ? '请求超时' : msg)
+        setSalesConversionSimpleItems([])
+        setSalesConversionComplexItems([])
+        setSalesConversionUnopenedItems([])
+      } finally {
+        setSalesConversionLoading(false)
+      }
+    },
+    [API_BASE]
+  )
 
   const fetchTables = useCallback(async () => {
     try {
@@ -2400,6 +2626,18 @@ function App() {
                       className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition-colors"
                     >
                       汇总
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSalesConversionError(null)
+                        const m = getCurrentYearMonthValue()
+                        setSalesConversionMonth(m)
+                        setSalesConversionOpen(true)
+                        void loadSalesConversion(m, 'simple')
+                      }}
+                      className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white font-medium transition-colors"
+                    >
+                      转化率
                     </button>
                     <button
                       onClick={() => void loadSalesDailyLeads(salesDailyDate)}
@@ -5612,6 +5850,267 @@ function App() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 销售每日进线：月度转化率（简易 / 复杂，默认简易；下载为物化视图全量） */}
+      {salesConversionOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => setSalesConversionOpen(false)}
+        >
+          <div
+            className="w-full max-w-[min(96rem,96vw)] bg-white rounded-xl shadow-lg border border-slate-200 p-4 mx-4 max-h-[88vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="font-semibold text-slate-800">月度转化率</div>
+              <button
+                type="button"
+                onClick={() => setSalesConversionOpen(false)}
+                className="text-slate-500 hover:text-slate-700"
+              >
+                ✕
+              </button>
+            </div>
+
+            {salesConversionError && (
+              <div className="mb-3 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+                {salesConversionError}
+              </div>
+            )}
+
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void loadSalesConversion(salesConversionMonth, 'simple')}
+                className={`px-3 py-1.5 rounded-lg text-sm ${
+                  salesConversionMode === 'simple'
+                    ? 'bg-violet-600 text-white'
+                    : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                }`}
+              >
+                简易
+              </button>
+              <button
+                type="button"
+                onClick={() => void loadSalesConversion(salesConversionMonth, 'complex')}
+                className={`px-3 py-1.5 rounded-lg text-sm ${
+                  salesConversionMode === 'complex'
+                    ? 'bg-violet-600 text-white'
+                    : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                }`}
+              >
+                复杂
+              </button>
+              <button
+                type="button"
+                onClick={() => void loadSalesConversion(salesConversionMonth, 'unopened')}
+                className={`px-3 py-1.5 rounded-lg text-sm ${
+                  salesConversionMode === 'unopened'
+                    ? 'bg-violet-600 text-white'
+                    : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                }`}
+              >
+                未开户
+              </button>
+            </div>
+
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm text-slate-600">月份</span>
+                <input
+                  type="month"
+                  value={salesConversionMonth}
+                  onChange={(e) => setSalesConversionMonth(e.target.value)}
+                  className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white"
+                />
+                <button
+                  type="button"
+                  onClick={() => void loadSalesConversion(salesConversionMonth, salesConversionMode)}
+                  className="px-3 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 text-sm"
+                >
+                  查询
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  void window.open(
+                    `${API_BASE}/api/sales-daily-leads/conversion/monthly/export.csv?mode=${encodeURIComponent(
+                      salesConversionMode
+                    )}`,
+                    '_blank'
+                  )
+                }}
+                className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm"
+              >
+                下载（全量）
+              </button>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 overflow-x-auto">
+              {salesConversionMode === 'simple' ? (
+                <table className="w-full text-sm min-w-[640px]">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-100">
+                      <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">销售</th>
+                      <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">总加微数</th>
+                      <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">现金订单数</th>
+                      <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">升佣订单数</th>
+                      <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">总计订单数</th>
+                      <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">转化率</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {salesConversionLoading && salesConversionSimpleItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-3 py-8 text-center text-slate-500">
+                          加载中...
+                        </td>
+                      </tr>
+                    ) : salesConversionSimpleItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-3 py-8 text-center text-slate-500">
+                          暂无数据
+                        </td>
+                      </tr>
+                    ) : (
+                      [...salesConversionSimpleItems, _buildConversionTotalSimple(salesConversionSimpleItems)]
+                        .filter((x): x is SalesInflowConversionSimpleItem => x != null)
+                        .map((it, idx) => {
+                          const isTotal = String(it.sales_name || '') === '汇总'
+                          const rateStr = _fmtPct(it.conversion_rate_total, 2)
+                          return (
+                            <tr
+                              key={`sc-s-${idx}`}
+                              className={`border-b border-slate-100 ${isTotal ? 'bg-amber-50 font-semibold' : ''}`}
+                            >
+                              <td className="px-3 py-2 whitespace-nowrap">{String(it.sales_name ?? '-')}</td>
+                              <td className="px-3 py-2 text-right whitespace-nowrap">{Number(it.total_add_cnt ?? 0)}</td>
+                              <td className="px-3 py-2 text-right whitespace-nowrap">{Number(it.cash_order_total ?? 0)}</td>
+                              <td className="px-3 py-2 text-right whitespace-nowrap">
+                                {Number(it.commission_order_total ?? 0)}
+                              </td>
+                              <td className="px-3 py-2 text-right whitespace-nowrap">{Number(it.total_order_cnt ?? 0)}</td>
+                              <td className="px-3 py-2 text-right whitespace-nowrap text-red-600">{rateStr}</td>
+                            </tr>
+                          )
+                        })
+                    )}
+                  </tbody>
+                </table>
+              ) : salesConversionMode === 'complex' ? (
+                <table className="w-full text-sm min-w-[1200px]">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-100">
+                      {SALES_CONVERSION_COMPLEX_COLS.map((c) => (
+                        <th
+                          key={c.key}
+                          className="px-2 py-2 text-right font-medium text-slate-700 whitespace-nowrap first:text-left"
+                        >
+                          {c.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {salesConversionLoading && salesConversionComplexItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={SALES_CONVERSION_COMPLEX_COLS.length} className="px-3 py-8 text-center text-slate-500">
+                          加载中...
+                        </td>
+                      </tr>
+                    ) : salesConversionComplexItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={SALES_CONVERSION_COMPLEX_COLS.length} className="px-3 py-8 text-center text-slate-500">
+                          暂无数据
+                        </td>
+                      </tr>
+                    ) : (
+                      [...salesConversionComplexItems, _buildConversionTotalComplex(salesConversionComplexItems)]
+                        .filter((x): x is SalesInflowConversionComplexItem => x != null)
+                        .map((it, idx) => {
+                          const isTotal = String(it.sales_name || '') === '汇总'
+                          return (
+                            <tr
+                              key={`sc-c-${idx}`}
+                              className={`border-b border-slate-100 ${isTotal ? 'bg-amber-50 font-semibold' : ''}`}
+                            >
+                              {SALES_CONVERSION_COMPLEX_COLS.map((c) => {
+                                const v = it[c.key]
+                                const isRate = String(c.key).startsWith('conversion_rate')
+                                let cell: string
+                                if (v === null || v === undefined) cell = '-'
+                                else if (isRate) cell = _fmtPct(v, 2)
+                                else cell = String(v)
+                                return (
+                                  <td
+                                    key={c.key}
+                                    className={`px-2 py-2 whitespace-nowrap ${
+                                      c.key === 'sales_name' ? 'text-left' : 'text-right'
+                                    } ${isRate ? 'text-red-600' : ''}`}
+                                  >
+                                    {cell}
+                                  </td>
+                                )
+                              })}
+                            </tr>
+                          )
+                        })
+                    )}
+                  </tbody>
+                </table>
+              ) : (
+                <table className="w-full text-sm min-w-[560px]">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-100">
+                      <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">销售</th>
+                      <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">总加微数</th>
+                      <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">订单数</th>
+                      <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">转化率</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {salesConversionLoading && salesConversionUnopenedItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="px-3 py-8 text-center text-slate-500">
+                          加载中...
+                        </td>
+                      </tr>
+                    ) : salesConversionUnopenedItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="px-3 py-8 text-center text-slate-500">
+                          暂无数据
+                        </td>
+                      </tr>
+                    ) : (
+                      [...salesConversionUnopenedItems, _buildConversionTotalUnopened(salesConversionUnopenedItems)]
+                        .filter((x): x is SalesInflowConversionUnopenedItem => x != null)
+                        .map((it, idx) => {
+                          const isTotal = String(it.sales_name || '') === '汇总'
+                          const rateStr = _fmtPct(it.conversion_rate_total, 2)
+                          return (
+                            <tr
+                              key={`sc-u-${idx}`}
+                              className={`border-b border-slate-100 ${isTotal ? 'bg-amber-50 font-semibold' : ''}`}
+                            >
+                              <td className="px-3 py-2 whitespace-nowrap">{String(it.sales_name ?? '-')}</td>
+                              <td className="px-3 py-2 text-right whitespace-nowrap">{Number(it.total_add_cnt ?? 0)}</td>
+                              <td className="px-3 py-2 text-right whitespace-nowrap">{Number(it.total_order_cnt ?? 0)}</td>
+                              <td className="px-3 py-2 text-right whitespace-nowrap text-red-600">{rateStr}</td>
+                            </tr>
+                          )
+                        })
+                    )}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            <p className="mt-2 text-xs text-slate-500">
+              列表按所选月份筛选；下载为物化视图全量（所有月份），格式与当前「简易 / 复杂 / 未开户」一致。
+            </p>
           </div>
         </div>
       )}

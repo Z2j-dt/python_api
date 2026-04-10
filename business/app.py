@@ -217,6 +217,10 @@ CONFIG_SIGN_CUSTOMER_GROUP_TABLE = "config_sign_customer_group"
 
 # -------------------- 销售每日进线（活动渠道）：历史事实表（原 mv_scrm_tagged_customers_act） --------------------
 MV_SALES_DAILY_LEADS_ACT_TABLE = os.environ.get("SALES_DAILY_LEADS_TABLE", "scrm_tagged_customers_act_hist")
+# 月度转化率（简易/复杂均基于同一物化视图；列与 mv_sales_inflow_conversion_monthly.sql 一致）
+MV_SALES_INFLOW_CONVERSION_MONTHLY_TABLE = os.environ.get(
+    "SALES_INFLOW_CONVERSION_MONTHLY_TABLE", "mv_sales_inflow_conversion_monthly_complex"
+)
 
 
 def _norm_yyyymmdd(s: Optional[str]) -> Optional[str]:
@@ -257,6 +261,43 @@ class SalesDailySummaryMonthlyOut(BaseModel):
     inherit_add_cnt: int = 0
     share_add_cnt: int = 0
     total_add_cnt: int = 0
+
+
+class SalesInflowConversionMonthlySimpleOut(BaseModel):
+    """月度转化率·简易：按月 × 销售一行。"""
+    sales_name: Optional[str] = None
+    month: Optional[str] = None
+    total_add_cnt: int = 0
+    cash_order_total: int = 0
+    commission_order_total: int = 0
+    total_order_cnt: int = 0
+    conversion_rate_total: Optional[float] = None
+
+
+class SalesInflowConversionMonthlyComplexOut(BaseModel):
+    """月度转化率·复杂：与物化视图列一致。"""
+    sales_name: Optional[str] = None
+    month: Optional[str] = None
+    total_add_cnt: int = 0
+    activity_add_cnt: int = 0
+    inherit_add_cnt: int = 0
+    share_add_cnt: int = 0
+    commission_order_total: int = 0
+    commission_order_activity: int = 0
+    commission_order_inherit: int = 0
+    commission_order_share: int = 0
+    cash_order_total: int = 0
+    cash_order_activity: int = 0
+    cash_order_inherit: int = 0
+    cash_order_share: int = 0
+    total_order_cnt: int = 0
+    order_total_activity: int = 0
+    order_total_inherit: int = 0
+    order_total_share: int = 0
+    conversion_rate_activity: Optional[float] = None
+    conversion_rate_inherit: Optional[float] = None
+    conversion_rate_share: Optional[float] = None
+    conversion_rate_total: Optional[float] = None
 
 
 class OpenChannelTagBase(BaseModel):
@@ -930,6 +971,37 @@ def _normalize_sales_name(name: Any) -> str:
     return s or "-"
 
 
+def _as_int(v: Any, default: int = 0) -> int:
+    try:
+        if v is None:
+            return default
+        return int(v)
+    except Exception:
+        return default
+
+
+def _as_float_opt(v: Any) -> Optional[float]:
+    if v is None:
+        return None
+    try:
+        return float(v)
+    except Exception:
+        return None
+
+
+def _fmt_pct(v: Any, digits: int = 2) -> str:
+    """
+    将小数（如 0.0123）格式化为百分比字符串（如 1.23%）。
+    """
+    f = _as_float_opt(v)
+    if f is None:
+        return ""
+    try:
+        return f"{(f * 100):.{int(digits)}f}%"
+    except Exception:
+        return ""
+
+
 @app.get("/api/sales-daily-leads/summary/daily", response_model=List[SalesDailySummaryDailyOut])
 async def sales_daily_leads_summary_daily(date: Optional[str] = None) -> List[SalesDailySummaryDailyOut]:
     """
@@ -1193,6 +1265,333 @@ async def sales_daily_leads_export_csv(dt_from: Optional[str] = None, dt_to: Opt
 
         data = output.getvalue().encode("utf-8-sig")
         filename = quote(f"sales_daily_leads_{f}_{t}.csv")
+        return StreamingResponse(
+            io.BytesIO(data),
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"导出CSV失败: {e}")
+
+
+@app.get("/api/sales-daily-leads/conversion/monthly")
+async def sales_daily_leads_conversion_monthly(
+    month: Optional[str] = None,
+    mode: str = "simple",
+) -> List[Any]:
+    """
+    月度转化率（物化视图）：默认当前月；
+    - mode=simple：简易列
+    - mode=complex：全量列
+    - mode=unopened：未开户（仅 销售/总加微数/订单数/转化率）
+    """
+    m = _parse_month_yyyy_mm(month)
+    md = (mode or "simple").strip().lower()
+    if md not in ("simple", "complex", "unopened"):
+        raise HTTPException(status_code=400, detail="mode 须为 simple / complex / unopened")
+    tbl = MV_SALES_INFLOW_CONVERSION_MONTHLY_TABLE
+    try:
+        if md == "simple":
+            with _db_cursor() as cur:
+                cur.execute(
+                    f"""
+                    SELECT
+                      sales_name,
+                      `month`,
+                      total_add_cnt,
+                      cash_order_total,
+                      commission_order_total,
+                      total_order_cnt,
+                      conversion_rate_total
+                    FROM `{tbl}`
+                    WHERE `month` = %s
+                    ORDER BY sales_name ASC
+                    """,
+                    (m,),
+                )
+                rows = cur.fetchall() or []
+            return [
+                SalesInflowConversionMonthlySimpleOut(
+                    sales_name=d.get("sales_name"),
+                    month=d.get("month"),
+                    total_add_cnt=_as_int(d.get("total_add_cnt")),
+                    cash_order_total=_as_int(d.get("cash_order_total")),
+                    commission_order_total=_as_int(d.get("commission_order_total")),
+                    total_order_cnt=_as_int(d.get("total_order_cnt")),
+                    conversion_rate_total=_as_float_opt(d.get("conversion_rate_total")),
+                )
+                for d in (dict(r) for r in rows)
+            ]
+        if md == "unopened":
+            with _db_cursor() as cur:
+                cur.execute(
+                    f"""
+                    SELECT
+                      sales_name,
+                      `month`,
+                      unopened_add_cnt AS total_add_cnt,
+                      order_total_unopened AS total_order_cnt,
+                      conversion_rate_unopened AS conversion_rate_total
+                    FROM `{tbl}`
+                    WHERE `month` = %s
+                      AND COALESCE(unopened_add_cnt, 0) > 0
+                    ORDER BY sales_name ASC
+                    """,
+                    (m,),
+                )
+                rows = cur.fetchall() or []
+            return [
+                SalesInflowConversionMonthlySimpleOut(
+                    sales_name=d.get("sales_name"),
+                    month=d.get("month"),
+                    total_add_cnt=_as_int(d.get("total_add_cnt")),
+                    cash_order_total=0,
+                    commission_order_total=0,
+                    total_order_cnt=_as_int(d.get("total_order_cnt")),
+                    conversion_rate_total=_as_float_opt(d.get("conversion_rate_total")),
+                )
+                for d in (dict(r) for r in rows)
+            ]
+        with _db_cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT
+                  sales_name,
+                  `month`,
+                  total_add_cnt,
+                  activity_add_cnt,
+                  inherit_add_cnt,
+                  share_add_cnt,
+                  commission_order_total,
+                  commission_order_activity,
+                  commission_order_inherit,
+                  commission_order_share,
+                  cash_order_total,
+                  cash_order_activity,
+                  cash_order_inherit,
+                  cash_order_share,
+                  total_order_cnt,
+                  order_total_activity,
+                  order_total_inherit,
+                  order_total_share,
+                  conversion_rate_activity,
+                  conversion_rate_inherit,
+                  conversion_rate_share,
+                  conversion_rate_total
+                FROM `{tbl}`
+                WHERE `month` = %s
+                ORDER BY sales_name ASC
+                """,
+                (m,),
+            )
+            rows = cur.fetchall() or []
+        return [
+            SalesInflowConversionMonthlyComplexOut(
+                sales_name=d.get("sales_name"),
+                month=d.get("month"),
+                total_add_cnt=_as_int(d.get("total_add_cnt")),
+                activity_add_cnt=_as_int(d.get("activity_add_cnt")),
+                inherit_add_cnt=_as_int(d.get("inherit_add_cnt")),
+                share_add_cnt=_as_int(d.get("share_add_cnt")),
+                commission_order_total=_as_int(d.get("commission_order_total")),
+                commission_order_activity=_as_int(d.get("commission_order_activity")),
+                commission_order_inherit=_as_int(d.get("commission_order_inherit")),
+                commission_order_share=_as_int(d.get("commission_order_share")),
+                cash_order_total=_as_int(d.get("cash_order_total")),
+                cash_order_activity=_as_int(d.get("cash_order_activity")),
+                cash_order_inherit=_as_int(d.get("cash_order_inherit")),
+                cash_order_share=_as_int(d.get("cash_order_share")),
+                total_order_cnt=_as_int(d.get("total_order_cnt")),
+                order_total_activity=_as_int(d.get("order_total_activity")),
+                order_total_inherit=_as_int(d.get("order_total_inherit")),
+                order_total_share=_as_int(d.get("order_total_share")),
+                conversion_rate_activity=_as_float_opt(d.get("conversion_rate_activity")),
+                conversion_rate_inherit=_as_float_opt(d.get("conversion_rate_inherit")),
+                conversion_rate_share=_as_float_opt(d.get("conversion_rate_share")),
+                conversion_rate_total=_as_float_opt(d.get("conversion_rate_total")),
+            )
+            for d in (dict(r) for r in rows)
+        ]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/sales-daily-leads/conversion/monthly/export.csv")
+async def sales_daily_leads_conversion_monthly_export_csv(mode: str = "simple"):
+    """
+    月度转化率 CSV 全量导出（不按月份过滤，与列表筛选独立）。
+    """
+    md = (mode or "simple").strip().lower()
+    if md not in ("simple", "complex", "unopened"):
+        raise HTTPException(status_code=400, detail="mode 须为 simple / complex / unopened")
+    tbl = MV_SALES_INFLOW_CONVERSION_MONTHLY_TABLE
+    try:
+        if md == "unopened":
+            with _db_cursor() as cur:
+                cur.execute(
+                    f"""
+                    SELECT
+                      sales_name,
+                      `month`,
+                      unopened_add_cnt AS total_add_cnt,
+                      order_total_unopened AS total_order_cnt,
+                      conversion_rate_unopened AS conversion_rate_total
+                    FROM `{tbl}`
+                    WHERE COALESCE(unopened_add_cnt, 0) > 0
+                    ORDER BY `month` DESC, sales_name ASC
+                    """
+                )
+                rows = cur.fetchall() or []
+            fieldnames = ["销售", "月份", "总加微数", "订单数", "转化率"]
+            output = io.StringIO()
+            writer = csv.DictWriter(output, fieldnames=fieldnames)
+            writer.writeheader()
+            for r in rows:
+                d = dict(r)
+                writer.writerow(
+                    {
+                        "销售": d.get("sales_name") or "",
+                        "月份": d.get("month") or "",
+                        "总加微数": _as_int(d.get("total_add_cnt")),
+                        "订单数": _as_int(d.get("total_order_cnt")),
+                        "转化率": _fmt_pct(d.get("conversion_rate_total"), 2),
+                    }
+                )
+            data = output.getvalue().encode("utf-8-sig")
+            filename = quote("sales_inflow_conversion_monthly_unopened_all.csv")
+            return StreamingResponse(
+                io.BytesIO(data),
+                media_type="text/csv; charset=utf-8",
+                headers={"Content-Disposition": f"attachment; filename={filename}"},
+            )
+        if md == "simple":
+            with _db_cursor() as cur:
+                cur.execute(
+                    f"""
+                    SELECT
+                      sales_name,
+                      `month`,
+                      total_add_cnt,
+                      cash_order_total,
+                      commission_order_total,
+                      total_order_cnt,
+                      conversion_rate_total
+                    FROM `{tbl}`
+                    ORDER BY `month` DESC, sales_name ASC
+                    """
+                )
+                rows = cur.fetchall() or []
+            fieldnames = ["销售", "月份", "总加微数", "现金订单数", "升佣订单数", "总计订单数", "转化率"]
+            output = io.StringIO()
+            writer = csv.DictWriter(output, fieldnames=fieldnames)
+            writer.writeheader()
+            for r in rows:
+                d = dict(r)
+                writer.writerow(
+                    {
+                        "销售": d.get("sales_name") or "",
+                        "月份": d.get("month") or "",
+                        "总加微数": _as_int(d.get("total_add_cnt")),
+                        "现金订单数": _as_int(d.get("cash_order_total")),
+                        "升佣订单数": _as_int(d.get("commission_order_total")),
+                        "总计订单数": _as_int(d.get("total_order_cnt")),
+                        "转化率": _fmt_pct(d.get("conversion_rate_total"), 2),
+                    }
+                )
+        else:
+            with _db_cursor() as cur:
+                cur.execute(
+                    f"""
+                    SELECT
+                      sales_name,
+                      `month`,
+                      total_add_cnt,
+                      activity_add_cnt,
+                      inherit_add_cnt,
+                      share_add_cnt,
+                      commission_order_total,
+                      commission_order_activity,
+                      commission_order_inherit,
+                      commission_order_share,
+                      cash_order_total,
+                      cash_order_activity,
+                      cash_order_inherit,
+                      cash_order_share,
+                      total_order_cnt,
+                      order_total_activity,
+                      order_total_inherit,
+                      order_total_share,
+                      conversion_rate_activity,
+                      conversion_rate_inherit,
+                      conversion_rate_share,
+                      conversion_rate_total
+                    FROM `{tbl}`
+                    ORDER BY `month` DESC, sales_name ASC
+                    """
+                )
+                rows = cur.fetchall() or []
+            fieldnames = [
+                "销售",
+                "月份",
+                "总加微数",
+                "活动加微",
+                "继承加微",
+                "共享加微",
+                "升佣总订单",
+                "升佣活动",
+                "升佣继承",
+                "升佣共享",
+                "现金总订单",
+                "现金活动",
+                "现金继承",
+                "现金共享",
+                "总订单数",
+                "订单活动",
+                "订单继承",
+                "订单共享",
+                "转化率活动",
+                "转化率继承",
+                "转化率共享",
+                "转化率总计",
+            ]
+            output = io.StringIO()
+            writer = csv.DictWriter(output, fieldnames=fieldnames)
+            writer.writeheader()
+            for r in rows:
+                d = dict(r)
+                writer.writerow(
+                    {
+                        "销售": d.get("sales_name") or "",
+                        "月份": d.get("month") or "",
+                        "总加微数": _as_int(d.get("total_add_cnt")),
+                        "活动加微": _as_int(d.get("activity_add_cnt")),
+                        "继承加微": _as_int(d.get("inherit_add_cnt")),
+                        "共享加微": _as_int(d.get("share_add_cnt")),
+                        "升佣总订单": _as_int(d.get("commission_order_total")),
+                        "升佣活动": _as_int(d.get("commission_order_activity")),
+                        "升佣继承": _as_int(d.get("commission_order_inherit")),
+                        "升佣共享": _as_int(d.get("commission_order_share")),
+                        "现金总订单": _as_int(d.get("cash_order_total")),
+                        "现金活动": _as_int(d.get("cash_order_activity")),
+                        "现金继承": _as_int(d.get("cash_order_inherit")),
+                        "现金共享": _as_int(d.get("cash_order_share")),
+                        "总订单数": _as_int(d.get("total_order_cnt")),
+                        "订单活动": _as_int(d.get("order_total_activity")),
+                        "订单继承": _as_int(d.get("order_total_inherit")),
+                        "订单共享": _as_int(d.get("order_total_share")),
+                        "转化率活动": _fmt_pct(d.get("conversion_rate_activity"), 2),
+                        "转化率继承": _fmt_pct(d.get("conversion_rate_inherit"), 2),
+                        "转化率共享": _fmt_pct(d.get("conversion_rate_share"), 2),
+                        "转化率总计": _fmt_pct(d.get("conversion_rate_total"), 2),
+                    }
+                )
+        data = output.getvalue().encode("utf-8-sig")
+        tag = "simple" if md == "simple" else "complex"
+        filename = quote(f"sales_inflow_conversion_monthly_{tag}_all.csv")
         return StreamingResponse(
             io.BytesIO(data),
             media_type="text/csv; charset=utf-8",
