@@ -215,8 +215,8 @@ CONFIG_MORNING_HOT_STOCK_TRACK_TABLE = "config_morning_hot_stock_track"
 CONFIG_SALES_ORDER_TABLE = "branch_customer_ext_config"
 CONFIG_SIGN_CUSTOMER_GROUP_TABLE = "config_sign_customer_group"
 
-# -------------------- 物化视图：销售每日进线（活动渠道） --------------------
-MV_SALES_DAILY_LEADS_ACT_TABLE = "mv_scrm_tagged_customers_act"
+# -------------------- 销售每日进线（活动渠道）：历史事实表（原 mv_scrm_tagged_customers_act） --------------------
+MV_SALES_DAILY_LEADS_ACT_TABLE = os.environ.get("SALES_DAILY_LEADS_TABLE", "scrm_tagged_customers_act_hist")
 
 
 def _norm_yyyymmdd(s: Optional[str]) -> Optional[str]:
@@ -241,6 +241,22 @@ class SalesDailyLeadOut(BaseModel):
     tag_name: Optional[str] = None
     group_name: Optional[str] = None
     open_channel: Optional[str] = None
+
+
+class SalesDailySummaryDailyOut(BaseModel):
+    sales_name: Optional[str] = None
+    activity_add_cnt: int = 0
+    inherit_add_cnt: int = 0
+    share_add_cnt: int = 0
+    total_add_cnt: int = 0
+
+
+class SalesDailySummaryMonthlyOut(BaseModel):
+    sales_name: Optional[str] = None
+    activity_add_cnt: int = 0
+    inherit_add_cnt: int = 0
+    share_add_cnt: int = 0
+    total_add_cnt: int = 0
 
 
 class OpenChannelTagBase(BaseModel):
@@ -894,6 +910,233 @@ async def sales_daily_leads_list(date: Optional[str] = None) -> List[SalesDailyL
         return [SalesDailyLeadOut(**dict(r)) for r in rows]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+def _normalize_sales_name(name: Any) -> str:
+    """
+    销售名称归并：
+    - 张三A2 / 张三a2 -> 张三
+    - 保留无法识别后缀的原名
+    """
+    s = str(name or "").strip()
+    if not s:
+        return "-"
+    # 口径改为“中文字符相同即同一销售”：提取全部中文字符作为归并键
+    zh = "".join(_re.findall(r"[\u4e00-\u9fff]+", s))
+    if zh:
+        return zh
+    # 兜底：若无中文，再尝试移除尾部字母数字后缀
+    s = _re.sub(r"[A-Za-z]\d+$", "", s).strip()
+    return s or "-"
+
+
+@app.get("/api/sales-daily-leads/summary/daily", response_model=List[SalesDailySummaryDailyOut])
+async def sales_daily_leads_summary_daily(date: Optional[str] = None) -> List[SalesDailySummaryDailyOut]:
+    """
+    日度汇总：
+    - 默认最新一天
+    - 维度：销售名(按中文字符归并)
+    - 指标：活动/继承/共享 三类加微数
+    - 最后一行追加三类汇总
+    """
+    try:
+        target = _norm_yyyymmdd(date)
+        if not target:
+            with _db_cursor() as cur:
+                cur.execute(f"SELECT MAX(add_time) AS d FROM `{MV_SALES_DAILY_LEADS_ACT_TABLE}`")
+                row = cur.fetchone() or {}
+                target = _norm_yyyymmdd(row.get("d"))
+        if not target:
+            return []
+
+        with _db_cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT
+                  COALESCE(NULLIF(TRIM(CAST(user_name AS STRING)), ''), '-') AS sales_name,
+                  COALESCE(NULLIF(TRIM(CAST(open_channel AS STRING)), ''), '-') AS open_channel,
+                  COUNT(*) AS add_cnt
+                FROM `{MV_SALES_DAILY_LEADS_ACT_TABLE}`
+                WHERE add_time = %s
+                GROUP BY
+                  COALESCE(NULLIF(TRIM(CAST(user_name AS STRING)), ''), '-'),
+                  COALESCE(NULLIF(TRIM(CAST(open_channel AS STRING)), ''), '-')
+                """,
+                (target,),
+            )
+            rows = cur.fetchall() or []
+
+        merged: Dict[str, Dict[str, int]] = {}
+        total_activity = 0
+        total_inherit = 0
+        total_share = 0
+        for r in rows:
+            d = dict(r)
+            sales_name = _normalize_sales_name(d.get("sales_name"))
+            open_channel = str(d.get("open_channel") or "").strip()
+            try:
+                add_cnt = int(d.get("add_cnt") or 0)
+            except Exception:
+                add_cnt = 0
+            if sales_name not in merged:
+                merged[sales_name] = {"activity_add_cnt": 0, "inherit_add_cnt": 0, "share_add_cnt": 0}
+
+            if "活动" in open_channel:
+                merged[sales_name]["activity_add_cnt"] += add_cnt
+                total_activity += add_cnt
+            elif "继承" in open_channel:
+                merged[sales_name]["inherit_add_cnt"] += add_cnt
+                total_inherit += add_cnt
+            elif "共享" in open_channel:
+                merged[sales_name]["share_add_cnt"] += add_cnt
+                total_share += add_cnt
+
+        items: List[SalesDailySummaryDailyOut] = [
+            SalesDailySummaryDailyOut(
+                sales_name=sales_name,
+                activity_add_cnt=cnts["activity_add_cnt"],
+                inherit_add_cnt=cnts["inherit_add_cnt"],
+                share_add_cnt=cnts["share_add_cnt"],
+                total_add_cnt=cnts["activity_add_cnt"] + cnts["inherit_add_cnt"] + cnts["share_add_cnt"],
+            )
+            for sales_name, cnts in merged.items()
+        ]
+        items.sort(key=lambda x: (x.sales_name or ""))
+        items.append(
+            SalesDailySummaryDailyOut(
+                sales_name="汇总",
+                activity_add_cnt=total_activity,
+                inherit_add_cnt=total_inherit,
+                share_add_cnt=total_share,
+                total_add_cnt=total_activity + total_inherit + total_share,
+            )
+        )
+        return items
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/sales-daily-leads/summary/monthly", response_model=List[SalesDailySummaryMonthlyOut])
+async def sales_daily_leads_summary_monthly(month: Optional[str] = None) -> List[SalesDailySummaryMonthlyOut]:
+    """
+    月度汇总：按销售(中文归并)统计活动/继承/共享，默认当前月份。
+    """
+    m = _parse_month_yyyy_mm(month) or datetime.now().strftime("%Y-%m")
+    like_prefix = m.replace("-", "")
+    try:
+        with _db_cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT
+                  COALESCE(NULLIF(TRIM(CAST(user_name AS STRING)), ''), '-') AS sales_name,
+                  COALESCE(NULLIF(TRIM(CAST(open_channel AS STRING)), ''), '-') AS open_channel,
+                  COUNT(*) AS add_cnt
+                FROM `{MV_SALES_DAILY_LEADS_ACT_TABLE}`
+                WHERE add_time LIKE %s
+                GROUP BY
+                  COALESCE(NULLIF(TRIM(CAST(user_name AS STRING)), ''), '-'),
+                  COALESCE(NULLIF(TRIM(CAST(open_channel AS STRING)), ''), '-')
+                """,
+                (f"{like_prefix}%",),
+            )
+            rows = cur.fetchall() or []
+        merged: Dict[str, Dict[str, int]] = {}
+        total_activity = 0
+        total_inherit = 0
+        total_share = 0
+        for r in rows:
+            d = dict(r)
+            sales_name = _normalize_sales_name(d.get("sales_name"))
+            open_channel = str(d.get("open_channel") or "").strip()
+            try:
+                add_cnt = int(d.get("add_cnt") or 0)
+            except Exception:
+                add_cnt = 0
+            if sales_name not in merged:
+                merged[sales_name] = {"activity_add_cnt": 0, "inherit_add_cnt": 0, "share_add_cnt": 0}
+            if "活动" in open_channel:
+                merged[sales_name]["activity_add_cnt"] += add_cnt
+                total_activity += add_cnt
+            elif "继承" in open_channel:
+                merged[sales_name]["inherit_add_cnt"] += add_cnt
+                total_inherit += add_cnt
+            elif "共享" in open_channel:
+                merged[sales_name]["share_add_cnt"] += add_cnt
+                total_share += add_cnt
+
+        items: List[SalesDailySummaryMonthlyOut] = [
+            SalesDailySummaryMonthlyOut(
+                sales_name=sales_name,
+                activity_add_cnt=cnts["activity_add_cnt"],
+                inherit_add_cnt=cnts["inherit_add_cnt"],
+                share_add_cnt=cnts["share_add_cnt"],
+                total_add_cnt=cnts["activity_add_cnt"] + cnts["inherit_add_cnt"] + cnts["share_add_cnt"],
+            )
+            for sales_name, cnts in merged.items()
+        ]
+        items.sort(key=lambda x: (x.sales_name or ""))
+        items.append(
+            SalesDailySummaryMonthlyOut(
+                sales_name="汇总",
+                activity_add_cnt=total_activity,
+                inherit_add_cnt=total_inherit,
+                share_add_cnt=total_share,
+                total_add_cnt=total_activity + total_inherit + total_share,
+            )
+        )
+        return items
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/sales-daily-leads/summary/monthly/export.csv")
+async def sales_daily_leads_summary_monthly_export_csv(month: Optional[str] = None, all: Optional[str] = None):
+    """
+    月度汇总下载：固定导出全量（不按月份筛选）。
+    """
+    try:
+        rows: List[Dict[str, Any]] = []
+        with _db_cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT
+                  SUBSTRING(CAST(add_time AS STRING), 1, 6) AS ym,
+                  COALESCE(NULLIF(TRIM(CAST(open_channel AS STRING)), ''), '-') AS open_channel,
+                  COUNT(*) AS add_cnt
+                FROM `{MV_SALES_DAILY_LEADS_ACT_TABLE}`
+                WHERE add_time IS NOT NULL
+                  AND LENGTH(CAST(add_time AS STRING)) >= 6
+                GROUP BY
+                  SUBSTRING(CAST(add_time AS STRING), 1, 6),
+                  COALESCE(NULLIF(TRIM(CAST(open_channel AS STRING)), ''), '-')
+                ORDER BY ym DESC, add_cnt DESC, open_channel ASC
+                """
+            )
+            rows = cur.fetchall() or []
+
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=["月份", "渠道", "加微人数"])
+        writer.writeheader()
+        for r in rows:
+            ym_raw = str(r.get("ym") or "").strip()
+            ym = f"{ym_raw[:4]}-{ym_raw[4:6]}" if len(ym_raw) >= 6 else ym_raw
+            writer.writerow(
+                {
+                    "月份": ym,
+                    "渠道": r.get("open_channel") or "-",
+                    "加微人数": int(r.get("add_cnt") or 0),
+                }
+            )
+
+        data = output.getvalue().encode("utf-8-sig")
+        filename = quote("sales_daily_leads_monthly_summary_all.csv")
+        return StreamingResponse(
+            io.BytesIO(data),
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"导出CSV失败: {e}")
 
 
 @app.get("/api/sales-daily-leads/export.csv")

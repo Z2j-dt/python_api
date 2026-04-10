@@ -484,6 +484,22 @@ interface SalesDailyLeadItem {
   open_channel?: string | null
 }
 
+interface SalesDailySummaryDailyItem {
+  sales_name?: string | null
+  activity_add_cnt?: number | null
+  inherit_add_cnt?: number | null
+  share_add_cnt?: number | null
+  total_add_cnt?: number | null
+}
+
+interface SalesDailySummaryMonthlyItem {
+  sales_name?: string | null
+  activity_add_cnt?: number | null
+  inherit_add_cnt?: number | null
+  share_add_cnt?: number | null
+  total_add_cnt?: number | null
+}
+
 type ConfigTab =
   | 'open_channel_tag'
   | 'activity_channel_tag'
@@ -583,6 +599,14 @@ function App() {
   const [salesDailyDownloadOpen, setSalesDailyDownloadOpen] = useState(false)
   const [salesDailyDownloadFrom, setSalesDailyDownloadFrom] = useState<string>('') // YYYY-MM-DD
   const [salesDailyDownloadTo, setSalesDailyDownloadTo] = useState<string>('') // YYYY-MM-DD
+  const [salesDailySummaryOpen, setSalesDailySummaryOpen] = useState(false)
+  const [salesDailySummaryTab, setSalesDailySummaryTab] = useState<'daily' | 'monthly'>('daily')
+  const [salesDailySummaryDailyDate, setSalesDailySummaryDailyDate] = useState<string>('') // YYYY-MM-DD
+  const [salesDailySummaryMonth, setSalesDailySummaryMonth] = useState<string>(getCurrentYearMonthValue()) // YYYY-MM
+  const [salesDailySummaryDailyItems, setSalesDailySummaryDailyItems] = useState<SalesDailySummaryDailyItem[]>([])
+  const [salesDailySummaryMonthlyItems, setSalesDailySummaryMonthlyItems] = useState<SalesDailySummaryMonthlyItem[]>([])
+  const [salesDailySummaryLoading, setSalesDailySummaryLoading] = useState(false)
+  const [salesDailySummaryError, setSalesDailySummaryError] = useState<string | null>(null)
 
   const _dateToYyyymmdd = (d: string) => String(d || '').trim().replaceAll('-', '')
   const _yyyymmddToDateInput = (s: string) => {
@@ -638,6 +662,54 @@ function App() {
       setSalesDailyError(e instanceof Error ? e.message : '下载失败')
     }
   }, [API_BASE, salesDailyDownloadFrom, salesDailyDownloadTo])
+
+  const loadSalesDailySummaryDaily = useCallback(async (dateInput?: string) => {
+    setSalesDailySummaryLoading(true)
+    setSalesDailySummaryError(null)
+    try {
+      const picked = String(dateInput ?? salesDailySummaryDailyDate ?? '').trim()
+      let d = picked
+      if (!d) {
+        const latest = await loadSalesDailyLatestDate()
+        d = _yyyymmddToDateInput(latest)
+      }
+      const ymd = _dateToYyyymmdd(d)
+      const params = new URLSearchParams()
+      if (ymd) params.set('date', ymd)
+      const res = await fetchWithTimeout(`${API_BASE}/api/sales-daily-leads/summary/daily?${params}`, {}, 60000)
+      if (!res.ok) throw new Error(await res.text())
+      const list: SalesDailySummaryDailyItem[] = await res.json()
+      setSalesDailySummaryDailyDate(d)
+      setSalesDailySummaryDailyItems(Array.isArray(list) ? list : [])
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '加载日度汇总失败'
+      setSalesDailySummaryError(msg === 'The operation was aborted.' ? '请求超时' : msg)
+      setSalesDailySummaryDailyItems([])
+    } finally {
+      setSalesDailySummaryLoading(false)
+    }
+  }, [salesDailySummaryDailyDate, loadSalesDailyLatestDate])
+
+  const loadSalesDailySummaryMonthly = useCallback(async (monthInput?: string) => {
+    setSalesDailySummaryLoading(true)
+    setSalesDailySummaryError(null)
+    try {
+      const m = String(monthInput ?? salesDailySummaryMonth ?? '').trim() || getCurrentYearMonthValue()
+      const params = new URLSearchParams()
+      params.set('month', m.slice(0, 7))
+      const res = await fetchWithTimeout(`${API_BASE}/api/sales-daily-leads/summary/monthly?${params}`, {}, 60000)
+      if (!res.ok) throw new Error(await res.text())
+      const list: SalesDailySummaryMonthlyItem[] = await res.json()
+      setSalesDailySummaryMonth(m.slice(0, 7))
+      setSalesDailySummaryMonthlyItems(Array.isArray(list) ? list : [])
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '加载月度汇总失败'
+      setSalesDailySummaryError(msg === 'The operation was aborted.' ? '请求超时' : msg)
+      setSalesDailySummaryMonthlyItems([])
+    } finally {
+      setSalesDailySummaryLoading(false)
+    }
+  }, [salesDailySummaryMonth])
 
   const fetchTables = useCallback(async () => {
     try {
@@ -754,6 +826,23 @@ function App() {
       }
     })()
   }, [isSalesDailyLeadsMode, loadSalesDailyLatestDate, loadSalesDailyLeads])
+
+  useEffect(() => {
+    if (!salesDailySummaryOpen) return
+    if (salesDailySummaryTab === 'daily') {
+      void loadSalesDailySummaryDaily(salesDailySummaryDailyDate || salesDailyDate)
+    } else {
+      void loadSalesDailySummaryMonthly(salesDailySummaryMonth || getCurrentYearMonthValue())
+    }
+  }, [
+    salesDailySummaryOpen,
+    salesDailySummaryTab,
+    salesDailySummaryDailyDate,
+    salesDailySummaryMonth,
+    salesDailyDate,
+    loadSalesDailySummaryDaily,
+    loadSalesDailySummaryMonthly,
+  ])
 
   const columns = data.length > 0 ? getDisplayColumns(Object.keys(data[0])) : []
   const totalCount = data.length
@@ -2302,6 +2391,16 @@ function App() {
                     />
                   </div>
                   <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => {
+                        setSalesDailySummaryError(null)
+                        setSalesDailySummaryOpen(true)
+                        setSalesDailySummaryTab('daily')
+                      }}
+                      className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition-colors"
+                    >
+                      汇总
+                    </button>
                     <button
                       onClick={() => void loadSalesDailyLeads(salesDailyDate)}
                       disabled={salesDailyLoading}
@@ -5358,6 +5457,161 @@ function App() {
                 下载
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 销售每日进线：汇总弹窗（日度/月度） */}
+      {salesDailySummaryOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => setSalesDailySummaryOpen(false)}
+        >
+          <div
+            className="w-full max-w-5xl bg-white rounded-xl shadow-lg border border-slate-200 p-4 mx-4 max-h-[85vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="font-semibold text-slate-800">销售每日进线汇总</div>
+              <button onClick={() => setSalesDailySummaryOpen(false)} className="text-slate-500 hover:text-slate-700">✕</button>
+            </div>
+
+            {salesDailySummaryError && (
+              <div className="mb-3 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+                {salesDailySummaryError}
+              </div>
+            )}
+
+            <div className="mb-3 flex items-center gap-2">
+              <button
+                onClick={() => setSalesDailySummaryTab('daily')}
+                className={`px-3 py-1.5 rounded-lg text-sm ${salesDailySummaryTab === 'daily' ? 'bg-sky-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}
+              >
+                日度汇总
+              </button>
+              <button
+                onClick={() => setSalesDailySummaryTab('monthly')}
+                className={`px-3 py-1.5 rounded-lg text-sm ${salesDailySummaryTab === 'monthly' ? 'bg-sky-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}
+              >
+                月度汇总
+              </button>
+            </div>
+
+            {salesDailySummaryTab === 'daily' ? (
+              <>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-slate-600">日期</span>
+                    <input
+                      type="date"
+                      value={salesDailySummaryDailyDate}
+                      onChange={(e) => setSalesDailySummaryDailyDate(e.target.value)}
+                      className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white"
+                    />
+                    <button
+                      onClick={() => void loadSalesDailySummaryDaily(salesDailySummaryDailyDate)}
+                      className="px-3 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 text-sm"
+                    >
+                      查询
+                    </button>
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-200 overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-100">
+                        <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">销售名</th>
+                        <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">活动</th>
+                        <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">继承</th>
+                        <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">共享</th>
+                        <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">总计</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {salesDailySummaryLoading && salesDailySummaryDailyItems.length === 0 ? (
+                        <tr><td colSpan={5} className="px-3 py-8 text-center text-slate-500">加载中...</td></tr>
+                      ) : salesDailySummaryDailyItems.length === 0 ? (
+                        <tr><td colSpan={5} className="px-3 py-8 text-center text-slate-500">暂无数据</td></tr>
+                      ) : (
+                        salesDailySummaryDailyItems.map((it, idx) => {
+                          const isTotal = String(it.sales_name || '') === '汇总'
+                          return (
+                            <tr key={`sdsd-${idx}`} className={`border-b border-slate-100 ${isTotal ? 'bg-amber-50 font-semibold' : ''}`}>
+                              <td className="px-3 py-2 whitespace-nowrap">{it.sales_name || '-'}</td>
+                              <td className="px-3 py-2 text-right whitespace-nowrap">{Number(it.activity_add_cnt || 0)}</td>
+                              <td className="px-3 py-2 text-right whitespace-nowrap">{Number(it.inherit_add_cnt || 0)}</td>
+                              <td className="px-3 py-2 text-right whitespace-nowrap">{Number(it.share_add_cnt || 0)}</td>
+                              <td className="px-3 py-2 text-right whitespace-nowrap">{Number(it.total_add_cnt || 0)}</td>
+                            </tr>
+                          )
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-slate-600">月份</span>
+                    <input
+                      type="month"
+                      value={salesDailySummaryMonth}
+                      onChange={(e) => setSalesDailySummaryMonth(e.target.value)}
+                      className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white"
+                    />
+                    <button
+                      onClick={() => void loadSalesDailySummaryMonthly(salesDailySummaryMonth)}
+                      className="px-3 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 text-sm"
+                    >
+                      查询
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => {
+                      void window.open(`${API_BASE}/api/sales-daily-leads/summary/monthly/export.csv?all=1`, '_blank')
+                    }}
+                    className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm"
+                  >
+                    下载（全量）
+                  </button>
+                </div>
+                <div className="rounded-xl border border-slate-200 overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-100">
+                        <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">销售名</th>
+                        <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">活动</th>
+                        <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">继承</th>
+                        <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">共享</th>
+                        <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">总计</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {salesDailySummaryLoading && salesDailySummaryMonthlyItems.length === 0 ? (
+                        <tr><td colSpan={5} className="px-3 py-8 text-center text-slate-500">加载中...</td></tr>
+                      ) : salesDailySummaryMonthlyItems.length === 0 ? (
+                        <tr><td colSpan={5} className="px-3 py-8 text-center text-slate-500">暂无数据</td></tr>
+                      ) : (
+                        salesDailySummaryMonthlyItems.map((it, idx) => {
+                          const isTotal = String(it.sales_name || '') === '汇总'
+                          return (
+                            <tr key={`sdsm-${idx}`} className={`border-b border-slate-100 ${isTotal ? 'bg-amber-50 font-semibold' : ''}`}>
+                              <td className="px-3 py-2 whitespace-nowrap">{it.sales_name || '-'}</td>
+                              <td className="px-3 py-2 text-right whitespace-nowrap">{Number(it.activity_add_cnt || 0)}</td>
+                              <td className="px-3 py-2 text-right whitespace-nowrap">{Number(it.inherit_add_cnt || 0)}</td>
+                              <td className="px-3 py-2 text-right whitespace-nowrap">{Number(it.share_add_cnt || 0)}</td>
+                              <td className="px-3 py-2 text-right whitespace-nowrap">{Number(it.total_add_cnt || 0)}</td>
+                            </tr>
+                          )
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
