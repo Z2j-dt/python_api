@@ -4060,18 +4060,26 @@ function App() {
                                 p.hs300_nav != null && Number.isFinite(Number(p.hs300_nav)) ? Number(p.hs300_nav) : NaN,
                               )
                               const monthlyMaxIdx = new Map<string, number>()
+                              const currentMonthKey = new Date().toISOString().slice(0, 7)
                               for (let i = 0; i < visible.length; i++) {
                                 const p = visible[i]
                                 const v = navNums[i]
                                 const d = String(p?.date || '')
                                 if (!Number.isFinite(v) || d.length < 7) continue
                                 const monthKey = d.slice(0, 7)
+                                // 当月最高点不展示（仅保留历史月份最高点）
+                                if (monthKey === currentMonthKey) continue
                                 const prevIdx = monthlyMaxIdx.get(monthKey)
                                 if (prevIdx == null || v >= navNums[prevIdx]) {
                                   monthlyMaxIdx.set(monthKey, i)
                                 }
                               }
                               const labelIdxSet = new Set<number>(Array.from(monthlyMaxIdx.values()))
+                              // 额外保留“当天/最新一天”点位，避免当月被过滤后看不到当前点
+                              const latestIdx = visible.length - 1
+                              if (latestIdx >= 0 && Number.isFinite(navNums[latestIdx])) {
+                                labelIdxSet.add(latestIdx)
+                              }
 
                               const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
                               const findPrevFinite = (arr: number[], idx: number) => {
