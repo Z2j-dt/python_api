@@ -50,8 +50,12 @@ def auth_middleware(app, config):
             token = _get_query_param(environ, "portal_token")
             user_info = verify_portal_token(token, secret_key, PORTAL_TOKEN_MAX_AGE) if token else None
         if user_info:
-            username, modules = user_info
-            environ["portal.user"] = {"username": username, "modules": modules}
+            username, modules, resources = user_info
+            environ["portal.user"] = {
+                "username": username,
+                "modules": modules or [],
+                "resources": resources,
+            }
             return app(environ, start_response)
 
         # 未登录：重定向到 /login，可带 next（规范化为纯路径，避免 /? 等）

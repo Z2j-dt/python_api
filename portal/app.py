@@ -17,7 +17,7 @@ if str(_ROOT) not in sys.path:
 
 from urllib.parse import quote, urlparse
 
-from flask import Flask, render_template, request, Response, redirect, url_for
+from flask import Flask, abort, jsonify, render_template, request, Response, redirect, url_for
 from portal.config import Config
 from portal.auth import (
     verify_password,
@@ -27,6 +27,24 @@ from portal.auth import (
     create_portal_token,
 )
 from portal.middleware import auth_middleware
+from portal.db_users import (
+    get_user_row,
+    insert_user,
+    list_users as db_list_portal_users,
+    delete_user as db_delete_user,
+    update_password as db_update_password,
+    user_exists as db_user_exists,
+    verify_user_login,
+)
+from portal.permissions import (
+    ADMIN_RESOURCE_GROUPS,
+    fetch_user_resources,
+    full_superuser_resources,
+    is_superuser,
+    resources_to_modules,
+    nav_show_flags,
+    save_user_resources,
+)
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -164,6 +182,25 @@ def _proxy_sr_api(path=""):
     proxy_headers = {"X-Forwarded-Prefix": "/sr_api"}
     if request.content_type:
         proxy_headers["Content-Type"] = request.content_type
+    # 透传门户登录凭证给 business（cookie + token 双通道）
+    raw_cookie = request.headers.get("Cookie")
+    if raw_cookie:
+        proxy_headers["Cookie"] = raw_cookie
+    token_header = (request.headers.get("X-Portal-Token") or "").strip()
+    if token_header:
+        proxy_headers["X-Portal-Token"] = token_header
+    # 内网代理兜底：直接透传已登录用户与细粒度权限，避免多进程/跨端口下 token 解析差异
+    try:
+        cu = _current_user()
+        if isinstance(cu, dict):
+            uname = (cu.get("username") or "").strip()
+            if uname:
+                proxy_headers["X-Portal-User"] = uname
+            r = cu.get("resources")
+            if isinstance(r, dict):
+                proxy_headers["X-Portal-Resources"] = json.dumps(r, ensure_ascii=False)
+    except Exception:
+        pass
     try:
         if request.method == "GET":
             r = requests.get(url, headers=proxy_headers, timeout=30)
@@ -193,30 +230,80 @@ def login():
     if not next_url.startswith("/"):
         next_url = "/"
 
-    modules = verify_password(username, password, app.config["AUTH_USERS"])
-    if modules is None:
-        return render_template(
-            "login.html",
-            next_url=next_url,
-            error="用户名或密码错误",
-        ), 401
+    row = None
+    if app.config.get("PORTAL_AUTH_FROM_DB"):
+        row = verify_user_login(
+            username,
+            password,
+            _SR_HOST,
+            _SR_PORT,
+            _SR_USER,
+            _SR_PASSWORD,
+            _SR_DB,
+            app.config["PORTAL_USER_TABLE"],
+        )
+        if row is None:
+            return render_template(
+                "login.html",
+                next_url=next_url,
+                error="用户名或密码错误",
+            ), 401
+        modules = []
+    else:
+        modules = verify_password(username, password, app.config["AUTH_USERS"])
+        if modules is None:
+            return render_template(
+                "login.html",
+                next_url=next_url,
+                error="用户名或密码错误",
+            ), 401
+
+    resources_for_cookie = None
+    modules_for_cookie = modules
+    if app.config.get("PORTAL_PERMISSION_FROM_DB"):
+        su = set(app.config.get("PORTAL_SUPERUSERS") or frozenset())
+        if app.config.get("PORTAL_AUTH_FROM_DB"):
+            super_u = (bool(row.get("is_superuser")) if row else False) or is_superuser(username, su)
+        else:
+            super_u = is_superuser(username, su)
+        if super_u:
+            r = full_superuser_resources()
+            resources_for_cookie = r
+            modules_for_cookie = resources_to_modules(r)
+        else:
+            r = fetch_user_resources(
+                username,
+                _SR_HOST,
+                _SR_PORT,
+                _SR_USER,
+                _SR_PASSWORD,
+                _SR_DB,
+                app.config["PORTAL_PERMISSION_TABLE"],
+            )
+            if r is None:
+                resources_for_cookie = None
+                modules_for_cookie = modules
+            else:
+                resources_for_cookie = r
+                modules_for_cookie = resources_to_modules(r)
 
     # 登录成功埋点：记录账号、模块权限等
     try:
         _log_event(
             "login_success",
             username=username,
-            modules=modules,
+            modules=modules_for_cookie,
         )
     except Exception:
         pass
 
     cookie_val = create_auth_cookie(
         username,
-        modules,
+        modules_for_cookie,
         app.config["SECRET_KEY"],
         app.config["AUTH_COOKIE_MAX_AGE"],
         app.config["AUTH_COOKIE_NAME"],
+        resources=resources_for_cookie,
     )
     resp = redirect(next_url)
     resp.set_cookie(
@@ -236,6 +323,81 @@ def logout():
     resp = redirect(url_for("login"))
     resp.delete_cookie(app.config["AUTH_COOKIE_NAME"], path="/")
     return resp
+
+
+@app.route("/account/password", methods=["GET", "POST"])
+def account_change_password():
+    """库表登录用户自助修改密码（portal_user）。"""
+    u = _current_user()
+    if not u:
+        return redirect(url_for("login", next="/account/password"))
+    if not app.config.get("PORTAL_AUTH_FROM_DB"):
+        return Response(
+            "当前未启用 PORTAL_AUTH_FROM_DB，账号来自 users.json，请由管理员直接改文件或使用 auth_config。",
+            status=403,
+            mimetype="text/plain; charset=utf-8",
+        )
+    name = (u.get("username") or "").strip()
+    if request.method == "GET":
+        return render_template(
+            "change_password.html",
+            username=name,
+            build_version=PORTAL_BUILD_VERSION,
+            error=None,
+        )
+    current = (request.form.get("current_password") or "").strip()
+    new_pwd = request.form.get("new_password") or ""
+    confirm = request.form.get("confirm_password") or ""
+    err = None
+    if not current:
+        err = "请输入当前密码"
+    elif new_pwd != confirm:
+        err = "两次输入的新密码不一致"
+    elif len(new_pwd) < 6:
+        err = "新密码至少 6 位"
+    if err:
+        return render_template(
+            "change_password.html",
+            username=name,
+            build_version=PORTAL_BUILD_VERSION,
+            error=err,
+        ), 400
+    row = verify_user_login(
+        name,
+        current,
+        _SR_HOST,
+        _SR_PORT,
+        _SR_USER,
+        _SR_PASSWORD,
+        _SR_DB,
+        app.config["PORTAL_USER_TABLE"],
+    )
+    if row is None:
+        return render_template(
+            "change_password.html",
+            username=name,
+            build_version=PORTAL_BUILD_VERSION,
+            error="当前密码错误",
+        ), 401
+    try:
+        db_update_password(
+            name,
+            new_pwd,
+            _SR_HOST,
+            _SR_PORT,
+            _SR_USER,
+            _SR_PASSWORD,
+            _SR_DB,
+            app.config["PORTAL_USER_TABLE"],
+        )
+    except Exception as e:
+        return render_template(
+            "change_password.html",
+            username=name,
+            build_version=PORTAL_BUILD_VERSION,
+            error=str(e) or "修改失败",
+        ), 500
+    return redirect(url_for("index") + "?pwd_changed=1")
 
 
 # 地址栏路径 <-> 模块 ID 映射。business 下用子目录，如 /business/realtime_mv，便于后续扩展
@@ -289,8 +451,44 @@ def _module_url(module_id, data_map_base, support_base, business_base):
     return "/data_map/hive_metadata/"
 
 
+def _is_portal_superuser(username: str) -> bool:
+    """环境变量超级用户名单，或 portal_user.is_superuser=1。"""
+    name = (username or "").strip()
+    if not name:
+        return False
+    if is_superuser(name, set(app.config.get("PORTAL_SUPERUSERS") or frozenset())):
+        return True
+    if app.config.get("PORTAL_AUTH_FROM_DB"):
+        r = get_user_row(
+            name,
+            _SR_HOST,
+            _SR_PORT,
+            _SR_USER,
+            _SR_PASSWORD,
+            _SR_DB,
+            app.config["PORTAL_USER_TABLE"],
+        )
+        return bool(r and r.get("is_superuser"))
+    return False
+
+
+def _require_superuser():
+    """已登录且为超级用户，否则返回 None。"""
+    u = _current_user()
+    if not u:
+        return None
+    name = (u.get("username") or "").strip()
+    if _is_portal_superuser(name):
+        return u
+    return None
+
+
 def _render_index(user, path_hint=None):
     """渲染门户首页，path_hint 为地址栏路径如 /data_map/hive_metadata，用于确定初始模块。"""
+    try:
+        pwd_changed = (request.args.get("pwd_changed") or "").strip() == "1"
+    except Exception:
+        pwd_changed = False
     portal_token = ""
     data_map_base = app.config.get("DATA_MAP_BASE", "") or ""
     support_base = app.config.get("SUPPORT_BASE", "") or ""
@@ -311,39 +509,99 @@ def _render_index(user, path_hint=None):
         except Exception:
             pass
 
+    raw_res = user.get("resources")
+    token_resources = raw_res if isinstance(raw_res, dict) else None
     if data_map_base or support_base or business_base:
         portal_token = create_portal_token(
             user.get("username"),
             user.get("modules") or [],
             app.config["SECRET_KEY"],
+            resources=token_resources,
         )
     allowed = user.get("modules") or []
-    # users.json 里可配置 readonly=true；用于 sr_api 内嵌页面禁用编辑控件
-    try:
-        uconf = (app.config.get("AUTH_USERS") or {}).get(user.get("username") or "", {}) or {}
-        is_readonly = bool(uconf.get("readonly"))
-    except Exception:
+    show_dc_flag, show_biz_flag = nav_show_flags(raw_res)
+    show_market_center_nav = False
+    show_direct_center_nav = False
+    show_advisor_center_nav = False
+    show_customer_center_nav = False
+    if show_dc_flag is None:
+        show_data_center_nav = (
+            ("hive_metadata" in allowed)
+            or ("sql_lineage" in allowed)
+            or ("excel_to_hive" in allowed)
+            or ("dolphin_failed" in allowed)
+            or ("sql_to_excel" in allowed)
+        )
+        show_business_nav = "sr_api" in allowed
+        show_market_center_nav = show_business_nav
+        show_direct_center_nav = show_business_nav
+        show_advisor_center_nav = show_business_nav
+        show_customer_center_nav = show_business_nav
+        resource_access = None
+    else:
+        show_data_center_nav = show_dc_flag
+        show_business_nav = show_biz_flag
+        resource_access = raw_res if isinstance(raw_res, dict) else {}
+        show_market_center_nav = any(
+            rid in resource_access
+            for rid in ("sr_api:realtime", "sr_api:config_code_mapping")
+        )
+        show_direct_center_nav = any(
+            rid in resource_access
+            for rid in ("sr_api:open_channel_daily", "sr_api:config_open", "sr_api:config_staff")
+        )
+        show_advisor_center_nav = any(
+            rid in resource_access
+            for rid in (
+                "sr_api:config_stock_position",
+                "sr_api:config_sales_order",
+                "sr_api:config_sign_customer_group",
+                "sr_api:config_activity_channel",
+                "sr_api:sales_daily_leads",
+            )
+        )
+        show_customer_center_nav = any(
+            rid in resource_access
+            for rid in ("sr_api:config_opportunity_lead", "sr_api:config_morning_hot_stock_track")
+        )
+    # users.json 里可配置 readonly=true（库表登录时无此项）
+    if app.config.get("PORTAL_AUTH_FROM_DB"):
         is_readonly = False
+    else:
+        try:
+            uconf = (app.config.get("AUTH_USERS") or {}).get(user.get("username") or "", {}) or {}
+            is_readonly = bool(uconf.get("readonly"))
+        except Exception:
+            is_readonly = False
     # 优先用 path_hint 解析模块；否则用第一个有权限的，且默认不选业务应用避免首屏卡死
-    first_id = _module_from_path(path_hint) if path_hint else None
-    if not first_id or first_id not in allowed:
-        first_id = (allowed[0] if allowed else "hive_metadata")
-    if first_id == "sr_api" and (not path_hint or path_hint.strip("/") in ("", "business")):
-        non_sr = [m for m in allowed if m != "sr_api"]
-        if non_sr:
-            first_id = non_sr[0]
-    # 业务应用 iframe 直连业务端口，不走门户代理，避免内网下代理卡死
+    first_id = None
+    first_module_url = ""
+    initial_path = "/"
     business_iframe_base = ""
-    first_module_url = _module_url(first_id, data_map_base, support_base, business_base)
-    if portal_token and first_module_url:
-        sep = "&" if "?" in first_module_url else "?"
-        first_module_url = first_module_url + sep + "portal_token=" + quote(portal_token, safe="")
-    # 用于 History API：地址栏要展示的路径
-    initial_path = _MODULE_TO_PATH.get(first_id) or "/data_map/hive_metadata"
+    if allowed:
+        first_id = _module_from_path(path_hint) if path_hint else None
+        if not first_id or first_id not in allowed:
+            first_id = allowed[0]
+        if first_id == "sr_api" and (not path_hint or path_hint.strip("/") in ("", "business")):
+            non_sr = [m for m in allowed if m != "sr_api"]
+            if non_sr:
+                first_id = non_sr[0]
+        first_module_url = _module_url(first_id, data_map_base, support_base, business_base)
+        if portal_token and first_module_url:
+            sep = "&" if "?" in first_module_url else "?"
+            first_module_url = first_module_url + sep + "portal_token=" + quote(portal_token, safe="")
+        initial_path = _MODULE_TO_PATH.get(first_id) or "/data_map/hive_metadata"
     return render_template(
         "index.html",
         username=user.get("username"),
         allowed_modules=allowed,
+        show_data_center_nav=show_data_center_nav,
+        show_business_nav=show_business_nav,
+        show_market_center_nav=show_market_center_nav,
+        show_direct_center_nav=show_direct_center_nav,
+        show_advisor_center_nav=show_advisor_center_nav,
+        show_customer_center_nav=show_customer_center_nav,
+        resource_access=resource_access,
         data_map_base=data_map_base,
         support_base=support_base,
         business_base=business_base,
@@ -353,7 +611,221 @@ def _render_index(user, path_hint=None):
         first_module_url=first_module_url,
         initial_path=initial_path,
         build_version=PORTAL_BUILD_VERSION,
+        show_admin_link=_is_portal_superuser((user.get("username") or "").strip()),
+        show_password_link=bool(app.config.get("PORTAL_AUTH_FROM_DB")),
+        pwd_changed=pwd_changed,
     )
+
+
+@app.route("/admin/permissions")
+def admin_permissions_page():
+    """超级用户：子模块权限配置页（读写 portal_user_resource）。"""
+    u = _current_user()
+    if not u:
+        return redirect(url_for("login", next="/admin/permissions"))
+    if not _require_superuser():
+        return Response("无权访问（需超级用户）", status=403, mimetype="text/plain; charset=utf-8")
+    return render_template(
+        "admin_permissions.html",
+        build_version=PORTAL_BUILD_VERSION,
+        from_db=bool(app.config.get("PORTAL_PERMISSION_FROM_DB")),
+        auth_from_db=bool(app.config.get("PORTAL_AUTH_FROM_DB")),
+        resource_groups=ADMIN_RESOURCE_GROUPS,
+    )
+
+
+def _admin_list_account_users():
+    """权限页下拉里展示的账号：库表模式用 portal_user，否则用 AUTH_USERS。"""
+    su = set(app.config.get("PORTAL_SUPERUSERS") or frozenset())
+    if app.config.get("PORTAL_AUTH_FROM_DB"):
+        rows = db_list_portal_users(
+            _SR_HOST,
+            _SR_PORT,
+            _SR_USER,
+            _SR_PASSWORD,
+            _SR_DB,
+            app.config["PORTAL_USER_TABLE"],
+        )
+        out = []
+        for row in rows:
+            name = row.get("username") or ""
+            db_su = bool(row.get("is_superuser"))
+            out.append(
+                {
+                    "username": name,
+                    "is_superuser": db_su or is_superuser(name, su),
+                }
+            )
+        return out
+    out = []
+    for name in sorted((app.config.get("AUTH_USERS") or {}).keys()):
+        out.append(
+            {
+                "username": name,
+                "is_superuser": is_superuser(name, su),
+            }
+        )
+    return out
+
+
+@app.route("/admin/api/permissions/users", methods=["GET"])
+def admin_api_list_users():
+    if not _require_superuser():
+        abort(403)
+    return jsonify({"users": _admin_list_account_users()})
+
+
+@app.route("/admin/api/permissions/users/<username>", methods=["GET"])
+def admin_api_get_user_resources(username):
+    if not _require_superuser():
+        abort(403)
+    un = (username or "").strip()
+    if not un:
+        abort(400)
+    r = fetch_user_resources(
+        un,
+        _SR_HOST,
+        _SR_PORT,
+        _SR_USER,
+        _SR_PASSWORD,
+        _SR_DB,
+        app.config["PORTAL_PERMISSION_TABLE"],
+    )
+    if r is None:
+        return jsonify({"error": "数据库查询失败"}), 500
+    return jsonify({"username": un, "resources": r})
+
+
+@app.route("/admin/api/permissions/users/<username>", methods=["PUT"])
+def admin_api_put_user_resources(username):
+    su = _current_user()
+    if not _require_superuser():
+        abort(403)
+    if not app.config.get("PORTAL_PERMISSION_FROM_DB"):
+        return jsonify({"error": "未启用 PORTAL_PERMISSION_FROM_DB"}), 400
+    un = (username or "").strip()
+    if app.config.get("PORTAL_AUTH_FROM_DB"):
+        if not db_user_exists(un, _SR_HOST, _SR_PORT, _SR_USER, _SR_PASSWORD, _SR_DB, app.config["PORTAL_USER_TABLE"]):
+            return jsonify({"error": "用户不存在于 portal_user 表"}), 400
+    elif un not in (app.config.get("AUTH_USERS") or {}):
+        return jsonify({"error": "用户不存在于账号配置中"}), 400
+    if _is_portal_superuser(un):
+        return jsonify({"error": "超级用户无需配置表权限"}), 400
+    body = request.get_json(silent=True) or {}
+    resources = body.get("resources") if isinstance(body.get("resources"), dict) else {}
+    editor = (su.get("username") or "").strip()
+    try:
+        save_user_resources(
+            un,
+            resources,
+            _SR_HOST,
+            _SR_PORT,
+            _SR_USER,
+            _SR_PASSWORD,
+            _SR_DB,
+            app.config["PORTAL_PERMISSION_TABLE"],
+            editor,
+        )
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    return jsonify({"ok": True})
+
+
+@app.route("/admin/api/users", methods=["POST"])
+def admin_api_create_portal_user():
+    """仅在 PORTAL_AUTH_FROM_DB=1 时向 portal_user 插入账号（超级用户）。"""
+    if not _require_superuser():
+        abort(403)
+    if not app.config.get("PORTAL_AUTH_FROM_DB"):
+        return jsonify({"error": "未启用 PORTAL_AUTH_FROM_DB，请使用 users.json 维护账号"}), 400
+    body = request.get_json(silent=True) or {}
+    un = (body.get("username") or "").strip()
+    pw = body.get("password") or ""
+    is_su = bool(body.get("is_superuser"))
+    if not un or not pw:
+        return jsonify({"error": "用户名与密码必填"}), 400
+    try:
+        insert_user(
+            un,
+            pw,
+            is_su,
+            _SR_HOST,
+            _SR_PORT,
+            _SR_USER,
+            _SR_PASSWORD,
+            _SR_DB,
+            app.config["PORTAL_USER_TABLE"],
+        )
+    except pymysql.err.IntegrityError:
+        return jsonify({"error": "用户名已存在"}), 400
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        err = str(e)
+        if "Duplicate" in err or "1062" in err or "duplicate" in err.lower():
+            return jsonify({"error": "用户名已存在"}), 400
+        return jsonify({"error": err}), 500
+    return jsonify({"ok": True})
+
+
+@app.route("/admin/api/users/<username>", methods=["DELETE"])
+def admin_api_delete_portal_user(username):
+    """仅超级用户：删除 portal_user 中的普通用户（并清理 portal_user_resource）。"""
+    su = _current_user()
+    if not _require_superuser():
+        abort(403)
+    if not app.config.get("PORTAL_AUTH_FROM_DB"):
+        return jsonify({"error": "未启用 PORTAL_AUTH_FROM_DB，请使用 users.json 维护账号"}), 400
+    un = (username or "").strip()
+    if not un:
+        abort(400)
+    actor = (su.get("username") or "").strip() if isinstance(su, dict) else ""
+    if actor and un == actor:
+        return jsonify({"error": "不能删除当前登录账号"}), 400
+    # 超级用户禁止删除（含 env 超级用户）
+    if _is_portal_superuser(un):
+        return jsonify({"error": "不能删除超级用户账号"}), 400
+    row = get_user_row(
+        un,
+        _SR_HOST,
+        _SR_PORT,
+        _SR_USER,
+        _SR_PASSWORD,
+        _SR_DB,
+        app.config["PORTAL_USER_TABLE"],
+    )
+    if row and row.get("is_superuser"):
+        return jsonify({"error": "不能删除超级用户账号"}), 400
+    try:
+        # 先删权限记录（可选）
+        if app.config.get("PORTAL_PERMISSION_FROM_DB"):
+            save_user_resources(
+                un,
+                {},
+                _SR_HOST,
+                _SR_PORT,
+                _SR_USER,
+                _SR_PASSWORD,
+                _SR_DB,
+                app.config["PORTAL_PERMISSION_TABLE"],
+                actor,
+            )
+        db_delete_user(
+            un,
+            _SR_HOST,
+            _SR_PORT,
+            _SR_USER,
+            _SR_PASSWORD,
+            _SR_DB,
+            app.config["PORTAL_USER_TABLE"],
+        )
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    return jsonify({"ok": True})
 
 
 @app.route("/")

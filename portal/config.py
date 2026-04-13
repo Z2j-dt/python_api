@@ -11,6 +11,9 @@ _DEFAULT_ADMIN_HASH = ""
 def _get_auth_users():
     import json
     from pathlib import Path
+    # 0) 仅用数据库账号表时不再读文件（见 PORTAL_AUTH_FROM_DB）
+    if os.environ.get("PORTAL_AUTH_FROM_DB", "0").lower() in ("1", "true", "yes"):
+        return {}
     # 1) auth_config.py（哈希配置）
     try:
         from portal.auth_config import AUTH_USERS
@@ -76,3 +79,15 @@ class Config:
     AUTH_COOKIE_NAME = "portal_auth"
     AUTH_COOKIE_MAX_AGE = int(os.environ.get("PORTAL_AUTH_COOKIE_MAX_AGE", "86400"))  # 24h
     AUTH_USERS = _get_auth_users()
+    # 子模块权限表（StarRocks/MySQL）：portal/sql/portal_user_resource_ddl.sql
+    PORTAL_PERMISSION_FROM_DB = os.environ.get("PORTAL_PERMISSION_FROM_DB", "0").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    PORTAL_PERMISSION_TABLE = os.environ.get("PORTAL_PERMISSION_TABLE", "portal_user_resource")
+    # 登录账号表：portal/sql/portal_user_ddl.sql；与 PORTAL_AUTH_FROM_DB=1 配合，可不再使用 users.json
+    PORTAL_AUTH_FROM_DB = os.environ.get("PORTAL_AUTH_FROM_DB", "0").lower() in ("1", "true", "yes")
+    PORTAL_USER_TABLE = os.environ.get("PORTAL_USER_TABLE", "portal_user")
+    _su_raw = os.environ.get("PORTAL_SUPERUSERS", "admin")
+    PORTAL_SUPERUSERS = frozenset(x.strip() for x in _su_raw.split(",") if x.strip())

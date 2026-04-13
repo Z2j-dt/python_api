@@ -102,6 +102,23 @@ def _db_cursor():
 _READONLY_USERS = {u.strip() for u in (os.environ.get("BUSINESS_READONLY_USERS") or "").split(",") if u.strip()}
 _USER_HEADER_KEYS = ("x-user", "x-username", "x-forwarded-user", "x-portal-user")
 
+# 与 portal 一致：PORTAL_PERMISSION_FROM_DB=1 时，写接口根据 Cookie/token 中的 r 校验 resource_id 是否为 write
+_PORTAL_PERM_FROM_DB = os.environ.get("PORTAL_PERMISSION_FROM_DB", "0").lower() in ("1", "true", "yes")
+_su_raw = os.environ.get("PORTAL_SUPERUSERS", "admin")
+_PORTAL_SUPERUSERS = frozenset(x.strip() for x in _su_raw.split(",") if x.strip())
+_PORTAL_TOKEN_MAX_AGE = int(os.environ.get("PORTAL_TOKEN_MAX_AGE", "10800"))
+
+# 写接口与 portal/docs/module_permissions.md 中 resource_id 对应（仅配置类 API）
+_RES_CONFIG_OPEN = "sr_api:config_open"
+_RES_CONFIG_ACTIVITY = "sr_api:config_activity_channel"
+_RES_CONFIG_STAFF = "sr_api:config_staff"
+_RES_CONFIG_SALES_ORDER = "sr_api:config_sales_order"
+_RES_CONFIG_SIGN_CUSTOMER_GROUP = "sr_api:config_sign_customer_group"
+_RES_CONFIG_OPPORTUNITY_LEAD = "sr_api:config_opportunity_lead"
+_RES_CONFIG_MORNING_HOT_STOCK = "sr_api:config_morning_hot_stock_track"
+_RES_CONFIG_CODE_MAPPING = "sr_api:config_code_mapping"
+_RES_CONFIG_STOCK_POSITION = "sr_api:config_stock_position"
+
 
 def _get_request_user(request: Request) -> str:
     # 1) 反向代理/网关注入的用户头
@@ -127,12 +144,12 @@ def _get_request_user(request: Request) -> str:
         pass
     # 3) 多端口 iframe：portal_token（短期有效）
     try:
-        token = (request.query_params.get("portal_token") or "").strip()
+        token = (request.query_params.get("portal_token") or request.headers.get("X-Portal-Token") or "").strip()
         secret = os.environ.get("PORTAL_SECRET_KEY") or ""
         if token and secret:
             from itsdangerous import URLSafeTimedSerializer
             s = URLSafeTimedSerializer(secret, salt="portal-token")
-            data = s.loads(token, max_age=600)
+            data = s.loads(token, max_age=_PORTAL_TOKEN_MAX_AGE)
             u = (data.get("u") or "").strip()
             if u:
                 return u
@@ -141,12 +158,78 @@ def _get_request_user(request: Request) -> str:
     return ""
 
 
-def _reject_if_readonly(request: Request) -> None:
-    if not _READONLY_USERS:
-        return
+def _portal_payload_ur(request: Request):
+    """从门户签名的 Cookie 或 portal_token 解析 (username, resources)。
+    resources 为 dict 表示细粒度权限；无 r 字段则为 None（旧版仅 modules）。"""
+    # portal 反向代理兜底：直接读取可信转发头（不依赖 PORTAL_SECRET_KEY）
+    try:
+        hu = (request.headers.get("X-Portal-User") or "").strip()
+        if hu:
+            rr = request.headers.get("X-Portal-Resources") or ""
+            if rr:
+                try:
+                    parsed = json.loads(rr)
+                    if isinstance(parsed, dict):
+                        return hu, parsed
+                except Exception:
+                    pass
+            return hu, None
+    except Exception:
+        pass
+
+    secret = os.environ.get("PORTAL_SECRET_KEY") or ""
+    if not secret:
+        return "", None
+    try:
+        from itsdangerous import URLSafeTimedSerializer
+    except ImportError:
+        return "", None
+    cookie_val = request.cookies.get("portal_auth") or ""
+    max_age_cookie = int(os.environ.get("PORTAL_AUTH_COOKIE_MAX_AGE", "86400"))
+    if cookie_val:
+        try:
+            s = URLSafeTimedSerializer(secret, salt="portal-auth")
+            data = s.loads(cookie_val, max_age=max_age_cookie)
+            u = (data.get("u") or "").strip()
+            if "r" in data:
+                r = data.get("r")
+                return u, (r if isinstance(r, dict) else {})
+            return u, None
+        except Exception:
+            pass
+    token = (request.query_params.get("portal_token") or request.headers.get("X-Portal-Token") or "").strip()
+    if token:
+        try:
+            s = URLSafeTimedSerializer(secret, salt="portal-token")
+            data = s.loads(token, max_age=_PORTAL_TOKEN_MAX_AGE)
+            u = (data.get("u") or "").strip()
+            if "r" in data:
+                r = data.get("r")
+                return u, (r if isinstance(r, dict) else {})
+            return u, None
+        except Exception:
+            pass
+    return "", None
+
+
+def _reject_if_readonly(request: Request, resource_id: Optional[str] = None) -> None:
+    """禁止修改：1) BUSINESS_READONLY_USERS 2) 启用库表权限时要求签名 payload 中对该 resource 为 write。"""
     user = _get_request_user(request)
-    if user and user in _READONLY_USERS:
+    if _READONLY_USERS and user and user in _READONLY_USERS:
         raise HTTPException(status_code=403, detail="只读账号不允许修改配置数据")
+    if not _PORTAL_PERM_FROM_DB or not resource_id:
+        return
+    pu, resources = _portal_payload_ur(request)
+    if not pu:
+        raise HTTPException(status_code=403, detail="缺少有效门户登录凭证，无法修改数据")
+    if user and pu and user != pu:
+        raise HTTPException(status_code=403, detail="请求用户与门户登录身份不一致")
+    if pu in _PORTAL_SUPERUSERS:
+        return
+    if resources is None:
+        return
+    if resources.get(resource_id) != "write":
+        raise HTTPException(status_code=403, detail="无该模块编辑权限")
 
 # 自营渠道每日汇总表：支持按 dt 日期筛选，默认今天+昨天
 DAILY_STATS_TABLE = "mv_scrm_open_channel_tag_stats"
@@ -700,7 +783,7 @@ async def list_open_channel_tags() -> List[OpenChannelTagOut]:
 
 @app.post("/api/config/open-channel-tags", response_model=OpenChannelTagOut)
 async def create_open_channel_tag(body: OpenChannelTagCreate, request: Request) -> OpenChannelTagOut:
-    _reject_if_readonly(request)
+    _reject_if_readonly(request, _RES_CONFIG_OPEN)
     try:
         now_str = datetime.now().strftime(_DT_FMT)
         with _db_cursor() as cur:
@@ -729,7 +812,7 @@ async def create_open_channel_tag(body: OpenChannelTagCreate, request: Request) 
 
 @app.put("/api/config/open-channel-tags/{item_id}", response_model=OpenChannelTagOut)
 async def update_open_channel_tag(item_id: int, body: OpenChannelTagUpdate, request: Request) -> OpenChannelTagOut:
-    _reject_if_readonly(request)
+    _reject_if_readonly(request, _RES_CONFIG_OPEN)
     if body.open_channel is None and body.wechat_customer_tag is None:
         raise HTTPException(status_code=400, detail="至少提供一个需要更新的字段")
     try:
@@ -777,7 +860,7 @@ async def update_open_channel_tag(item_id: int, body: OpenChannelTagUpdate, requ
 
 @app.delete("/api/config/open-channel-tags/{item_id}")
 async def delete_open_channel_tag(item_id: int, request: Request) -> Dict[str, Any]:
-    _reject_if_readonly(request)
+    _reject_if_readonly(request, _RES_CONFIG_OPEN)
     try:
         with _db_cursor() as cur:
             cur.execute(
@@ -811,7 +894,7 @@ async def list_activity_channel_tags() -> List[OpenChannelTagOut]:
 
 @app.post("/api/config/activity-channel-tags", response_model=OpenChannelTagOut)
 async def create_activity_channel_tag(body: OpenChannelTagCreate, request: Request) -> OpenChannelTagOut:
-    _reject_if_readonly(request)
+    _reject_if_readonly(request, _RES_CONFIG_ACTIVITY)
     try:
         now_str = datetime.now().strftime(_DT_FMT)
         with _db_cursor() as cur:
@@ -839,7 +922,7 @@ async def create_activity_channel_tag(body: OpenChannelTagCreate, request: Reque
 
 @app.put("/api/config/activity-channel-tags/{item_id}", response_model=OpenChannelTagOut)
 async def update_activity_channel_tag(item_id: int, body: OpenChannelTagUpdate, request: Request) -> OpenChannelTagOut:
-    _reject_if_readonly(request)
+    _reject_if_readonly(request, _RES_CONFIG_ACTIVITY)
     if body.open_channel is None and body.wechat_customer_tag is None:
         raise HTTPException(status_code=400, detail="至少提供一个需要更新的字段")
     try:
@@ -885,7 +968,7 @@ async def update_activity_channel_tag(item_id: int, body: OpenChannelTagUpdate, 
 
 @app.delete("/api/config/activity-channel-tags/{item_id}")
 async def delete_activity_channel_tag(item_id: int, request: Request) -> Dict[str, Any]:
-    _reject_if_readonly(request)
+    _reject_if_readonly(request, _RES_CONFIG_ACTIVITY)
     try:
         with _db_cursor() as cur:
             cur.execute(
@@ -1624,7 +1707,7 @@ async def list_channel_staff() -> List[ChannelStaffOut]:
 
 @app.post("/api/config/channel-staff", response_model=ChannelStaffOut)
 async def create_channel_staff(body: ChannelStaffCreate, request: Request) -> ChannelStaffOut:
-    _reject_if_readonly(request)
+    _reject_if_readonly(request, _RES_CONFIG_STAFF)
     if body.channel_type not in CHANNEL_STAFF_ALLOWED_TYPES:
         raise HTTPException(status_code=400, detail="channel_type 仅支持：活动渠道/开户渠道")
     try:
@@ -1656,7 +1739,7 @@ async def create_channel_staff(body: ChannelStaffCreate, request: Request) -> Ch
 
 @app.put("/api/config/channel-staff/{item_id}", response_model=ChannelStaffOut)
 async def update_channel_staff(item_id: int, body: ChannelStaffUpdate, request: Request) -> ChannelStaffOut:
-    _reject_if_readonly(request)
+    _reject_if_readonly(request, _RES_CONFIG_STAFF)
     if body.branch_name is None and body.staff_name is None and body.channel_type is None:
         raise HTTPException(status_code=400, detail="至少提供一个需要更新的字段")
     if body.channel_type is not None and body.channel_type not in CHANNEL_STAFF_ALLOWED_TYPES:
@@ -1715,7 +1798,7 @@ async def update_channel_staff(item_id: int, body: ChannelStaffUpdate, request: 
 
 @app.delete("/api/config/channel-staff/{item_id}")
 async def delete_channel_staff(item_id: int, request: Request) -> Dict[str, Any]:
-    _reject_if_readonly(request)
+    _reject_if_readonly(request, _RES_CONFIG_STAFF)
     try:
         with _db_cursor() as cur:
             cur.execute(
@@ -1888,7 +1971,7 @@ async def update_sales_order_config(
     body: Dict[str, Any],
     request: Request,
 ) -> Dict[str, Any]:
-    _reject_if_readonly(request)
+    _reject_if_readonly(request, _RES_CONFIG_SALES_ORDER)
     EMPTY_CUSTOMER_ACCOUNT_TOKEN = "__EMPTY_CUSTOMER_ACCOUNT__"
     sole = (sole_code or "").strip()
     acct = (customer_account or "").strip()
@@ -2476,7 +2559,7 @@ async def update_sign_customer_group_in_group(
     body: SignCustomerGroupUpdate,
     request: Request,
 ) -> Dict[str, Any]:
-    _reject_if_readonly(request)
+    _reject_if_readonly(request, _RES_CONFIG_SIGN_CUSTOMER_GROUP)
     in_group = 1 if int(body.in_group or 0) == 1 else 0
     sole = (sole_code or "").strip()
     acct = (customer_account or "").strip()
@@ -2520,7 +2603,7 @@ async def list_opportunity_leads() -> List[OpportunityLeadOut]:
 
 @app.post("/api/config/opportunity-leads", response_model=OpportunityLeadOut)
 async def create_opportunity_lead(body: OpportunityLeadCreate, request: Request) -> OpportunityLeadOut:
-    _reject_if_readonly(request)
+    _reject_if_readonly(request, _RES_CONFIG_OPPORTUNITY_LEAD)
     try:
         now_str = datetime.now().strftime(_DT_FMT)
         with _db_cursor() as cur:
@@ -2556,7 +2639,7 @@ async def create_opportunity_lead(body: OpportunityLeadCreate, request: Request)
 
 @app.put("/api/config/opportunity-leads/{item_id}", response_model=OpportunityLeadOut)
 async def update_opportunity_lead(item_id: int, body: OpportunityLeadUpdate, request: Request) -> OpportunityLeadOut:
-    _reject_if_readonly(request)
+    _reject_if_readonly(request, _RES_CONFIG_OPPORTUNITY_LEAD)
     if (
         body.biz_category_big is None
         and body.biz_category_small is None
@@ -2617,7 +2700,7 @@ async def update_opportunity_lead(item_id: int, body: OpportunityLeadUpdate, req
 
 @app.delete("/api/config/opportunity-leads/{item_id}")
 async def delete_opportunity_lead(item_id: int, request: Request) -> Dict[str, Any]:
-    _reject_if_readonly(request)
+    _reject_if_readonly(request, _RES_CONFIG_OPPORTUNITY_LEAD)
     try:
         with _db_cursor() as cur:
             cur.execute(f"DELETE FROM `{CONFIG_OPPORTUNITY_LEAD_TABLE}` WHERE id = %s", (item_id,))
@@ -2799,7 +2882,7 @@ async def morning_hot_stock_track_performance_export_csv(
 
 @app.post("/api/config/morning-hot-stock-track", response_model=MorningHotStockTrackOut)
 async def create_morning_hot_stock_track(body: MorningHotStockTrackCreate, request: Request) -> MorningHotStockTrackOut:
-    _reject_if_readonly(request)
+    _reject_if_readonly(request, _RES_CONFIG_MORNING_HOT_STOCK)
     try:
         now_str = datetime.now().strftime(_DT_FMT)
         with _db_cursor() as cur:
@@ -2834,7 +2917,7 @@ async def create_morning_hot_stock_track(body: MorningHotStockTrackCreate, reque
 
 @app.put("/api/config/morning-hot-stock-track/{item_id}", response_model=MorningHotStockTrackOut)
 async def update_morning_hot_stock_track(item_id: int, body: MorningHotStockTrackUpdate, request: Request) -> MorningHotStockTrackOut:
-    _reject_if_readonly(request)
+    _reject_if_readonly(request, _RES_CONFIG_MORNING_HOT_STOCK)
     if body.tg_name is None and body.biz_date is None and body.stock_name is None and body.stock_code is None and body.remark is None:
         raise HTTPException(status_code=400, detail="至少提供一个需要更新的字段")
     try:
@@ -2884,7 +2967,7 @@ async def update_morning_hot_stock_track(item_id: int, body: MorningHotStockTrac
 
 @app.delete("/api/config/morning-hot-stock-track/{item_id}")
 async def delete_morning_hot_stock_track(item_id: int, request: Request) -> Dict[str, Any]:
-    _reject_if_readonly(request)
+    _reject_if_readonly(request, _RES_CONFIG_MORNING_HOT_STOCK)
     try:
         with _db_cursor() as cur:
             cur.execute(f"DELETE FROM `{CONFIG_MORNING_HOT_STOCK_TRACK_TABLE}` WHERE id = %s", (item_id,))
@@ -2915,7 +2998,7 @@ async def list_code_mapping() -> List[CodeMappingOut]:
 
 @app.post("/api/config/code-mapping", response_model=CodeMappingOut)
 async def create_code_mapping(body: CodeMappingCreate, request: Request) -> CodeMappingOut:
-    _reject_if_readonly(request)
+    _reject_if_readonly(request, _RES_CONFIG_CODE_MAPPING)
     try:
         now_str = datetime.now().strftime(_DT_FMT)
         with _db_cursor() as cur:
@@ -2952,7 +3035,7 @@ async def create_code_mapping(body: CodeMappingCreate, request: Request) -> Code
 
 @app.put("/api/config/code-mapping/{item_id}", response_model=CodeMappingOut)
 async def update_code_mapping(item_id: int, body: CodeMappingUpdate, request: Request) -> CodeMappingOut:
-    _reject_if_readonly(request)
+    _reject_if_readonly(request, _RES_CONFIG_CODE_MAPPING)
     if body.code_value is None and body.description is None and body.stat_cost is None and body.channel_name is None:
         raise HTTPException(status_code=400, detail="至少提供一个需要更新的字段")
     try:
@@ -2994,7 +3077,7 @@ async def update_code_mapping(item_id: int, body: CodeMappingUpdate, request: Re
 
 @app.delete("/api/config/code-mapping/{item_id}")
 async def delete_code_mapping(item_id: int, request: Request) -> Dict[str, Any]:
-    _reject_if_readonly(request)
+    _reject_if_readonly(request, _RES_CONFIG_CODE_MAPPING)
     try:
         with _db_cursor() as cur:
             cur.execute(
@@ -3708,7 +3791,7 @@ async def export_stock_position_nav_excel(
 
 @app.post("/api/config/stock-position", response_model=StockPositionOut)
 async def create_stock_position(body: StockPositionCreate, request: Request) -> StockPositionOut:
-    _reject_if_readonly(request)
+    _reject_if_readonly(request, _RES_CONFIG_STOCK_POSITION)
     """新增：股票代码、仓位、买入/卖出、成交价为必填；日期不填则默认当前日期。"""
     from datetime import date
     trade_date = body.trade_date
@@ -3797,7 +3880,7 @@ async def create_stock_position(body: StockPositionCreate, request: Request) -> 
 
 @app.put("/api/config/stock-position/{item_id}", response_model=StockPositionOut)
 async def update_stock_position(item_id: int, body: StockPositionUpdate, request: Request) -> StockPositionOut:
-    _reject_if_readonly(request)
+    _reject_if_readonly(request, _RES_CONFIG_STOCK_POSITION)
     """全字段可选更新；未传的字段保持原值。"""
     try:
         from datetime import date
@@ -3904,7 +3987,7 @@ async def update_stock_position(item_id: int, body: StockPositionUpdate, request
 
 @app.delete("/api/config/stock-position/{item_id}")
 async def delete_stock_position(item_id: int, request: Request) -> Dict[str, Any]:
-    _reject_if_readonly(request)
+    _reject_if_readonly(request, _RES_CONFIG_STOCK_POSITION)
     try:
         with _db_cursor() as cur:
             cur.execute(

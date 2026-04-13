@@ -17,41 +17,41 @@
                         <h1>数据中台门户</h1>
                         <p class="subtitle">统一门户</p>
                         <p class="user-info">build: {{ build_version }}</p>
+                        {% if pwd_changed %}
+                        <p class="user-info" style="color:#198754;margin-top:0.35rem;">密码已更新</p>
+                        {% endif %}
                     </div>
                 </div>
             </div>
             <nav class="nav">
-                {% set show_data_center = ('hive_metadata' in allowed_modules) or ('sql_lineage' in allowed_modules) or ('excel_to_hive' in allowed_modules) or ('dolphin_failed' in allowed_modules) %}
-                {% set show_business = ('sr_api' in allowed_modules) %}
-
-                {% if show_data_center %}
+                {% if show_data_center_nav %}
                 <div class="nav-group">
                     <button class="nav-group-header collapsed" type="button" data-group="data_center" aria-expanded="false">
                         <span class="nav-group-chevron">▸</span>
                         <span class="nav-group-text">数据中心</span>
                     </button>
                     <div class="nav-group-body" data-group-body="data_center">
-                        {% if 'hive_metadata' in allowed_modules %}
+                        {% if (resource_access is not none and 'hive_metadata' in resource_access) or (resource_access is none and 'hive_metadata' in allowed_modules) %}
                         <a class="nav-item nav-item-child" data-module="hive_metadata" href="#hive_metadata">
                             <span>数据字典</span>
                         </a>
                         {% endif %}
-                        {% if 'sql_lineage' in allowed_modules %}
+                        {% if (resource_access is not none and 'sql_lineage' in resource_access) or (resource_access is none and 'sql_lineage' in allowed_modules) %}
                         <a class="nav-item nav-item-child" data-module="sql_lineage" href="#sql_lineage">
                             <span>数据血缘</span>
                         </a>
                         {% endif %}
-                        {% if 'excel_to_hive' in allowed_modules %}
+                        {% if (resource_access is not none and 'excel_to_hive' in resource_access) or (resource_access is none and 'excel_to_hive' in allowed_modules) %}
                         <a class="nav-item nav-item-child" data-module="excel_to_hive" href="#excel_to_hive">
                             <span>离线上传</span>
                         </a>
                         {% endif %}
-                        {% if 'dolphin_failed' in allowed_modules %}
+                        {% if (resource_access is not none and 'dolphin_failed' in resource_access) or (resource_access is none and 'dolphin_failed' in allowed_modules) %}
                         <a class="nav-item nav-item-child" data-module="dolphin_failed" href="#dolphin_failed">
                             <span>任务管理</span>
                         </a>
                         {% endif %}
-                        {% if 'sql_to_excel' in allowed_modules %}
+                        {% if (resource_access is not none and 'sql_to_excel' in resource_access) or (resource_access is none and 'sql_to_excel' in allowed_modules) %}
                         <a class="nav-item nav-item-child" data-module="sql_to_excel" href="#sql_to_excel">
                             <span>数据导出</span>
                         </a>
@@ -60,84 +60,122 @@
                 </div>
                 {% endif %}
 
-                {% if show_business %}
+                {% if show_business_nav %}
+                {% if show_market_center_nav %}
                 <div class="nav-group">
                     <button class="nav-group-header collapsed" type="button" data-group="market_center" aria-expanded="false">
                         <span class="nav-group-chevron">▸</span>
                         <span class="nav-group-text">市场中心</span>
                     </button>
                     <div class="nav-group-body" data-group-body="market_center">
+                        {% if (resource_access is not none and 'sr_api:realtime' in resource_access) or (resource_access is none and 'sr_api' in allowed_modules) %}
                         <a class="nav-item nav-item-child" data-module="sr_api" data-view="realtime" href="#sr_api_realtime">
                             <span>实时加微名单</span>
                         </a>
+                        {% endif %}
+                        {% if (resource_access is not none and 'sr_api:config_code_mapping' in resource_access) or (resource_access is none and 'sr_api' in allowed_modules) %}
                         <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_code_mapping" href="#sr_api_config_code_mapping">
                             <span>抖音投流账号配置</span>
                         </a>
+                        {% endif %}
                     </div>
                 </div>
+                {% endif %}
 
+                {% if show_direct_center_nav %}
                 <div class="nav-group">
                     <button class="nav-group-header collapsed" type="button" data-group="direct_center" aria-expanded="false">
                         <span class="nav-group-chevron">▸</span>
                         <span class="nav-group-text">直销中心</span>
                     </button>
                     <div class="nav-group-body" data-group-body="direct_center">
+                        {% if (resource_access is not none and 'sr_api:open_channel_daily' in resource_access) or (resource_access is none and 'sr_api' in allowed_modules) %}
                         <a class="nav-item nav-item-child" data-module="sr_api" data-view="open_channel_daily" href="#sr_api_open_channel_daily">
                             <span>自营渠道加微统计</span>
                         </a>
+                        {% endif %}
+                        {% if (resource_access is not none and 'sr_api:config_open' in resource_access) or (resource_access is none and 'sr_api' in allowed_modules) %}
                         <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_open" href="#sr_api_config_open">
                             <span>渠道字典配置</span>
                         </a>
+                        {% endif %}
+                        {% if (resource_access is not none and 'sr_api:config_staff' in resource_access) or (resource_access is none and 'sr_api' in allowed_modules) %}
                         <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_staff" href="#sr_api_config_staff">
                             <span>承接人员配置</span>
                         </a>
+                        {% endif %}
                     </div>
                 </div>
+                {% endif %}
 
+                {% if show_advisor_center_nav %}
                 <div class="nav-group">
                     <button class="nav-group-header collapsed" type="button" data-group="advisor_center" aria-expanded="false">
                         <span class="nav-group-chevron">▸</span>
                         <span class="nav-group-text">投顾中心</span>
                     </button>
                     <div class="nav-group-body" data-group-body="advisor_center">
+                        {% if (resource_access is not none and 'sr_api:config_stock_position' in resource_access) or (resource_access is none and 'sr_api' in allowed_modules) %}
                         <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_stock_position" href="#sr_api_config_stock_position">
                             <span>产品净值</span>
                         </a>
+                        {% endif %}
+                        {% if (resource_access is not none and 'sr_api:config_sales_order' in resource_access) or (resource_access is none and 'sr_api' in allowed_modules) %}
                         <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_sales_order" href="#sr_api_config_sales_order">
                             <span>销售订单配置</span>
                         </a>
+                        {% endif %}
+                        {% if (resource_access is not none and 'sr_api:config_sign_customer_group' in resource_access) or (resource_access is none and 'sr_api' in allowed_modules) %}
                         <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_sign_customer_group" href="#sr_api_config_sign_customer_group">
                             <span>签约客户群管理配置</span>
                         </a>
+                        {% endif %}
+                        {% if (resource_access is not none and 'sr_api:config_activity_channel' in resource_access) or (resource_access is none and 'sr_api' in allowed_modules) %}
                         <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_activity_channel" href="#sr_api_config_activity_channel">
                             <span>活动渠道字典配置</span>
                         </a>
+                        {% endif %}
+                        {% if (resource_access is not none and 'sr_api:sales_daily_leads' in resource_access) or (resource_access is none and 'sr_api' in allowed_modules) %}
                         <a class="nav-item nav-item-child" data-module="sr_api" data-view="sales_daily_leads" href="#sr_api_sales_daily_leads">
                             <span>销售每日进线数据表</span>
                         </a>
+                        {% endif %}
                     </div>
                 </div>
+                {% endif %}
 
+                {% if show_customer_center_nav %}
                 <div class="nav-group">
                     <button class="nav-group-header collapsed" type="button" data-group="customer_center" aria-expanded="false">
                         <span class="nav-group-chevron">▸</span>
                         <span class="nav-group-text">客户中心</span>
                     </button>
                     <div class="nav-group-body" data-group-body="customer_center">
+                        {% if (resource_access is not none and 'sr_api:config_opportunity_lead' in resource_access) or (resource_access is none and 'sr_api' in allowed_modules) %}
                         <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_opportunity_lead" href="#sr_api_config_opportunity_lead">
                             <span>商机线索配置</span>
                         </a>
+                        {% endif %}
+                        {% if (resource_access is not none and 'sr_api:config_morning_hot_stock_track' in resource_access) or (resource_access is none and 'sr_api' in allowed_modules) %}
                         <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_morning_hot_stock_track" href="#sr_api_config_morning_hot_stock_track">
                             <span>早盘人气股战绩追踪配置</span>
                         </a>
+                        {% endif %}
                     </div>
                 </div>
+                {% endif %}
                 {% endif %}
             </nav>
             <div class="sidebar-footer">
                 {% if username %}
                 <div class="user-footer">
                     <div class="user-name">{{ username }}</div>
+                    {% if show_admin_link %}
+                    <a href="{{ url_for('admin_permissions_page') }}" class="logout-link" style="display:block;margin-top:0.35rem;">权限配置</a>
+                    {% endif %}
+                    {% if show_password_link %}
+                    <a href="{{ url_for('account_change_password') }}" class="logout-link" style="display:block;margin-top:0.35rem;">修改密码</a>
+                    {% endif %}
                     <a href="{{ url_for('logout') }}" class="logout-link">退出登录</a>
                 </div>
                 {% else %}
@@ -153,7 +191,7 @@
         </main>
     </div>
     <script type="application/json" id="portal-bootstrap">
-    {"dataMapBase":{{ (data_map_base or '')|tojson }},"supportBase":{{ (support_base or '')|tojson }},"businessBase":{{ (business_base or '')|tojson }},"businessIframeBase":{{ (business_iframe_base or '')|tojson }},"portalToken":{{ (portal_token or '')|tojson }},"readonly":{{ (is_readonly or false)|tojson }}}
+    {"dataMapBase":{{ (data_map_base or '')|tojson }},"supportBase":{{ (support_base or '')|tojson }},"businessBase":{{ (business_base or '')|tojson }},"businessIframeBase":{{ (business_iframe_base or '')|tojson }},"portalToken":{{ (portal_token or '')|tojson }},"readonly":{{ (is_readonly or false)|tojson }},"resourceAccess":{{ resource_access|tojson }}}
     </script>
     <script>
         (function () {
@@ -168,6 +206,17 @@
             var businessIframeBase = boot.businessIframeBase || "";
             var portalToken = boot.portalToken || "";
             var isReadOnly = !!boot.readonly;
+            var resourceAccess = boot.resourceAccess;
+            function useReadonlyForSrView(view) {
+                view = view || "";
+                if (resourceAccess && typeof resourceAccess === "object") {
+                    var key = "sr_api:" + view;
+                    var lvl = resourceAccess[key];
+                    if (!lvl) return true;
+                    return lvl !== "write";
+                }
+                return isReadOnly;
+            }
             var moduleToPath = {
                 hive_metadata: "/data_map/hive_metadata",
                 sql_lineage: "/data_map/sql_lineage_web",
@@ -351,8 +400,8 @@
                     } else if (view === "config_morning_hot_stock_track") {
                         url = url + sep + "view=config&tab=morning_hot_stock_track";
                     }
-                    // 只读账号：业务应用追加 readonly=1
-                    if (isReadOnly) {
+                    // 只读账号或细粒度 read：业务应用追加 readonly=1
+                    if (useReadonlyForSrView(view)) {
                         sep = url.indexOf("?") >= 0 ? "&" : "?";
                         url = url + sep + "readonly=1";
                     }

@@ -9,12 +9,35 @@ const PAGE_SIZE = 20
 const FETCH_TIMEOUT_MS = 8000
 const DAILY_STATS_TABLE = 'mv_scrm_open_channel_tag_stats'
 
+function appendPortalToken(url: string): string {
+  try {
+    if (typeof window === 'undefined') return url
+    const token = new URLSearchParams(window.location.search).get('portal_token') || ''
+    if (!token) return url
+    const abs = new URL(url, window.location.origin)
+    if (!abs.searchParams.get('portal_token')) abs.searchParams.set('portal_token', token)
+    const isAbs = /^https?:\/\//i.test(url)
+    return isAbs ? abs.toString() : `${abs.pathname}${abs.search}${abs.hash}`
+  } catch {
+    return url
+  }
+}
+
 /** 带超时的 fetch，避免内网接口无响应时长期占用连接导致另一项挂死 */
 async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = FETCH_TIMEOUT_MS): Promise<Response> {
   const ctrl = new AbortController()
   const id = setTimeout(() => ctrl.abort(), timeoutMs)
   try {
-    const res = await fetch(url, { ...options, signal: ctrl.signal })
+    const finalUrl = appendPortalToken(url)
+    let token = ''
+    try {
+      if (typeof window !== 'undefined') token = new URLSearchParams(window.location.search).get('portal_token') || ''
+    } catch {
+      token = ''
+    }
+    const mergedHeaders = new Headers(options.headers || {})
+    if (token && !mergedHeaders.has('X-Portal-Token')) mergedHeaders.set('X-Portal-Token', token)
+    const res = await fetch(finalUrl, { ...options, headers: mergedHeaders, signal: ctrl.signal })
     return res
   } finally {
     clearTimeout(id)
@@ -834,7 +857,7 @@ function App() {
     try {
       const url = `${API_BASE}/api/sales-daily-leads/export.csv?dt_from=${encodeURIComponent(f)}&dt_to=${encodeURIComponent(t)}`
       // 直接打开下载（浏览器处理 Content-Disposition）
-      window.open(url, '_blank')
+      window.open(appendPortalToken(url), '_blank')
       setSalesDailyDownloadOpen(false)
     } catch (e) {
       setSalesDailyError(e instanceof Error ? e.message : '下载失败')
@@ -2255,7 +2278,7 @@ function App() {
               open_channel: openForm.open_channel.trim(),
               wechat_customer_tag: openForm.wechat_customer_tag.trim(),
             }
-      const res = await fetch(url, {
+      const res = await fetchWithTimeout(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -2286,7 +2309,7 @@ function App() {
     }
     setConfigError(null)
     try {
-      const res = await fetch(`${getOpenChannelApiBase()}/${item.id}`, {
+      const res = await fetchWithTimeout(`${getOpenChannelApiBase()}/${item.id}`, {
         method: 'DELETE',
       })
       if (!res.ok) throw new Error(await res.text())
@@ -2320,7 +2343,7 @@ function App() {
         ? `${API_BASE}/api/config/channel-staff/${editingStaffItem!.id}`
         : `${API_BASE}/api/config/channel-staff`
       const method = isEdit ? 'PUT' : 'POST'
-      const res = await fetch(url, {
+      const res = await fetchWithTimeout(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2358,7 +2381,7 @@ function App() {
     }
     setConfigError(null)
     try {
-      const res = await fetch(`${API_BASE}/api/config/channel-staff/${item.id}`, {
+      const res = await fetchWithTimeout(`${API_BASE}/api/config/channel-staff/${item.id}`, {
         method: 'DELETE',
       })
       if (!res.ok) throw new Error(await res.text())
@@ -2402,7 +2425,7 @@ function App() {
         remark: opportunityLeadForm.remark.trim() || null,
         table_name: opportunityLeadForm.table_name.trim() || null,
       }
-      const res = await fetch(url, {
+      const res = await fetchWithTimeout(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -2421,7 +2444,7 @@ function App() {
     if (!window.confirm(`确定删除【${item.clue_name ?? '-'}】这条线索配置吗？`)) return
     setConfigError(null)
     try {
-      const res = await fetch(`${API_BASE}/api/config/opportunity-leads/${item.id}`, { method: 'DELETE' })
+      const res = await fetchWithTimeout(`${API_BASE}/api/config/opportunity-leads/${item.id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error(await res.text())
       window.location.reload()
     } catch {
@@ -2459,7 +2482,7 @@ function App() {
         stock_code: morningHotStockTrackForm.stock_code.trim() || null,
         remark: morningHotStockTrackForm.remark.trim() || null,
       }
-      const res = await fetch(url, {
+      const res = await fetchWithTimeout(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -2497,7 +2520,7 @@ function App() {
     if (!window.confirm(`确定删除【${item.stock_name ?? '-'} ${item.stock_code ?? ''}】这条记录吗？`)) return
     setConfigError(null)
     try {
-      const res = await fetch(`${API_BASE}/api/config/morning-hot-stock-track/${item.id}`, { method: 'DELETE' })
+      const res = await fetchWithTimeout(`${API_BASE}/api/config/morning-hot-stock-track/${item.id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error(await res.text())
       window.location.reload()
     } catch {
@@ -4655,13 +4678,17 @@ function App() {
                                 <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.wechat_nick || '-'}</td>
                                 <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.sales_owner || '-'}</td>
                                 <td className="px-3 py-2">
-                                  <button
-                                    onClick={() => openSalesOrderEdit(it)}
-                                    disabled={!!salesOrderSaving[key]}
-                                    className="px-3 py-1 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs"
-                                  >
-                                    修改
-                                  </button>
+                                  {!isConfigReadOnly ? (
+                                    <button
+                                      onClick={() => openSalesOrderEdit(it)}
+                                      disabled={!!salesOrderSaving[key]}
+                                      className="px-3 py-1 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs"
+                                    >
+                                      修改
+                                    </button>
+                                  ) : (
+                                    <span className="text-slate-400 text-xs">只读</span>
+                                  )}
                                 </td>
                               </tr>
                             )
@@ -4717,6 +4744,7 @@ function App() {
                           <MonthDropdownWheelPicker
                             value={salesOrderEditForm.in_month}
                             onChange={(v) => setSalesOrderEditForm((p) => ({ ...p, in_month: v }))}
+                            disabled={isConfigReadOnly}
                           />
                         </div>
                         <div>
@@ -4724,7 +4752,10 @@ function App() {
                           <input
                             value={salesOrderEditForm.channel}
                             onChange={(e) => setSalesOrderEditForm((p) => ({ ...p, channel: e.target.value }))}
-                            className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800"
+                            disabled={isConfigReadOnly}
+                            className={`w-full px-3 py-2 rounded-lg border ${
+                              isConfigReadOnly ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed' : 'border-slate-300 bg-white text-slate-800'
+                            }`}
                           />
                         </div>
                         <div>
@@ -4732,7 +4763,10 @@ function App() {
                           <input
                             value={salesOrderEditForm.wechat_nick}
                             onChange={(e) => setSalesOrderEditForm((p) => ({ ...p, wechat_nick: e.target.value }))}
-                            className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800"
+                            disabled={isConfigReadOnly}
+                            className={`w-full px-3 py-2 rounded-lg border ${
+                              isConfigReadOnly ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed' : 'border-slate-300 bg-white text-slate-800'
+                            }`}
                           />
                         </div>
                         <div>
@@ -4740,7 +4774,10 @@ function App() {
                           <input
                             value={salesOrderEditForm.sales_owner}
                             onChange={(e) => setSalesOrderEditForm((p) => ({ ...p, sales_owner: e.target.value }))}
-                            className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800"
+                            disabled={isConfigReadOnly}
+                            className={`w-full px-3 py-2 rounded-lg border ${
+                              isConfigReadOnly ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed' : 'border-slate-300 bg-white text-slate-800'
+                            }`}
                           />
                         </div>
                       </div>
@@ -4751,6 +4788,7 @@ function App() {
                         </button>
                         <button
                           onClick={async () => {
+                            if (isConfigReadOnly) return
                             if (!salesOrderEditRow) return
                             setSalesOrderEditError(null)
                             const payload: SalesOrderConfigItem = {
@@ -4764,7 +4802,7 @@ function App() {
                             if (ok) closeSalesOrderEdit()
                             else setSalesOrderEditError(salesOrderError || '保存失败')
                           }}
-                          disabled={salesOrderLoading}
+                          disabled={salesOrderLoading || isConfigReadOnly}
                           className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white"
                         >
                           保存
@@ -4811,7 +4849,7 @@ function App() {
                                 : salesOrderMonth.trim()
                                   ? salesOrderMonth.trim().slice(0, 7)
                                   : ''
-                              void window.open(`${API_BASE}/api/config/sales-order/detail/export.csv?month=${encodeURIComponent(m)}`, '_blank')
+                              void window.open(appendPortalToken(`${API_BASE}/api/config/sales-order/detail/export.csv?month=${encodeURIComponent(m)}`), '_blank')
                             }}
                             className="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs whitespace-nowrap"
                           >
@@ -4931,7 +4969,7 @@ function App() {
                                 : salesOrderMonth.trim()
                                   ? salesOrderMonth.trim().slice(0, 7)
                                   : ''
-                              void window.open(`${API_BASE}/api/config/sales-order/summary/export.csv?month=${encodeURIComponent(m)}`, '_blank')
+                              void window.open(appendPortalToken(`${API_BASE}/api/config/sales-order/summary/export.csv?month=${encodeURIComponent(m)}`), '_blank')
                             }}
                             className="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs whitespace-nowrap"
                           >
@@ -5047,10 +5085,15 @@ function App() {
                                 </td>
                                 <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
                                   <select
-                                    className="px-2 py-1 border border-slate-300 rounded"
+                                    className={`px-2 py-1 border rounded ${
+                                      isConfigReadOnly
+                                        ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
+                                        : 'border-slate-300 bg-white text-slate-800'
+                                    }`}
                                     value={String(it.in_group ?? 0)}
-                                    disabled={!!signRowSaving[key]}
+                                    disabled={!!signRowSaving[key] || isConfigReadOnly}
                                     onChange={(e) => {
+                                      if (isConfigReadOnly) return
                                       const v = Number(e.target.value)
                                       setSignCustomerGroupItems((prev) => prev.map((r, i) => (i === idx ? { ...r, in_group: v } : r)))
                                       void saveSignCustomerGroupRow({ ...it, in_group: v }, v)
@@ -5808,7 +5851,7 @@ function App() {
                   </div>
                   <button
                     onClick={() => {
-                      void window.open(`${API_BASE}/api/sales-daily-leads/summary/monthly/export.csv?all=1`, '_blank')
+                      void window.open(appendPortalToken(`${API_BASE}/api/sales-daily-leads/summary/monthly/export.csv?all=1`), '_blank')
                     }}
                     className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm"
                   >
@@ -5938,9 +5981,11 @@ function App() {
                 type="button"
                 onClick={() => {
                   void window.open(
-                    `${API_BASE}/api/sales-daily-leads/conversion/monthly/export.csv?mode=${encodeURIComponent(
-                      salesConversionMode
-                    )}`,
+                    appendPortalToken(
+                      `${API_BASE}/api/sales-daily-leads/conversion/monthly/export.csv?mode=${encodeURIComponent(
+                        salesConversionMode
+                      )}`
+                    ),
                     '_blank'
                   )
                 }}

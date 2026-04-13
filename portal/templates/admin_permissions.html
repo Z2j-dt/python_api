@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>子模块权限配置 - 数据中台门户</title>
+    <link rel="icon" href="{{ url_for('static', filename='img/大同.png') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ build_version }}">
+    <style>
+        .admin-wrap { max-width: 960px; margin: 0 auto; padding: 1.5rem; }
+        .admin-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1.25rem; }
+        .admin-head h1 { font-size: 1.25rem; margin: 0; }
+        .admin-toolbar { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem; }
+        .admin-toolbar label { font-weight: 600; }
+        .admin-toolbar select { min-width: 200px; padding: 0.35rem 0.5rem; }
+        .admin-banner { padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; background: #fff3cd; color: #664d03; border: 1px solid #ffecb5; }
+        .admin-banner.err { background: #f8d7da; color: #58151c; border-color: #f1aeb5; }
+        .perm-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        .perm-table th, .perm-table td { border: 1px solid #dee2e6; padding: 0.5rem 0.65rem; text-align: left; }
+        .perm-table th { background: #f8f9fa; }
+        .perm-table .grp { background: #eef2f7; font-weight: 600; }
+        .perm-table select { width: 100%; max-width: 140px; }
+        .admin-actions { margin-top: 1rem; display: flex; gap: 0.75rem; align-items: center; }
+        .btn { padding: 0.45rem 1rem; border-radius: 6px; border: 1px solid #0d6efd; background: #0d6efd; color: #fff; cursor: pointer; font-size: 0.9rem; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-secondary { background: #fff; color: #333; border-color: #ccc; text-decoration: none; display: inline-block; }
+        .btn-danger { background: #dc3545; border-color: #dc3545; color: #fff; }
+        .btn-danger:hover { background: #bb2d3b; border-color: #b02a37; }
+        .msg { font-size: 0.9rem; color: #198754; }
+        .msg.bad { color: #b02a37; }
+    </style>
+</head>
+<body>
+    <div class="admin-wrap">
+        <div class="admin-head">
+            <h1>子模块权限配置</h1>
+            <a class="btn btn-secondary" href="{{ url_for('index') }}">返回门户</a>
+        </div>
+        {% if not from_db %}
+        <div class="admin-banner err">当前未启用 <code>PORTAL_PERMISSION_FROM_DB</code>，无法保存子模块权限。请在环境变量中设为 <code>1</code> 并重启门户。</div>
+        {% endif %}
+        {% if not auth_from_db %}
+        <div class="admin-banner">登录账号仍由 <code>users.json</code> / auth_config 维护。若设置 <code>PORTAL_AUTH_FROM_DB=1</code> 并建表 <code>portal_user</code>，可在此「新建账号」，并不再依赖 users.json。</div>
+        {% endif %}
+        {% if auth_from_db %}
+        <h2 style="font-size:1rem;margin:0 0 0.5rem;">新建账号（portal_user）</h2>
+        <div class="admin-toolbar" style="margin-bottom:1.25rem;">
+            <input type="text" id="new-username" placeholder="登录名" style="padding:0.35rem 0.5rem;min-width:140px;" autocomplete="username" />
+            <input type="password" id="new-password" placeholder="密码" style="padding:0.35rem 0.5rem;min-width:140px;" autocomplete="new-password" />
+            <label style="display:flex;align-items:center;gap:0.35rem;"><input type="checkbox" id="new-super" /> 超级用户</label>
+            <button type="button" class="btn" id="btn-create-user">创建</button>
+        </div>
+        <div id="create-msg" class="msg" style="min-height:1.25rem;margin-bottom:0.75rem;"></div>
+        {% endif %}
+        <h2 style="font-size:1rem;margin:0 0 0.5rem;">子模块权限（portal_user_resource）</h2>
+        <div class="admin-toolbar">
+            <label for="user-select">选择账号</label>
+            <select id="user-select">
+                <option value="">加载中…</option>
+            </select>
+            {% if auth_from_db %}
+            <button type="button" class="btn btn-danger" id="btn-delete-user" disabled>删除账号</button>
+            {% endif %}
+            <span id="user-hint" style="font-size:0.85rem;color:#666;"></span>
+        </div>
+        <div id="status-msg" class="msg" style="min-height:1.5rem;"></div>
+        <table class="perm-table" id="perm-table">
+            <thead>
+                <tr><th>模块</th><th>resource_id</th><th>权限</th></tr>
+            </thead>
+            <tbody id="perm-tbody"></tbody>
+        </table>
+        <div class="admin-actions">
+            <button type="button" class="btn" id="btn-save" {% if not from_db %}disabled{% endif %}>保存</button>
+        </div>
+    </div>
+    <script type="application/json" id="admin-groups">{{ resource_groups|tojson }}</script>
+    <script>
+(function () {
+    var groups = [];
+    try {
+        var el = document.getElementById("admin-groups");
+        groups = JSON.parse(el && el.textContent ? el.textContent : "[]");
+    } catch (e) { groups = []; }
+    var fromDb = {{ from_db|tojson }};
+    var authFromDb = {{ auth_from_db|tojson }};
+    var tbody = document.getElementById("perm-tbody");
+    var userSelect = document.getElementById("user-select");
+    var btnSave = document.getElementById("btn-save");
+    var statusMsg = document.getElementById("status-msg");
+    var userHint = document.getElementById("user-hint");
+    var btnDelete = document.getElementById("btn-delete-user");
+
+    function rowHtml(groupName, rid, label) {
+        var tr = document.createElement("tr");
+        tr.dataset.rid = rid;
+        tr.innerHTML =
+            "<td>" + escapeHtml(label) + "</td>" +
+            "<td><code style=\"font-size:0.8rem\">" + escapeHtml(rid) + "</code></td>" +
+            "<td><select class=\"perm-sel\" data-rid=\"" + escapeAttr(rid) + "\">" +
+            "<option value=\"\">无</option>" +
+            "<option value=\"read\">只读</option>" +
+            "<option value=\"write\">可编辑</option>" +
+            "</select></td>";
+        return tr;
+    }
+    function groupRow(title) {
+        var tr = document.createElement("tr");
+        tr.className = "grp";
+        tr.innerHTML = "<td colspan=\"3\">" + escapeHtml(title) + "</td>";
+        return tr;
+    }
+    function escapeHtml(s) {
+        var d = document.createElement("div");
+        d.textContent = s;
+        return d.innerHTML;
+    }
+    function escapeAttr(s) {
+        return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+    }
+
+    groups.forEach(function (g) {
+        var title = g[0];
+        var items = g[1] || [];
+        tbody.appendChild(groupRow(title));
+        items.forEach(function (pair) {
+            tbody.appendChild(rowHtml(title, pair[0], pair[1]));
+        });
+    });
+
+    function setStatus(text, bad) {
+        statusMsg.textContent = text || "";
+        statusMsg.className = "msg" + (bad ? " bad" : "");
+    }
+
+    function collectResources() {
+        var out = {};
+        tbody.querySelectorAll("select.perm-sel").forEach(function (sel) {
+            var rid = sel.getAttribute("data-rid");
+            var v = (sel.value || "").trim();
+            if (v === "read" || v === "write") out[rid] = v;
+        });
+        return out;
+    }
+
+    function fillResources(res) {
+        var map = res || {};
+        tbody.querySelectorAll("select.perm-sel").forEach(function (sel) {
+            var rid = sel.getAttribute("data-rid");
+            var v = map[rid] || "";
+            if (v !== "read" && v !== "write") v = "";
+            sel.value = v;
+        });
+    }
+
+    userSelect.addEventListener("change", function () {
+        var u = (userSelect.value || "").trim();
+        userHint.textContent = "";
+        setStatus("");
+        if (btnDelete) btnDelete.disabled = true;
+        if (!u) {
+            fillResources({});
+            return;
+        }
+        var opt = userSelect.options[userSelect.selectedIndex];
+        if (opt && opt.dataset.superuser === "1") {
+            userHint.textContent = "该账号为超级用户，登录时拥有全部权限，无需配置表数据。";
+            fillResources({});
+            tbody.querySelectorAll("select.perm-sel").forEach(function (s) { s.disabled = true; });
+            btnSave.disabled = true;
+            return;
+        }
+        tbody.querySelectorAll("select.perm-sel").forEach(function (s) { s.disabled = !fromDb; });
+        btnSave.disabled = !fromDb;
+        if (btnDelete && authFromDb) btnDelete.disabled = false;
+        fetch("/admin/api/permissions/users/" + encodeURIComponent(u))
+            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+            .then(function (x) {
+                if (!x.ok) {
+                    setStatus(x.j.error || "加载失败", true);
+                    fillResources({});
+                    return;
+                }
+                fillResources(x.j.resources || {});
+            })
+            .catch(function () {
+                setStatus("网络错误", true);
+            });
+    });
+
+    btnSave.addEventListener("click", function () {
+        var u = (userSelect.value || "").trim();
+        if (!u) return;
+        setStatus("保存中…");
+        fetch("/admin/api/permissions/users/" + encodeURIComponent(u), {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ resources: collectResources() })
+        })
+            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+            .then(function (x) {
+                if (!x.ok) {
+                    setStatus(x.j.error || "保存失败", true);
+                    return;
+                }
+                setStatus("已保存", false);
+            })
+            .catch(function () { setStatus("网络错误", true); });
+    });
+
+    function loadUsers() {
+        fetch("/admin/api/permissions/users")
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                userSelect.innerHTML = "<option value=\"\">— 请选择 —</option>";
+                (data.users || []).forEach(function (u) {
+                    var o = document.createElement("option");
+                    o.value = u.username;
+                    o.textContent = u.username + (u.is_superuser ? "（超级用户）" : "");
+                    if (u.is_superuser) o.dataset.superuser = "1";
+                    userSelect.appendChild(o);
+                });
+            })
+            .catch(function () {
+                userSelect.innerHTML = "<option value=\"\">加载失败</option>";
+            });
+    }
+    loadUsers();
+
+    if (btnDelete && authFromDb) {
+        btnDelete.addEventListener("click", function () {
+            var u = (userSelect.value || "").trim();
+            if (!u) return;
+            var opt = userSelect.options[userSelect.selectedIndex];
+            if (opt && opt.dataset.superuser === "1") return;
+            if (!window.confirm("确定删除账号：" + u + " ？\n\n该操作不可恢复。")) return;
+            setStatus("删除中…");
+            btnDelete.disabled = true;
+            fetch("/admin/api/users/" + encodeURIComponent(u), { method: "DELETE" })
+                .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+                .then(function (x) {
+                    if (!x.ok) {
+                        setStatus(x.j.error || "删除失败", true);
+                        btnDelete.disabled = false;
+                        return;
+                    }
+                    setStatus("已删除：" + u, false);
+                    // 刷新用户列表并清空当前选择
+                    loadUsers();
+                    userSelect.value = "";
+                    fillResources({});
+                    userHint.textContent = "";
+                    tbody.querySelectorAll("select.perm-sel").forEach(function (s) { s.disabled = !fromDb; });
+                    btnSave.disabled = !fromDb;
+                })
+                .catch(function () {
+                    setStatus("网络错误", true);
+                    btnDelete.disabled = false;
+                });
+        });
+    }
+
+    var btnCreate = document.getElementById("btn-create-user");
+    var createMsg = document.getElementById("create-msg");
+    if (btnCreate && authFromDb) {
+        btnCreate.addEventListener("click", function () {
+            var nu = (document.getElementById("new-username") && document.getElementById("new-username").value || "").trim();
+            var np = (document.getElementById("new-password") && document.getElementById("new-password").value) || "";
+            var ns = document.getElementById("new-super") && document.getElementById("new-super").checked;
+            if (!nu || !np) {
+                if (createMsg) { createMsg.textContent = "请填写登录名和密码"; createMsg.className = "msg bad"; }
+                return;
+            }
+            if (createMsg) { createMsg.textContent = "创建中…"; createMsg.className = "msg"; }
+            fetch("/admin/api/users", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username: nu, password: np, is_superuser: ns })
+            })
+                .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+                .then(function (x) {
+                    if (!x.ok) {
+                        if (createMsg) { createMsg.textContent = x.j.error || "失败"; createMsg.className = "msg bad"; }
+                        return;
+                    }
+                    if (createMsg) { createMsg.textContent = "已创建"; createMsg.className = "msg"; }
+                    if (document.getElementById("new-username")) document.getElementById("new-username").value = "";
+                    if (document.getElementById("new-password")) document.getElementById("new-password").value = "";
+                    if (document.getElementById("new-super")) document.getElementById("new-super").checked = false;
+                    loadUsers();
+                })
+                .catch(function () {
+                    if (createMsg) { createMsg.textContent = "网络错误"; createMsg.className = "msg bad"; }
+                });
+        });
+    }
+})();
+    </script>
+</body>
+</html>
