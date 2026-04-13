@@ -112,7 +112,7 @@
                 <div class="nav-group">
                     <button class="nav-group-header collapsed" type="button" data-group="advisor_center" aria-expanded="false">
                         <span class="nav-group-chevron">▸</span>
-                        <span class="nav-group-text">投顾中心</span>
+                        <span class="nav-group-text">投顾&销售中心</span>
                     </button>
                     <div class="nav-group-body" data-group-body="advisor_center">
                         {% if (resource_access is not none and 'sr_api:config_stock_position' in resource_access) or (resource_access is none and 'sr_api' in allowed_modules) %}
@@ -349,15 +349,15 @@
                     } else if (view === "config_staff") {
                         title = "直销中心-承接人员配置";
                     } else if (view === "config_stock_position") {
-                        title = "投顾中心-产品净值";
+                        title = "投顾&销售中心-产品净值";
                     } else if (view === "config_sales_order") {
-                        title = "投顾中心-销售订单配置";
+                        title = "投顾&销售中心-销售订单配置";
                     } else if (view === "config_sign_customer_group") {
-                        title = "投顾中心-签约客户群管理配置";
+                        title = "投顾&销售中心-签约客户群管理配置";
                     } else if (view === "config_activity_channel") {
-                        title = "投顾中心-活动渠道字典配置";
+                        title = "投顾&销售中心-活动渠道字典配置";
                     } else if (view === "sales_daily_leads") {
-                        title = "投顾中心-销售每日进线数据表";
+                        title = "投顾&销售中心-销售每日进线数据表";
                     } else if (view === "config_opportunity_lead") {
                         title = "客户中心-商机线索配置";
                     } else if (view === "config_morning_hot_stock_track") {

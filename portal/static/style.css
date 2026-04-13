@@ -205,7 +205,8 @@ body {
     padding-left: 18px;
     position: relative;
     border-left: none;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
+    font-family: "SimSun", "Songti SC", "STSong", serif;
 }
 .nav-item-child::before {
     content: "";

@@ -127,7 +127,7 @@ ADMIN_RESOURCE_GROUPS: List[Tuple[str, List[Tuple[str, str]]]] = [
         ],
     ),
     (
-        "投顾中心",
+        "投顾&销售中心",
         [
             ("sr_api:config_stock_position", "产品净值"),
             ("sr_api:config_sales_order", "销售订单配置"),

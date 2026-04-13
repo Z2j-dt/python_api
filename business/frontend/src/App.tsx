@@ -2580,7 +2580,7 @@ function App() {
       <header className="border-b border-slate-200 bg-white/95 backdrop-blur sticky top-0 z-10">
         <div className="max-w-[1600px] mx-auto px-6 py-4 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-xl font-semibold text-sky-600">
+            <h1 className="module-page-title">
               {pageTitle}
             </h1>
             {!isConfigMode ? (
