@@ -196,7 +196,7 @@
       <p><strong>说明</strong></p>
       <ul>
         <li>仅支持 <code>SELECT</code> / <code>WITH</code> 查询（不允许多语句、写入语句）。</li>
-        <li>点击“预览”展示前 20 行；点击“下载 Excel”导出全量结果。</li>
+        <li>点击“预览”展示前 500 行；点击“下载 Excel”导出全量结果。</li>
         <li>右侧为 StarRocks 库 / 表 / 视图目录，点击可快速生成查询 SQL。</li>
       </ul>
     </div>
@@ -208,7 +208,7 @@
           placeholder="例如：SELECT * FROM your_table WHERE dt='2026-03-12' ORDER BY id DESC"></textarea>
       </div>
       <div style="display:flex; gap:10px; flex-wrap:wrap;">
-        <button type="button" class="btn-primary" id="btnPreview">预览（20 行）</button>
+        <button type="button" class="btn-primary" id="btnPreview">预览（500 行）</button>
         <button type="button" class="btn-primary" id="btnDownload">下载 Excel（全量）</button>
       </div>
     </div>
@@ -297,7 +297,7 @@
   function setBusy(b){
     btnPreview.disabled = b;
     btnDownload.disabled = b;
-    btnPreview.textContent = b ? '处理中...' : '预览（20 行）';
+    btnPreview.textContent = b ? '处理中...' : '预览（500 行）';
     btnDownload.textContent = b ? '处理中...' : '下载 Excel（全量）';
   }
 
@@ -504,7 +504,7 @@
         var objType = (link.getAttribute('data-type') || '').toUpperCase();
         if (!dbName || !objName || !sqlEl) return;
         var fullName = '`' + dbName + '`.`' + objName + '`';
-        var tmpl = 'SELECT *\nFROM ' + fullName + '\nLIMIT 20;';
+        var tmpl = 'SELECT *\nFROM ' + fullName + '\nLIMIT 500;';
         if (objType === 'VIEW') {
           tmpl = '-- 视图查询示例\n' + tmpl;
         } else {
@@ -533,7 +533,7 @@
     }).then(function(r){ return r.json(); })
       .then(function(data){
         if(!data || !data.success){ throw new Error((data && data.message) || '预览失败'); }
-        resEl.innerHTML = '预览成功：返回 ' + (data.rows ? data.rows.length : 0) + ' 行（最多 20 行）。';
+        resEl.innerHTML = '预览成功：返回 ' + (data.rows ? data.rows.length : 0) + ' 行（最多 500 行）。';
         resEl.className = 'result-box success';
         resEl.style.display = 'block';
         renderTable(data.columns || [], data.rows || []);

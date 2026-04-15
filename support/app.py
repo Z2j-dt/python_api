@@ -288,6 +288,7 @@ def _get_starrocks_meta_conn():
 
 _SQL_FORBIDDEN = re.compile(r"\b(insert|update|delete|drop|alter|create|truncate|grant|revoke|set|use|call)\b", re.I)
 _SQL_HAS_LIMIT = re.compile(r"\blimit\s+\d+", re.I)
+_SQL_PREVIEW_LIMIT = 500
 
 
 def _normalize_sql(sql: str) -> str:
@@ -395,11 +396,11 @@ def sql_to_excel_preview():
         # 校验错误：返回 200 + JSON，避免上游改成 HTML 错误页
         return jsonify({"success": False, "message": str(e)})
     s = raw_sql.rstrip().rstrip(";")
-    # 若原 SQL 已带 LIMIT，则直接按原 SQL 执行；否则追加 LIMIT 20 作为预览
+    # 若原 SQL 已带 LIMIT，则直接按原 SQL 执行；否则追加 LIMIT 500 作为预览
     if _SQL_HAS_LIMIT.search(s):
         preview_sql = s
     else:
-        preview_sql = s + " LIMIT 20"
+        preview_sql = s + f" LIMIT {_SQL_PREVIEW_LIMIT}"
     try:
         conn = _get_starrocks_conn()
         cur = conn.cursor()
