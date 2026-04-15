@@ -235,6 +235,162 @@ h1 i {
     color: var(--dm-text);
 }
 
+/* 数据字典暗色精修：目录树 + 搜索区 + 结果卡片 + 字段表 */
+[data-theme="dark"] .dict-tree-title,
+[data-theme="dark"] .meta-layer-name,
+[data-theme="dark"] .search-type-label,
+[data-theme="dark"] .stats-title,
+[data-theme="dark"] .name-text,
+[data-theme="dark"] .info-value,
+[data-theme="dark"] .fields-title,
+[data-theme="dark"] .field-name-text {
+    color: #e2e8f0;
+}
+
+[data-theme="dark"] .dict-tree-subtitle,
+[data-theme="dark"] .dict-tree-status,
+[data-theme="dark"] .meta-layer-count,
+[data-theme="dark"] .search-info,
+[data-theme="dark"] .search-meta,
+[data-theme="dark"] .field-label,
+[data-theme="dark"] .comment-label,
+[data-theme="dark"] .info-label,
+[data-theme="dark"] .stats-title,
+[data-theme="dark"] .fields-count {
+    color: #94a3b8;
+}
+
+[data-theme="dark"] #metaTreeSearch,
+[data-theme="dark"] #tableSearch {
+    background: #0b1220;
+    color: #e5e7eb;
+    border-color: #334155;
+}
+
+[data-theme="dark"] #metaTreeSearch::placeholder,
+[data-theme="dark"] #tableSearch::placeholder {
+    color: #64748b;
+}
+
+[data-theme="dark"] .search-type-buttons {
+    background: #0f172a;
+    border: 1px solid #334155;
+}
+
+[data-theme="dark"] .search-type-btn {
+    color: #cbd5e1;
+}
+
+[data-theme="dark"] .search-type-btn:hover {
+    background: #1e293b;
+    color: #dbeafe;
+}
+
+[data-theme="dark"] .search-type-btn.active {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    color: #eff6ff;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+}
+
+[data-theme="dark"] .meta-layer-header:hover,
+[data-theme="dark"] .meta-table-link:hover,
+[data-theme="dark"] .table-card:hover,
+[data-theme="dark"] .fields-table tbody tr:hover {
+    background: #1e293b;
+    border-color: #475569;
+}
+
+[data-theme="dark"] .meta-table-link {
+    color: #cbd5e1;
+}
+
+[data-theme="dark"] .meta-table-name {
+    color: #60a5fa;
+}
+
+[data-theme="dark"] .meta-table-comment,
+[data-theme="dark"] .field-type,
+[data-theme="dark"] .no-comment {
+    color: #94a3b8;
+}
+
+[data-theme="dark"] .search-container,
+[data-theme="dark"] .search-box,
+[data-theme="dark"] .table-card,
+[data-theme="dark"] .table-info-card,
+[data-theme="dark"] .fields-container {
+    box-shadow: 0 8px 24px rgba(2, 6, 23, 0.35);
+}
+
+[data-theme="dark"] .layer-filter-btn {
+    background: #111827;
+    border-color: #334155;
+    color: #cbd5e1;
+}
+
+[data-theme="dark"] .layer-filter-btn:hover {
+    background: #1e293b;
+    border-color: #475569;
+}
+
+[data-theme="dark"] .layer-filter-btn.active {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: #eff6ff;
+}
+
+[data-theme="dark"] .result-summary {
+    color: #cbd5e1;
+}
+
+[data-theme="dark"] .field-match-item,
+[data-theme="dark"] .field-comment,
+[data-theme="dark"] .table-comment {
+    background: #0f172a;
+    color: #d1d5db;
+    border-left-color: #3b82f6;
+}
+
+[data-theme="dark"] .fields-table thead {
+    background: #1e293b;
+}
+
+[data-theme="dark"] .fields-table th {
+    color: #cbd5e1;
+    border-bottom-color: #334155;
+}
+
+[data-theme="dark"] .fields-table td,
+[data-theme="dark"] .fields-table tbody tr {
+    color: #e5e7eb;
+    border-bottom-color: #334155;
+}
+
+[data-theme="dark"] .fields-table tbody tr.even {
+    background: #0f172a;
+}
+
+[data-theme="dark"] .fields-table tbody tr.odd {
+    background: #111827;
+}
+
+[data-theme="dark"] .index-badge {
+    background: #1e293b;
+    color: #cbd5e1;
+}
+
+[data-theme="dark"] .simple-back-button {
+    background: #111827;
+    border-color: #334155;
+    color: #cbd5e1;
+}
+
+[data-theme="dark"] .simple-back-button:hover {
+    background: #1e293b;
+    border-color: #475569;
+    color: #e2e8f0;
+}
+
 /* 首页样式 */
 .info-box {
     background: linear-gradient(120deg, #fdfbfb 0%, #ebedee 100%);

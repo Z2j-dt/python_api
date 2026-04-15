@@ -3,6 +3,191 @@
 {% block title %}数据导出{% endblock %}
 
 {% block content %}
+<style>
+  .meta-panel {
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    background: #fff;
+    padding: 10px 12px;
+    max-height: 380px;
+    overflow: auto;
+  }
+
+  .meta-db-toggle {
+    cursor: pointer;
+    font-weight: 700;
+    color: #0f172a;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .meta-db-chevron {
+    display: inline-block;
+    width: 10px;
+    color: #64748b;
+  }
+
+  .meta-type-label {
+    margin: 2px 0;
+    color: #64748b;
+    font-size: 12px;
+  }
+
+  .meta-item {
+    color: #2563eb;
+    text-decoration: none;
+  }
+
+  .meta-item:hover {
+    text-decoration: underline;
+  }
+
+  .meta-item-comment {
+    color: #9ca3af;
+  }
+
+  .preview-wrap {
+    margin-top: 14px;
+    overflow: auto;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    background: #fff;
+    display: none;
+  }
+
+  .preview-th {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f8fafc;
+    color: #334155;
+    white-space: nowrap;
+    font-weight: 700;
+  }
+
+  .preview-td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #eef2f7;
+    white-space: nowrap;
+    max-width: 420px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    color: #0f172a;
+  }
+
+  #previewTable tbody tr:hover .preview-td {
+    background: #f8fafc;
+  }
+
+  [data-theme="dark"] #sql,
+  [data-theme="dark"] #metaSearch,
+  [data-theme="dark"] #cellModalText {
+    background: #0b1220 !important;
+    color: #e5e7eb !important;
+    border-color: #334155 !important;
+  }
+
+  [data-theme="dark"] #metaPanel,
+  [data-theme="dark"] #tableWrap,
+  [data-theme="dark"] #cellModal > div {
+    background: #111827 !important;
+    border-color: #334155 !important;
+    color: #e5e7eb !important;
+  }
+
+  [data-theme="dark"] #cellModal > div > div:first-child {
+    background: #1f2937 !important;
+    border-bottom-color: #334155 !important;
+  }
+
+  [data-theme="dark"] #cellModalTitle,
+  [data-theme="dark"] #metaPanel strong {
+    color: #e5e7eb !important;
+  }
+
+  [data-theme="dark"] #cellModalHint,
+  [data-theme="dark"] #metaStatus {
+    color: #94a3b8 !important;
+  }
+
+  [data-theme="dark"] #tableWrap table,
+  [data-theme="dark"] #previewTable {
+    color: #e5e7eb !important;
+  }
+
+  [data-theme="dark"] #previewTable th {
+    background: #1f2937 !important;
+    color: #cbd5e1 !important;
+    border-bottom-color: #334155 !important;
+  }
+
+  [data-theme="dark"] #previewTable td {
+    border-bottom-color: #334155 !important;
+    color: #e5e7eb !important;
+    background: transparent !important;
+  }
+
+  [data-theme="dark"] #metaTree li {
+    color: #cbd5e1 !important;
+  }
+
+  [data-theme="dark"] #metaTree a.meta-item {
+    color: #60a5fa !important;
+  }
+
+  [data-theme="dark"] #metaTree .chevron {
+    color: #94a3b8 !important;
+  }
+
+  [data-theme="dark"] .meta-db-toggle {
+    color: #e5e7eb !important;
+  }
+
+  [data-theme="dark"] .meta-db-chevron {
+    color: #94a3b8 !important;
+  }
+
+  [data-theme="dark"] .meta-type-label {
+    color: #94a3b8 !important;
+  }
+
+  [data-theme="dark"] .meta-item {
+    color: #60a5fa !important;
+  }
+
+  [data-theme="dark"] .meta-item-comment {
+    color: #94a3b8 !important;
+  }
+
+  [data-theme="dark"] .result-box.success {
+    background: rgba(30, 58, 138, 0.22) !important;
+    border-left-color: #3b82f6 !important;
+    color: #dbeafe !important;
+  }
+
+  [data-theme="dark"] .error-box {
+    background: rgba(127, 29, 29, 0.25) !important;
+    border-left-color: #ef4444 !important;
+    color: #fecaca !important;
+  }
+
+  [data-theme="dark"] .preview-th {
+    background: #1f2937 !important;
+    color: #cbd5e1 !important;
+    border-bottom-color: #334155 !important;
+  }
+
+  [data-theme="dark"] .preview-td {
+    color: #e5e7eb !important;
+    border-bottom-color: #334155 !important;
+  }
+
+  [data-theme="dark"] #previewTable tbody tr:hover .preview-td {
+    background: #1e293b !important;
+  }
+</style>
 <h1>数据导出（StarRocks SQL）</h1>
 
 <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap; margin-bottom:16px;">
@@ -30,7 +215,7 @@
   </div>
 
   <div style="flex:2 1 260px; min-width:260px;">
-    <div id="metaPanel" style="border:1px solid #e5e7eb; border-radius:10px; background:#fff; padding:10px 12px; max-height:380px; overflow:auto;">
+    <div id="metaPanel" class="meta-panel">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
         <strong>库 / 表 / 视图 目录</strong>
         <button type="button" id="btnReloadMeta" class="btn-secondary" style="padding:2px 8px; font-size:12px;">刷新</button>
@@ -47,7 +232,7 @@
 <div id="error" class="error-box" style="display:none;"></div>
 <div id="result" class="result-box" style="display:none;"></div>
 
-<div id="tableWrap" style="margin-top: 14px; overflow:auto; border:1px solid #e5e7eb; border-radius: 10px; background:#fff; display:none;">
+<div id="tableWrap" class="preview-wrap">
   <table id="previewTable" style="width:100%; border-collapse: collapse; font-size: 13px;"></table>
 </div>
 
@@ -209,8 +394,8 @@
       var dbId = 'db-' + encodeURIComponent(db);
       var defaultExpanded = !!kw; // 有关键字时默认展开，直接看命中项
       html += '<li style="margin-bottom:4px;">' +
-        '<div data-role="db-toggle" data-db="'+ escapeHtml(db) +'" style="cursor:pointer; font-weight:600; color:#111827; display:flex; align-items:center;">' +
-        '<span class="chevron" data-db="'+ escapeHtml(db) +'" style="display:inline-block; width:10px; margin-right:4px;">' + (defaultExpanded ? '▼' : '▶') + '</span>' +
+        '<div data-role="db-toggle" data-db="'+ escapeHtml(db) +'" class="meta-db-toggle">' +
+        '<span class="chevron meta-db-chevron" data-db="'+ escapeHtml(db) +'">' + (defaultExpanded ? '▼' : '▶') + '</span>' +
         '<span title="'+ escapeHtml(db) +'">'+ escapeHtml(db) +'</span>' +
         '</div>' +
         '<ul id="'+ dbId +'" style="list-style:none; margin:2px 0 4px 14px; padding:0; display:' + (defaultExpanded ? 'block' : 'none') + ';">';
@@ -219,7 +404,7 @@
         var list = kind === 'tables' ? tablesToShow : viewsToShow;
         if (!list || !list.length) return;
         var label = kind === 'tables' ? '表' : '视图';
-        html += '<li style="margin:2px 0; color:#6b7280;">'+ label +'</li>';
+        html += '<li class="meta-type-label">'+ label +'</li>';
         list.sort(function(a,b){ return a.name.localeCompare(b.name); }).forEach(function(it){
           var fullName = db + '.' + it.name;
           var tip = fullName + (it.comment ? (' - ' + it.comment) : '');
@@ -229,9 +414,9 @@
             'data-name="'+ escapeHtml(it.name) +'" ' +
             'data-type="'+ escapeHtml(it.type) +'" ' +
             'title="'+ escapeHtml(tip) +'" ' +
-            'style="color:#2563eb; text-decoration:none;">' +
+            '>' +
             escapeHtml(it.name) +
-            (it.comment ? '<span style="color:#9ca3af;">（'+ escapeHtml(it.comment) +'）</span>' : '') +
+            (it.comment ? '<span class="meta-item-comment">（'+ escapeHtml(it.comment) +'）</span>' : '') +
             '</a>' +
             '</li>';
         });
@@ -265,7 +450,7 @@
 
   function renderTable(cols, rows){
     var thead = '<thead><tr>' + cols.map(function(c){
-      return '<th style="text-align:left; padding:8px 10px; border-bottom:1px solid #e5e7eb; background:#f9fafb; white-space:nowrap;">' + (c||'') + '</th>';
+      return '<th class="preview-th">' + (c||'') + '</th>';
     }).join('') + '</tr></thead>';
     var tbody = '<tbody>' + rows.map(function(r){
       return '<tr>' + cols.map(function(c){
@@ -273,7 +458,7 @@
         if (v === null || v === undefined) v = '';
         // 通过 data-full 存放完整值，点击可弹窗复制（避免悬停 tooltip 过长/不可选中）
         var full = String(v);
-        return '<td class="cell-ellipsis" style="padding:8px 10px; border-bottom:1px solid #f1f5f9; white-space:nowrap; max-width:380px; overflow:hidden; text-overflow:ellipsis; cursor:pointer;" ' +
+        return '<td class="cell-ellipsis preview-td" ' +
           'title="点击查看完整值并复制" data-col="'+ escapeHtml(c) +'" data-full="'+ escapeHtml(full) +'">' + escapeHtml(full) + '</td>';
       }).join('') + '</tr>';
     }).join('') + '</tbody>';

@@ -1,7 +1,7 @@
 CREATE MATERIALIZED VIEW `mv_tag_customer_permission` (`tag_name`, `customer_accounts`)
 COMMENT "客户标签"
 DISTRIBUTED BY RANDOM
-REFRESH ASYNC START("2026-03-18 06:00:00") EVERY(INTERVAL 1 DAY)
+REFRESH ASYNC START("2026-04-15 06:00:00") EVERY(INTERVAL 1 DAY)
 PROPERTIES (
   "replicated_storage" = "true",
   "replication_num" = "3",
@@ -92,6 +92,12 @@ tags AS (
   FROM tp
   WHERE is_conform_xkcrj_202603 = '1'
     AND MOD(CRC32(CAST(customer_account AS VARCHAR)), 2) = 1
+
+  UNION ALL
+  SELECT customer_account, 'T0量化潜客'
+  FROM tp
+  WHERE is_T0_potc_4and5star = '1'
+     OR is_T0_potc_5stocks = '1'
 
   UNION ALL SELECT customer_account, '空户_2026' FROM tp WHERE is_empty_2026 = 1
   UNION ALL SELECT customer_account, '已购短线王' FROM tp WHERE is_purchased_dxw = 1
