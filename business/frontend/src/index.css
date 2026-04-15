@@ -3,11 +3,13 @@
 @layer base {
   body {
     font-family: "SimSun", "Songti SC", "STSong", serif !important;
+    font-weight: 550 !important;
   }
 
   #root,
   #root * {
     font-family: "SimSun", "Songti SC", "STSong", serif !important;
+    font-weight: 550 !important;
   }
 }
 

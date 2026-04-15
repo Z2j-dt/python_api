@@ -15,7 +15,7 @@ AS
 --  重复添加
 SELECT 
     tmp.tag_name,
-    GROUP_CONCAT(DISTINCT tmp.union_id SEPARATOR ',') AS union_id
+    ARRAY_AGG(DISTINCT tmp.union_id) AS union_id
 FROM (
     -- 重复添加
     SELECT union_id, '重复添加' AS tag_name
@@ -40,7 +40,7 @@ FROM (
     SELECT union_id, '长期不互动' AS tag_name
     FROM etl_db.tag_wxcust_profit
     WHERE `30d_wc_interact_cnt` = 0
-
+    AND `is_add_sales` = '1'
     UNION ALL
     -- 已开口
     SELECT union_id, '已开口' AS tag_name

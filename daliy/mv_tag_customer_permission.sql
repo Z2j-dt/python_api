@@ -118,7 +118,12 @@ tags AS (
 )
 SELECT
   tag_name,
-  GROUP_CONCAT(DISTINCT customer_account ORDER BY customer_account ASC SEPARATOR ',') AS customer_accounts
+  ARRAY_AGG(DISTINCT customer_account) AS  customer_accounts
 FROM tags
 GROUP BY tag_name
 ORDER BY tag_name ASC;
+
+
+
+
+

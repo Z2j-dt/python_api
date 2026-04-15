@@ -50,6 +50,27 @@
 <div id="tableWrap" style="margin-top: 14px; overflow:auto; border:1px solid #e5e7eb; border-radius: 10px; background:#fff; display:none;">
   <table id="previewTable" style="width:100%; border-collapse: collapse; font-size: 13px;"></table>
 </div>
+
+<!-- 单元格详情弹窗：用于复制超长字段 -->
+<div id="cellModalMask" style="display:none; position:fixed; inset:0; background:rgba(17,24,39,.55); z-index:9999;"></div>
+<div id="cellModal" style="display:none; position:fixed; inset:0; z-index:10000; padding:24px;">
+  <div style="max-width:980px; margin:0 auto; background:#fff; border-radius:12px; border:1px solid #e5e7eb; box-shadow: 0 12px 30px rgba(0,0,0,.18); overflow:hidden;">
+    <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 14px; background:#f9fafb; border-bottom:1px solid #e5e7eb;">
+      <div style="min-width:0;">
+        <div id="cellModalTitle" style="font-weight:700; color:#111827; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
+        <div id="cellModalHint" style="font-size:12px; color:#6b7280; margin-top:2px;">可滚动查看，支持一键复制完整内容</div>
+      </div>
+      <div style="display:flex; gap:8px; flex-shrink:0;">
+        <button type="button" class="btn-secondary" id="btnCopyCell">复制</button>
+        <button type="button" class="btn-secondary" id="btnCloseCell">关闭</button>
+      </div>
+    </div>
+    <div style="padding:12px 14px;">
+      <textarea id="cellModalText" readonly spellcheck="false"
+        style="width:100%; height:360px; resize:vertical; padding:10px; border:1px solid #e5e7eb; border-radius:10px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; white-space:pre; overflow:auto;"></textarea>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -68,6 +89,15 @@
   var metaSearchEl = document.getElementById('metaSearch');
   var btnReloadMeta = document.getElementById('btnReloadMeta');
   var _metaRaw = [];
+
+  // 单元格详情弹窗
+  var cellModalMask = document.getElementById('cellModalMask');
+  var cellModal = document.getElementById('cellModal');
+  var cellModalTitle = document.getElementById('cellModalTitle');
+  var cellModalText = document.getElementById('cellModalText');
+  var btnCopyCell = document.getElementById('btnCopyCell');
+  var btnCloseCell = document.getElementById('btnCloseCell');
+  var _cellModalValue = '';
 
   function showError(msg){
     errEl.textContent = msg || '未知错误';
@@ -88,6 +118,54 @@
 
   function escapeHtml(str){
     return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  function openCellModal(opts){
+    opts = opts || {};
+    var title = opts.title || '单元格详情';
+    var value = (opts.value === null || opts.value === undefined) ? '' : String(opts.value);
+    _cellModalValue = value;
+    if (cellModalTitle) cellModalTitle.textContent = title;
+    if (cellModalText) {
+      cellModalText.value = value;
+      // 方便直接 Ctrl+C：默认全选
+      try { cellModalText.focus(); cellModalText.select(); } catch (e) {}
+    }
+    if (cellModalMask) cellModalMask.style.display = 'block';
+    if (cellModal) cellModal.style.display = 'block';
+  }
+
+  function closeCellModal(){
+    if (cellModalMask) cellModalMask.style.display = 'none';
+    if (cellModal) cellModal.style.display = 'none';
+    _cellModalValue = '';
+  }
+
+  function copyTextToClipboard(text){
+    var v = (text === null || text === undefined) ? '' : String(text);
+    if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(v);
+    }
+    // 兼容旧浏览器：使用临时 textarea
+    return new Promise(function(resolve, reject){
+      try{
+        var ta = document.createElement('textarea');
+        ta.value = v;
+        ta.setAttribute('readonly', 'readonly');
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        ta.style.top = '0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        var ok = document.execCommand && document.execCommand('copy');
+        document.body.removeChild(ta);
+        if (ok) resolve();
+        else reject(new Error('复制失败'));
+      }catch(e){
+        reject(e);
+      }
+    });
   }
 
   function buildMetaTree(filterText){
@@ -193,7 +271,10 @@
       return '<tr>' + cols.map(function(c){
         var v = (r && Object.prototype.hasOwnProperty.call(r, c)) ? r[c] : '';
         if (v === null || v === undefined) v = '';
-        return '<td style="padding:8px 10px; border-bottom:1px solid #f1f5f9; white-space:nowrap; max-width:380px; overflow:hidden; text-overflow:ellipsis;" title="'+ String(v).replace(/"/g,'&quot;') +'">' + String(v) + '</td>';
+        // 通过 data-full 存放完整值，点击可弹窗复制（避免悬停 tooltip 过长/不可选中）
+        var full = String(v);
+        return '<td class="cell-ellipsis" style="padding:8px 10px; border-bottom:1px solid #f1f5f9; white-space:nowrap; max-width:380px; overflow:hidden; text-overflow:ellipsis; cursor:pointer;" ' +
+          'title="点击查看完整值并复制" data-col="'+ escapeHtml(c) +'" data-full="'+ escapeHtml(full) +'">' + escapeHtml(full) + '</td>';
       }).join('') + '</tr>';
     }).join('') + '</tbody>';
     tableEl.innerHTML = thead + tbody;
@@ -304,6 +385,49 @@
     }).finally(function(){
       setBusy(false);
     });
+  });
+
+  // 点击单元格：打开详情弹窗（复制长字段）
+  if (tableEl) {
+    tableEl.addEventListener('click', function(ev){
+      var t = ev.target;
+      if (!t) return;
+      var td = (t.tagName && t.tagName.toLowerCase() === 'td') ? t : (t.closest ? t.closest('td') : null);
+      if (!td) return;
+      var full = td.getAttribute('data-full');
+      var col = td.getAttribute('data-col') || '';
+      if (full === null || full === undefined) full = td.textContent || '';
+      openCellModal({ title: (col ? ('字段：' + col) : '单元格详情'), value: full });
+    });
+  }
+
+  if (btnCloseCell) btnCloseCell.addEventListener('click', closeCellModal);
+  if (cellModalMask) cellModalMask.addEventListener('click', closeCellModal);
+  // 点击弹窗空白处关闭（点内容区不关闭）
+  if (cellModal) {
+    cellModal.addEventListener('click', function(e){
+      if (e && e.target === cellModal) closeCellModal();
+    });
+  }
+  if (btnCopyCell) {
+    btnCopyCell.addEventListener('click', function(){
+      copyTextToClipboard(_cellModalValue).then(function(){
+        if (resEl) {
+          resEl.innerHTML = '已复制完整内容到剪贴板。';
+          resEl.className = 'result-box success';
+          resEl.style.display = 'block';
+        }
+      }).catch(function(e){
+        showError((e && e.message) ? e.message : '复制失败');
+      });
+    });
+  }
+
+  // ESC 关闭弹窗
+  document.addEventListener('keydown', function(e){
+    if ((e && (e.key === 'Escape' || e.key === 'Esc')) && cellModal && cellModal.style.display === 'block') {
+      closeCellModal();
+    }
   });
 
   // 初始化加载元数据
