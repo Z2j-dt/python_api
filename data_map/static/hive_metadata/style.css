@@ -235,6 +235,22 @@ h1 i {
     color: var(--dm-text);
 }
 
+[data-theme="dark"] .info-box {
+    background: #111827 !important;
+    border: 1px solid #334155 !important;
+    border-left: 4px solid #3b82f6 !important;
+    color: #e5e7eb !important;
+}
+
+[data-theme="dark"] .info-box p,
+[data-theme="dark"] .info-box strong {
+    color: #e5e7eb !important;
+}
+
+[data-theme="dark"] .layer-tag-item {
+    box-shadow: 0 2px 8px rgba(2, 6, 23, 0.4) !important;
+}
+
 /* 数据字典暗色精修：目录树 + 搜索区 + 结果卡片 + 字段表 */
 [data-theme="dark"] .dict-tree-title,
 [data-theme="dark"] .meta-layer-name,
