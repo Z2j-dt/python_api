@@ -169,7 +169,17 @@
             <div class="sidebar-footer">
                 {% if username %}
                 <div class="user-footer">
-                    <div class="user-name">{{ username }}</div>
+                    <div class="user-meta-row">
+                        <div class="user-name">{{ username }}</div>
+                        <label class="theme-toggle" for="theme-toggle-input" title="切换明暗主题">
+                            <input id="theme-toggle-input" type="checkbox" />
+                            <span class="theme-toggle-track">
+                                <span class="theme-toggle-text theme-toggle-light" aria-hidden="true">☀</span>
+                                <span class="theme-toggle-text theme-toggle-dark" aria-hidden="true">☾</span>
+                                <span class="theme-toggle-thumb"></span>
+                            </span>
+                        </label>
+                    </div>
                     {% if show_admin_link %}
                     <a href="{{ url_for('admin_permissions_page') }}" class="logout-link" style="display:block;margin-top:0.35rem;">权限配置</a>
                     {% endif %}
@@ -207,6 +217,65 @@
             var portalToken = boot.portalToken || "";
             var isReadOnly = !!boot.readonly;
             var resourceAccess = boot.resourceAccess;
+            var THEME_STORAGE_KEY = "portal.theme.mode";
+            function getCurrentTheme() {
+                try {
+                    var t = document.documentElement.getAttribute("data-theme");
+                    if (t === "dark" || t === "light") return t;
+                } catch (e) {}
+                return "light";
+            }
+            function addThemeParam(url) {
+                if (!url) return url;
+                var theme = getCurrentTheme();
+                var sep = url.indexOf("?") >= 0 ? "&" : "?";
+                if (url.indexOf("theme=") >= 0) return url;
+                return url + sep + "theme=" + encodeURIComponent(theme);
+            }
+            function broadcastThemeToFrames(mode) {
+                var msg = { type: "portal-theme-change", theme: mode };
+                try {
+                    if (frame && frame.contentWindow) frame.contentWindow.postMessage(msg, "*");
+                } catch (e) {}
+                try {
+                    if (frameConfig && frameConfig.contentWindow) frameConfig.contentWindow.postMessage(msg, "*");
+                } catch (e2) {}
+            }
+            function applyTheme(mode) {
+                var next = mode === "dark" ? "dark" : "light";
+                try {
+                    document.documentElement.setAttribute("data-theme", next);
+                    document.body.setAttribute("data-theme", next);
+                } catch (e) {}
+                try {
+                    var input = document.getElementById("theme-toggle-input");
+                    if (input) input.checked = next === "dark";
+                } catch (e2) {}
+                broadcastThemeToFrames(next);
+            }
+            function initTheme() {
+                var mode = "light";
+                try {
+                    var saved = localStorage.getItem(THEME_STORAGE_KEY);
+                    if (saved === "light" || saved === "dark") {
+                        mode = saved;
+                    } else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+                        mode = "dark";
+                    }
+                } catch (e) {}
+                applyTheme(mode);
+                try {
+                    var input = document.getElementById("theme-toggle-input");
+                    if (input) {
+                        input.addEventListener("change", function () {
+                            var next = input.checked ? "dark" : "light";
+                            applyTheme(next);
+                            try { localStorage.setItem(THEME_STORAGE_KEY, next); } catch (e3) {}
+                        });
+                    }
+                } catch (e4) {}
+            }
+            initTheme();
             function useReadonlyForSrView(view) {
                 view = view || "";
                 if (resourceAccess && typeof resourceAccess === "object") {
@@ -409,7 +478,7 @@
                     var sep2 = url.indexOf("?") >= 0 ? "&" : "?";
                     url = url + sep2 + "view=config";
                 }
-                return addPortalToken(url);
+                return addPortalToken(addThemeParam(url));
             }
 
             function loadModule(moduleId, view) {

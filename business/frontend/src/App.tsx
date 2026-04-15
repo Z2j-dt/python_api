@@ -1137,6 +1137,10 @@ function App() {
   const [salesOrderDetailItems, setSalesOrderDetailItems] = useState<SalesOrderDetailItem[]>([])
   // 明细浮框内的月份筛选（YYYY-MM），默认跟随主页面“成交日期”的月份
   const [salesOrderDetailMonthFilter, setSalesOrderDetailMonthFilter] = useState<string>('')
+  // 明细浮框内的销售筛选（销售归属；空=全部）
+  const [salesOrderDetailSalesFilter, setSalesOrderDetailSalesFilter] = useState<string>('')
+  const [salesOrderDetailSalesOptions, setSalesOrderDetailSalesOptions] = useState<string[]>([])
+  const [salesOrderDetailSalesOptionMonth, setSalesOrderDetailSalesOptionMonth] = useState<string>('')
   const [salesOrderSummaryOpen, setSalesOrderSummaryOpen] = useState(false)
   const [salesOrderSummaryLoading, setSalesOrderSummaryLoading] = useState(false)
   const [salesOrderSummaryItems, setSalesOrderSummaryItems] = useState<SalesOrderSummaryItem[]>([])
@@ -1680,7 +1684,34 @@ function App() {
     }
   }, [])
 
-  const loadSalesOrderDetail = useCallback(async (monthOverride?: string) => {
+  const loadSalesOrderDetailSalesOptions = useCallback(async (month: string) => {
+    const m = (month || '').trim()
+    if (!m) {
+      setSalesOrderDetailSalesOptions([])
+      setSalesOrderDetailSalesOptionMonth('')
+      return
+    }
+    try {
+      const params = new URLSearchParams()
+      params.set('month', m.slice(0, 7))
+      const res = await fetchWithTimeout(`${API_BASE}/api/config/sales-order/summary?${params}`, {}, 60000)
+      if (!res.ok) throw new Error(await res.text())
+      const list: SalesOrderSummaryItem[] = await res.json()
+      const owners = (Array.isArray(list) ? list : [])
+        .map((it) => String((it as any)?.sales_owner ?? '').trim())
+        .filter((v) => !!v && v !== '总计')
+      const uniq: string[] = []
+      for (const v of owners) if (!uniq.includes(v)) uniq.push(v)
+      setSalesOrderDetailSalesOptions(uniq)
+      setSalesOrderDetailSalesOptionMonth(m.slice(0, 7))
+    } catch {
+      // 销售筛选仅为辅助，失败不阻断明细查询
+      setSalesOrderDetailSalesOptions([])
+      setSalesOrderDetailSalesOptionMonth(m.slice(0, 7))
+    }
+  }, [])
+
+  const loadSalesOrderDetail = useCallback(async (monthOverride?: string, salesOwnerOverride?: string) => {
     setSalesOrderDetailLoading(true)
     setSalesOrderError(null)
     try {
@@ -1692,6 +1723,14 @@ function App() {
         // 同步到浮框内的月份筛选状态，保证输入框显示的是本次查询的月份
         setSalesOrderDetailMonthFilter(m)
       }
+      // 先查月份对应的销售列表（用于下拉筛选）
+      if (m && m !== salesOrderDetailSalesOptionMonth) {
+        await loadSalesOrderDetailSalesOptions(m)
+        // 月份变更后，默认回到“全部销售”
+        setSalesOrderDetailSalesFilter('')
+      }
+      const ownerBase = (salesOwnerOverride ?? salesOrderDetailSalesFilter ?? '').trim()
+      if (ownerBase) params.set('sales_owner', ownerBase)
       const res = await fetchWithTimeout(`${API_BASE}/api/config/sales-order/detail?${params}`, {}, 60000)
       if (!res.ok) throw new Error(await res.text())
       const list: SalesOrderDetailItem[] = await res.json()
@@ -1704,7 +1743,13 @@ function App() {
     } finally {
       setSalesOrderDetailLoading(false)
     }
-  }, [salesOrderMonth, salesOrderDetailMonthFilter])
+  }, [
+    salesOrderMonth,
+    salesOrderDetailMonthFilter,
+    salesOrderDetailSalesFilter,
+    salesOrderDetailSalesOptionMonth,
+    loadSalesOrderDetailSalesOptions,
+  ])
 
   const loadSalesOrderSummary = useCallback(async (monthOverride?: string) => {
     setSalesOrderSummaryLoading(true)
@@ -4167,7 +4212,7 @@ function App() {
                                       onClick={handleSvgMouseMove}
                                     >
                                       {/* title */}
-                                      <text x={w / 2} y={14} textAnchor="middle" fontSize="14" fill="#0f172a" fontWeight="600">
+                                      <text x={w / 2} y={14} textAnchor="middle" fontSize="14" fill="var(--nav-chart-title)" fontWeight="600">
                                         {getFirstProductName(stockPositionFilter)} vs 沪深300
                                       </text>
 
@@ -4177,8 +4222,8 @@ function App() {
                                         const v = maxV - (t * span) / yTicks
                                         return (
                                           <g key={t}>
-                                            <line x1={padL} y1={y} x2={w - padR} y2={y} stroke="#e2e8f0" strokeWidth="1" />
-                                            <text x={padL - 10} y={y + 4} textAnchor="end" fontSize="12" fill="#64748b">
+                                            <line x1={padL} y1={y} x2={w - padR} y2={y} stroke="var(--nav-chart-grid)" strokeWidth="1" />
+                                            <text x={padL - 10} y={y + 4} textAnchor="end" fontSize="12" fill="var(--nav-chart-axis-text)">
                                               {fmt4(v)}
                                             </text>
                                           </g>
@@ -4186,18 +4231,18 @@ function App() {
                                       })}
 
                                       {/* axes */}
-                                      <line x1={padL} y1={padT} x2={padL} y2={h - padB} stroke="#94a3b8" strokeWidth="1" />
-                                      <line x1={padL} y1={h - padB} x2={w - padR} y2={h - padB} stroke="#94a3b8" strokeWidth="1" />
+                                      <line x1={padL} y1={padT} x2={padL} y2={h - padB} stroke="var(--nav-chart-axis)" strokeWidth="1" />
+                                      <line x1={padL} y1={h - padB} x2={w - padR} y2={h - padB} stroke="var(--nav-chart-axis)" strokeWidth="1" />
                                       {/* 右侧仓位刻度（20%~100%） */}
-                                      <text x={w - padR + 8} y={padT - 6} textAnchor="start" fontSize="10" fill="#111827">
+                                      <text x={w - padR + 8} y={padT - 6} textAnchor="start" fontSize="10" fill="var(--nav-chart-title)">
                                         仓位占比
                                       </text>
                                       {[20, 40, 60, 80, 100].map((pct) => {
                                         const y = h - padB - ((h - padT - padB) * pct) / 100
                                         return (
                                           <g key={`pos-tick-${pct}`}>
-                                            <line x1={w - padR} y1={y} x2={w - padR + 4} y2={y} stroke="#94a3b8" strokeWidth="1" />
-                                            <text x={w - padR + 8} y={y + 4} textAnchor="start" fontSize="11" fill="#64748b">
+                                            <line x1={w - padR} y1={y} x2={w - padR + 4} y2={y} stroke="var(--nav-chart-axis)" strokeWidth="1" />
+                                            <text x={w - padR + 8} y={y + 4} textAnchor="start" fontSize="11" fill="var(--nav-chart-axis-text)">
                                               {pct}%
                                             </text>
                                           </g>
@@ -4224,15 +4269,15 @@ function App() {
                                             y={yTop}
                                             width={barW}
                                             height={barH}
-                                            fill="#94a3b8"
+                                            fill="var(--nav-chart-position-fill)"
                                             opacity={0.3}
                                           />
                                         )
                                       })}
 
                                       {/* series */}
-                                      <path d={dNav} fill="none" stroke="#ef4444" strokeWidth="2.5" />
-                                      {dHs ? <path d={dHs} fill="none" stroke="#f59e0b" strokeWidth="2.5" /> : null}
+                                      <path d={dNav} fill="none" stroke="var(--nav-chart-nav-line)" strokeWidth="2.5" />
+                                      {dHs ? <path d={dHs} fill="none" stroke="var(--nav-chart-hs-line)" strokeWidth="2.5" /> : null}
 
                                       {/* 1.0000 基准线（纵轴额外标注） */}
                                       {(() => {
@@ -4240,8 +4285,8 @@ function App() {
                                         if (y < padT || y > h - padB) return null
                                         return (
                                           <g>
-                                            <line x1={padL} y1={y} x2={w - padR} y2={y} stroke="#cbd5e1" strokeWidth="1" strokeDasharray="3 3" />
-                                            <text x={padL - 10} y={y + 4} textAnchor="end" fontSize="12" fill="#111827">
+                                            <line x1={padL} y1={y} x2={w - padR} y2={y} stroke="var(--nav-chart-baseline)" strokeWidth="1" strokeDasharray="3 3" />
+                                            <text x={padL - 10} y={y + 4} textAnchor="end" fontSize="12" fill="var(--nav-chart-title)">
                                               1.0000
                                             </text>
                                           </g>
@@ -4260,15 +4305,15 @@ function App() {
                                         const navPos = labelPosFor(navNums, idx, x, y)
                                         return (
                                           <g key={`nav-label-${idx}`}>
-                                            <circle cx={x} cy={y} r={3} fill="#ef4444" stroke="#ffffff" strokeWidth={1.5} />
+                                            <circle cx={x} cy={y} r={3} fill="var(--nav-chart-nav-line)" stroke="var(--nav-chart-point-stroke)" strokeWidth={1.5} />
                                             <text
                                               x={navPos.x}
                                               y={navPos.y}
                                               dx={edgeDx}
                                               textAnchor={anchor}
                                               fontSize="12"
-                                              fill="#111827"
-                                              style={{ paintOrder: 'stroke', stroke: '#ffffff', strokeWidth: 3 }}
+                                              fill="var(--nav-chart-title)"
+                                              style={{ paintOrder: 'stroke', stroke: 'var(--nav-chart-label-stroke)', strokeWidth: 3 }}
                                             >
                                               {fmt4(v)}
                                             </text>
@@ -4283,14 +4328,14 @@ function App() {
                                         const hsPos = labelPosFor(hsNums, idx, x, y)
                                         return (
                                           <g>
-                                            <circle cx={x} cy={y} r={3} fill="#f59e0b" stroke="#ffffff" strokeWidth={1.5} />
+                                            <circle cx={x} cy={y} r={3} fill="var(--nav-chart-hs-line)" stroke="var(--nav-chart-point-stroke)" strokeWidth={1.5} />
                                             <text
                                               x={hsPos.x}
                                               y={hsPos.y}
                                               textAnchor="middle"
                                               fontSize="12"
-                                              fill="#111827"
-                                              style={{ paintOrder: 'stroke', stroke: '#ffffff', strokeWidth: 3 }}
+                                              fill="var(--nav-chart-title)"
+                                              style={{ paintOrder: 'stroke', stroke: 'var(--nav-chart-label-stroke)', strokeWidth: 3 }}
                                             >
                                               {fmt4(lastHs)}
                                             </text>
@@ -4308,7 +4353,7 @@ function App() {
                                             y={h - 10}
                                             textAnchor={idx === 0 ? 'start' : idx === xTicks.length - 1 ? 'end' : 'middle'}
                                             fontSize="12"
-                                            fill="#64748b"
+                                            fill="var(--nav-chart-axis-text)"
                                           >
                                             {t.date}
                                           </text>
@@ -4323,15 +4368,15 @@ function App() {
                                             y1={padT}
                                             x2={hoverX}
                                             y2={h - padB}
-                                            stroke="#94a3b8"
+                                            stroke="var(--nav-chart-axis)"
                                             strokeWidth="1"
                                             strokeDasharray="4 4"
                                           />
                                           {hoverNavY != null && (
-                                            <circle cx={hoverX} cy={hoverNavY} r={4} fill="#ef4444" stroke="#ffffff" strokeWidth={1.5} />
+                                            <circle cx={hoverX} cy={hoverNavY} r={4} fill="var(--nav-chart-nav-line)" stroke="var(--nav-chart-point-stroke)" strokeWidth={1.5} />
                                           )}
                                           {hoverHsY != null && (
-                                            <circle cx={hoverX} cy={hoverHsY} r={4} fill="#f59e0b" stroke="#ffffff" strokeWidth={1.5} />
+                                            <circle cx={hoverX} cy={hoverHsY} r={4} fill="var(--nav-chart-hs-line)" stroke="var(--nav-chart-point-stroke)" strokeWidth={1.5} />
                                           )}
                                         </g>
                                       )}
@@ -4832,6 +4877,7 @@ function App() {
                               ? salesOrderMonth.trim().slice(0, 7)
                               : '-'}
                           ）
+                          <span className="ml-2 text-xs text-slate-500">更新时间：15:00</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <div className="flex items-center gap-2">
@@ -4843,9 +4889,37 @@ function App() {
                               className="px-2 py-1 border border-slate-300 rounded-lg text-xs bg-white"
                             />
                             <button
-                              onClick={() => void loadSalesOrderDetail(salesOrderDetailMonthFilter)}
+                              onClick={() => void loadSalesOrderDetail(salesOrderDetailMonthFilter, '')}
                               disabled={!salesOrderDetailMonthFilter.trim()}
                               className="px-2 py-1 rounded bg-slate-200 hover:bg-slate-300 disabled:opacity-50 text-slate-800 text-xs"
+                            >
+                              查询
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-600 whitespace-nowrap">销售</span>
+                            <select
+                              value={salesOrderDetailSalesFilter}
+                              onChange={(e) => setSalesOrderDetailSalesFilter(e.target.value)}
+                              className="px-2 py-1 border border-slate-300 rounded-lg text-xs bg-white max-w-[12rem]"
+                            >
+                              <option value="">全部销售</option>
+                              {salesOrderDetailSalesOptions.map((v) => (
+                                <option key={`sod-owner-${v}`} value={v}>
+                                  {v === '-' ? '未配置' : v}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={() => {
+                                const m = salesOrderDetailMonthFilter.trim()
+                                  ? salesOrderDetailMonthFilter.trim()
+                                  : salesOrderMonth.trim()
+                                    ? salesOrderMonth.trim().slice(0, 7)
+                                    : ''
+                                void loadSalesOrderDetail(m, salesOrderDetailSalesFilter)
+                              }}
+                              className="px-2 py-1 rounded bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs"
                             >
                               查询
                             </button>
@@ -4857,7 +4931,10 @@ function App() {
                                 : salesOrderMonth.trim()
                                   ? salesOrderMonth.trim().slice(0, 7)
                                   : ''
-                              void window.open(appendPortalToken(`${API_BASE}/api/config/sales-order/detail/export.csv?month=${encodeURIComponent(m)}`), '_blank')
+                              const params = new URLSearchParams()
+                              if (m) params.set('month', m)
+                              if (salesOrderDetailSalesFilter.trim()) params.set('sales_owner', salesOrderDetailSalesFilter.trim())
+                              void window.open(appendPortalToken(`${API_BASE}/api/config/sales-order/detail/export.csv?${params}`), '_blank')
                             }}
                             className="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs whitespace-nowrap"
                           >
@@ -5761,7 +5838,10 @@ function App() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-3 flex items-center justify-between gap-3">
-              <div className="font-semibold text-slate-800">销售每日进线汇总</div>
+              <div className="font-semibold text-slate-800">
+                销售每日进线汇总
+                <span className="ml-2 text-xs text-slate-500">更新时间：8:30</span>
+              </div>
               <button onClick={() => setSalesDailySummaryOpen(false)} className="text-slate-500 hover:text-slate-700">✕</button>
             </div>
 
@@ -5916,7 +5996,10 @@ function App() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <div className="font-semibold text-slate-800">月度转化率</div>
+              <div className="font-semibold text-slate-800">
+                月度转化率
+                <span className="ml-2 text-xs text-slate-500">更新时间：15:30</span>
+              </div>
               <button
                 type="button"
                 onClick={() => setSalesConversionOpen(false)}

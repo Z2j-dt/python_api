@@ -2011,7 +2011,11 @@ async def update_sales_order_config(
 
 
 @app.get("/api/config/sales-order/detail")
-async def sales_order_detail(date: Optional[str] = None, month: Optional[str] = None) -> List[Dict[str, Any]]:
+async def sales_order_detail(
+    date: Optional[str] = None,
+    month: Optional[str] = None,
+    sales_owner: Optional[str] = None,
+) -> List[Dict[str, Any]]:
     target_day = _parse_date(date)
     target_month = _parse_month_yyyy_mm(month) if not target_day else None
 
@@ -2032,9 +2036,12 @@ async def sales_order_detail(date: Optional[str] = None, month: Optional[str] = 
             target_day = _parse_date(row.get("d"))
 
     try:
+        owner = (str(sales_owner or "").strip() or None)
         with _db_cursor() as cur:
             if target_day:
                 day_expr = "SUBSTRING(TRIM(CAST(t.pay_time AS STRING)), 1, 10) = %s"
+                owner_expr = "COALESCE(NULLIF(TRIM(CAST(c.sales_owner AS STRING)), ''), '-')"
+                owner_sql = f" AND {owner_expr} = %s" if owner is not None else ""
                 cur.execute(
                     f"""
                     SELECT
@@ -2078,13 +2085,16 @@ async def sales_order_detail(date: Optional[str] = None, month: Optional[str] = 
                       AND t.pay_time IS NOT NULL
                       AND TRIM(CAST(t.pay_time AS STRING)) != ''
                       AND {day_expr}
+                      {owner_sql}
                     ORDER BY t.pay_time DESC, t.sole_code ASC
                     """,
-                    (target_day,),
+                    (target_day, owner) if owner is not None else (target_day,),
                 )
             else:
                 # 月度口径：按 pay_time 的月份筛选（成交时间 = pay_time）
                 ym_expr = "SUBSTRING(TRIM(CAST(t.pay_time AS STRING)), 1, 7)"
+                owner_expr = "COALESCE(NULLIF(TRIM(CAST(c.sales_owner AS STRING)), ''), '-')"
+                owner_sql = f" AND {owner_expr} = %s" if owner is not None else ""
                 cur.execute(
                     f"""
                     SELECT
@@ -2128,9 +2138,10 @@ async def sales_order_detail(date: Optional[str] = None, month: Optional[str] = 
                       AND t.pay_time IS NOT NULL
                       AND TRIM(CAST(t.pay_time AS STRING)) != ''
                       AND {ym_expr} = %s
+                      {owner_sql}
                     ORDER BY t.pay_time DESC, t.sole_code ASC
                     """,
-                    (target_month,),
+                    (target_month, owner) if owner is not None else (target_month,),
                 )
             rows = cur.fetchall() or []
         items = []
@@ -2297,11 +2308,12 @@ async def sales_order_summary(date: Optional[str] = None, month: Optional[str] =
 
 
 @app.get("/api/config/sales-order/detail/export.csv")
-async def sales_order_detail_export_csv(date: Optional[str] = None, month: Optional[str] = None):
+async def sales_order_detail_export_csv(date: Optional[str] = None, month: Optional[str] = None, sales_owner: Optional[str] = None):
     try:
         # 导出不复用 detail 接口，避免时间格式化/金额改口径；直接输出原始字段
         target_day = _parse_date(date)
         target_month = _parse_month_yyyy_mm(month) if not target_day else None
+        owner = (str(sales_owner or "").strip() or None)
 
         if not target_day and not target_month:
             with _db_cursor() as cur:
@@ -2321,6 +2333,8 @@ async def sales_order_detail_export_csv(date: Optional[str] = None, month: Optio
         with _db_cursor() as cur:
             if target_day:
                 day_expr = "SUBSTRING(TRIM(CAST(t.pay_time AS STRING)), 1, 10) = %s"
+                owner_expr = "COALESCE(NULLIF(TRIM(CAST(c.sales_owner AS STRING)), ''), '-')"
+                owner_sql = f" AND {owner_expr} = %s" if owner is not None else ""
                 cur.execute(
                     f"""
                     SELECT
@@ -2353,12 +2367,15 @@ async def sales_order_detail_export_csv(date: Optional[str] = None, month: Optio
                       AND t.pay_time IS NOT NULL
                       AND TRIM(CAST(t.pay_time AS STRING)) != ''
                       AND {day_expr}
+                      {owner_sql}
                     ORDER BY t.pay_time DESC, t.sole_code ASC
                     """,
-                    (target_day,),
+                    (target_day, owner) if owner is not None else (target_day,),
                 )
             else:
                 ym_expr = "SUBSTRING(TRIM(CAST(t.pay_time AS STRING)), 1, 7)"
+                owner_expr = "COALESCE(NULLIF(TRIM(CAST(c.sales_owner AS STRING)), ''), '-')"
+                owner_sql = f" AND {owner_expr} = %s" if owner is not None else ""
                 cur.execute(
                     f"""
                     SELECT
@@ -2391,9 +2408,10 @@ async def sales_order_detail_export_csv(date: Optional[str] = None, month: Optio
                       AND t.pay_time IS NOT NULL
                       AND TRIM(CAST(t.pay_time AS STRING)) != ''
                       AND {ym_expr} = %s
+                      {owner_sql}
                     ORDER BY t.pay_time DESC, t.sole_code ASC
                     """,
-                    (target_month,),
+                    (target_month, owner) if owner is not None else (target_month,),
                 )
             rows = cur.fetchall() or []
 

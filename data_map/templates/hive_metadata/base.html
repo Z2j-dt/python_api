@@ -4,6 +4,38 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hive元数据查询系统</title>
+    <script>
+        (function () {
+            var KEY = "portal.theme.mode";
+            function norm(v) { return v === "dark" ? "dark" : "light"; }
+            var mode = "light";
+            try {
+                var q = new URLSearchParams(window.location.search || "").get("theme");
+                if (q === "dark" || q === "light") {
+                    mode = q;
+                    localStorage.setItem(KEY, q);
+                } else {
+                    var saved = localStorage.getItem(KEY);
+                    if (saved === "dark" || saved === "light") mode = saved;
+                }
+            } catch (e) {}
+            try {
+                document.documentElement.setAttribute("data-theme", mode);
+                document.body.setAttribute("data-theme", mode);
+            } catch (e2) {}
+            window.addEventListener("message", function (evt) {
+                try {
+                    if (evt.source !== window.parent) return;
+                    var data = evt.data || {};
+                    if (data.type !== "portal-theme-change") return;
+                    var next = norm(data.theme);
+                    document.documentElement.setAttribute("data-theme", next);
+                    document.body.setAttribute("data-theme", next);
+                    localStorage.setItem(KEY, next);
+                } catch (e3) {}
+            });
+        })();
+    </script>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <!-- 内网环境无法访问外网 CDN 会报 ERR_NAME_NOT_RESOLVED，已去掉 Font Awesome 外链；需要图标可改为本地静态文件 -->
 </head>

@@ -4,6 +4,38 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SQL血缘关系可视化</title>
+    <script>
+        (function () {
+            var KEY = "portal.theme.mode";
+            function norm(v) { return v === "dark" ? "dark" : "light"; }
+            var mode = "light";
+            try {
+                var q = new URLSearchParams(window.location.search || "").get("theme");
+                if (q === "dark" || q === "light") {
+                    mode = q;
+                    localStorage.setItem(KEY, q);
+                } else {
+                    var saved = localStorage.getItem(KEY);
+                    if (saved === "dark" || saved === "light") mode = saved;
+                }
+            } catch (e) {}
+            try {
+                document.documentElement.setAttribute("data-theme", mode);
+                document.body.setAttribute("data-theme", mode);
+            } catch (e2) {}
+            window.addEventListener("message", function (evt) {
+                try {
+                    if (evt.source !== window.parent) return;
+                    var data = evt.data || {};
+                    if (data.type !== "portal-theme-change") return;
+                    var next = norm(data.theme);
+                    document.documentElement.setAttribute("data-theme", next);
+                    document.body.setAttribute("data-theme", next);
+                    localStorage.setItem(KEY, next);
+                } catch (e3) {}
+            });
+        })();
+    </script>
     <style>
         * {
             margin: 0;
@@ -370,6 +402,18 @@
                 font-size: 13px;
             }
         }
+
+        [data-theme="dark"] body { background: #0f172a; color: #e5e7eb; }
+        [data-theme="dark"] .app-container { background: #0f172a; }
+        [data-theme="dark"] .search-bar,
+        [data-theme="dark"] .graph-container { background: #111827; border-color: #334155; }
+        [data-theme="dark"] .graph-canvas,
+        [data-theme="dark"] .legend,
+        [data-theme="dark"] .status-bar,
+        [data-theme="dark"] .node-label,
+        [data-theme="dark"] .table-list { background: #1f2937; border-color: #334155; color: #e5e7eb; }
+        [data-theme="dark"] .search-input { background: #0b1220; border-color: #334155; color: #e5e7eb; }
+        [data-theme="dark"] .search-input::placeholder { color: #94a3b8; }
     </style>
 </head>
 <body>

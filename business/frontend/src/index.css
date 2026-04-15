@@ -1,9 +1,24 @@
 @import "tailwindcss";
 
+:root {
+  --nav-chart-title: #0f172a;
+  --nav-chart-axis-text: #64748b;
+  --nav-chart-grid: #e2e8f0;
+  --nav-chart-axis: #94a3b8;
+  --nav-chart-baseline: #cbd5e1;
+  --nav-chart-position-fill: #94a3b8;
+  --nav-chart-nav-line: #ef4444;
+  --nav-chart-hs-line: #f59e0b;
+  --nav-chart-point-stroke: #ffffff;
+  --nav-chart-label-stroke: #ffffff;
+}
+
 @layer base {
   body {
     font-family: "SimSun", "Songti SC", "STSong", serif !important;
     font-weight: 550 !important;
+    background: #ffffff;
+    color: #0f172a;
   }
 
   #root,
@@ -11,12 +26,119 @@
     font-family: "SimSun", "Songti SC", "STSong", serif !important;
     font-weight: 550 !important;
   }
+
+  body[data-theme="dark"] {
+    background: #0f172a;
+    color: #e5e7eb;
+    --nav-chart-title: #e5e7eb;
+    --nav-chart-axis-text: #94a3b8;
+    --nav-chart-grid: #334155;
+    --nav-chart-axis: #64748b;
+    --nav-chart-baseline: #475569;
+    --nav-chart-position-fill: #64748b;
+    --nav-chart-nav-line: #fb7185;
+    --nav-chart-hs-line: #fbbf24;
+    --nav-chart-point-stroke: #0f172a;
+    --nav-chart-label-stroke: #0f172a;
+  }
+
+  body[data-theme="dark"] #root {
+    background: #0f172a;
+    color: #e5e7eb;
+  }
+
+  /* business 页面大量 Tailwind 浅色类的暗色覆盖 */
+  body[data-theme="dark"] .bg-white,
+  body[data-theme="dark"] .bg-white\/95,
+  body[data-theme="dark"] .bg-white\/90,
+  body[data-theme="dark"] .bg-slate-50,
+  body[data-theme="dark"] .bg-slate-50\/50,
+  body[data-theme="dark"] .bg-slate-100 {
+    background-color: #111827 !important;
+  }
+
+  body[data-theme="dark"] .bg-slate-200 {
+    background-color: #1f2937 !important;
+  }
+
+  body[data-theme="dark"] .bg-black\/40 {
+    background-color: rgba(2, 6, 23, 0.72) !important;
+  }
+
+  body[data-theme="dark"] .text-slate-800,
+  body[data-theme="dark"] .text-slate-700,
+  body[data-theme="dark"] .text-slate-600,
+  body[data-theme="dark"] .text-slate-500,
+  body[data-theme="dark"] .text-slate-400 {
+    color: #e5e7eb !important;
+  }
+
+  body[data-theme="dark"] .border-slate-100,
+  body[data-theme="dark"] .border-slate-200,
+  body[data-theme="dark"] .border-slate-300 {
+    border-color: #334155 !important;
+  }
+
+  body[data-theme="dark"] .bg-amber-50 {
+    background-color: rgba(245, 158, 11, 0.14) !important;
+  }
+
+  body[data-theme="dark"] .text-amber-600 {
+    color: #fbbf24 !important;
+  }
+
+  body[data-theme="dark"] .bg-red-50 {
+    background-color: rgba(127, 29, 29, 0.22) !important;
+  }
+
+  body[data-theme="dark"] .border-red-200 {
+    border-color: rgba(248, 113, 113, 0.4) !important;
+  }
+
+  body[data-theme="dark"] .text-red-700 {
+    color: #fca5a5 !important;
+  }
+
+  body[data-theme="dark"] .hover\:bg-slate-50:hover,
+  body[data-theme="dark"] .hover\:bg-slate-100:hover,
+  body[data-theme="dark"] .hover\:bg-slate-300:hover {
+    background-color: #1f2937 !important;
+  }
+
+  body[data-theme="dark"] input,
+  body[data-theme="dark"] select,
+  body[data-theme="dark"] textarea {
+    background-color: #0b1220 !important;
+    color: #e5e7eb !important;
+    border-color: #334155 !important;
+  }
+
+  body[data-theme="dark"] input::placeholder,
+  body[data-theme="dark"] textarea::placeholder {
+    color: #94a3b8 !important;
+  }
+
+  body[data-theme="dark"] table thead tr {
+    background-color: #1f2937 !important;
+  }
+
+  body[data-theme="dark"] table tbody tr:nth-child(even) {
+    background-color: rgba(30, 41, 59, 0.35) !important;
+  }
+
+  body[data-theme="dark"] .shadow-lg,
+  body[data-theme="dark"] .shadow-xl {
+    box-shadow: 0 10px 30px rgba(2, 6, 23, 0.45) !important;
+  }
 }
 
 .module-page-title {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif !important;
-  font-size: 1.55rem !important;
-  font-weight: 600 !important;
-  color: #2f5fe3 !important;
+  /* 与 support 模块的 h1/全站字体保持一致 */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  /* 比默认 h1 小一档，但更粗 */
+  font-size: 1.6rem !important;
+  font-weight: 900 !important;
+  color: #2563eb !important;
   line-height: 1.2;
+  -webkit-text-stroke: 0.3px #2563eb;
 }

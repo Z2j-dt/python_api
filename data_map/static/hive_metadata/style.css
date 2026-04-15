@@ -1,10 +1,27 @@
 /* style.css 完整文件 */
 /* 全局样式 */
+:root {
+    --dm-bg: #ffffff;
+    --dm-text: #1f2937;
+    --dm-panel: #ffffff;
+    --dm-soft: #f8fafc;
+    --dm-border: #e5e7eb;
+}
+
+[data-theme="dark"] {
+    --dm-bg: #0f172a;
+    --dm-text: #e5e7eb;
+    --dm-panel: #111827;
+    --dm-soft: #1e293b;
+    --dm-border: #334155;
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
     margin: 0;
     padding: 0;
-    background: #ffffff; /* 嵌入门户时整体白色背景 */
+    background: var(--dm-bg); /* 嵌入门户时整体白色背景 */
+    color: var(--dm-text);
     min-height: 100vh;
 }
 
@@ -19,8 +36,8 @@ body {
 .dict-tree-panel {
     width: 320px;
     flex: 0 0 320px;
-    border: 1px solid #e5e7eb;
-    background: #f8fafc;
+    border: 1px solid var(--dm-border);
+    background: var(--dm-soft);
     border-radius: 12px;
     padding: 12px 10px;
     box-sizing: border-box;
@@ -177,7 +194,7 @@ body {
 .container {
     max-width: 100%;
     margin: 0;
-    background: #ffffff; /* 内容区域白色背景 */
+    background: var(--dm-panel); /* 内容区域白色背景 */
     padding: 24px 24px 32px;
     border-radius: 0;
     box-shadow: none; /* 去掉外层卡片阴影，和其他中心保持一致 */
@@ -195,6 +212,27 @@ h1 {
 
 h1 i {
     color: #2563eb;
+}
+
+[data-theme="dark"] .table-card,
+[data-theme="dark"] .table-info-card,
+[data-theme="dark"] .fields-container,
+[data-theme="dark"] .dict-tree-panel,
+[data-theme="dark"] .search-box,
+[data-theme="dark"] .search-container,
+[data-theme="dark"] .loading-content {
+    background: var(--dm-panel);
+    border-color: var(--dm-border);
+    color: var(--dm-text);
+}
+
+[data-theme="dark"] .card-header,
+[data-theme="dark"] .fields-header,
+[data-theme="dark"] .info-item,
+[data-theme="dark"] .meta-layer-header {
+    background: var(--dm-soft);
+    border-color: var(--dm-border);
+    color: var(--dm-text);
 }
 
 /* 首页样式 */
