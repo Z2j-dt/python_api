@@ -6142,7 +6142,11 @@ function App() {
                       {SALES_CONVERSION_COMPLEX_COLS.map((c) => (
                         <th
                           key={c.key}
-                          className="px-2 py-2 text-right font-medium text-slate-700 whitespace-nowrap first:text-left"
+                          className={`px-2 py-2 text-right font-medium text-slate-700 whitespace-nowrap ${
+                            c.key === 'sales_name'
+                              ? 'text-left sticky left-0 z-20 bg-slate-100 shadow-[1px_0_0_0_rgba(226,232,240,1)]'
+                              : ''
+                          }`}
                         >
                           {c.label}
                         </th>
@@ -6183,7 +6187,11 @@ function App() {
                                   <td
                                     key={c.key}
                                     className={`px-2 py-2 whitespace-nowrap ${
-                                      c.key === 'sales_name' ? 'text-left' : 'text-right'
+                                      c.key === 'sales_name'
+                                        ? `text-left sticky left-0 z-10 ${
+                                            isTotal ? 'bg-amber-50' : 'bg-white'
+                                          } shadow-[1px_0_0_0_rgba(226,232,240,1)]`
+                                        : 'text-right'
                                     } ${isRate ? 'text-red-600' : ''}`}
                                   >
                                     {cell}
