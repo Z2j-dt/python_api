@@ -382,6 +382,7 @@ interface NavDetailRow {
   biz_date: string
   stock_name?: string | null
   stock_code?: string | null
+  buy_price?: number | null
   // 仓位：后端返回 open_pct（百分比数值，如 5 表示 5%）
   open_pct?: number | null
   position_after?: number | null
@@ -2597,27 +2598,20 @@ function App() {
 
   // 行底色：按“当前列表里实际出现的日期块”交替，而不是按自然日奇偶。
   // 例如 12/12 有数据、12/13 没数据、12/14 有数据：12/12=浅蓝，12/14=白色。
-  const stockPositionStripeByTradeDate = useMemo(() => {
-    const normalize = (v?: string | null) => (v ?? '').trim().slice(0, 10)
-    const m = new Map<string, boolean>()
-    let lastDate = ''
-    let isBlue = true // 第一块日期默认浅蓝
-    for (const it of stockPositionItems) {
-      const d = normalize(it.trade_date)
-      if (!d) continue
-      if (d !== lastDate) {
-        if (!m.has(d)) m.set(d, isBlue)
-        isBlue = !isBlue
-        lastDate = d
-      }
-    }
-    return m
-  }, [stockPositionItems])
+  const normalizeTradeDateKey = (tradeDate?: string | null) => {
+    const raw = String(tradeDate ?? '').trim()
+    if (!raw) return ''
+    const m = raw.match(/^(\d{4})[-/](\d{2})[-/](\d{2})/)
+    if (m) return `${m[1]}-${m[2]}-${m[3]}`
+    return raw.slice(0, 10)
+  }
 
   const getTradeDateStripeClass = (tradeDate?: string | null) => {
-    const d = (tradeDate ?? '').trim().slice(0, 10)
-    if (!d) return ''
-    return stockPositionStripeByTradeDate.get(d) ? 'bg-sky-100/70' : ''
+    const d = normalizeTradeDateKey(tradeDate)
+    if (!d) return 'stock-position-date-group-b'
+    const dayPart = Number(d.slice(8, 10))
+    if (!Number.isFinite(dayPart) || dayPart <= 0) return 'stock-position-date-group-b'
+    return dayPart % 2 === 0 ? 'stock-position-date-group-a' : 'stock-position-date-group-b'
   }
 
   return (
@@ -3551,7 +3545,7 @@ function App() {
                 )}
                 <div className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="w-full text-sm stock-position-table">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-100">
                           <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">产品名称</th>
@@ -4621,6 +4615,7 @@ function App() {
                                 <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">日期</th>
                                 <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">个股</th>
                                 <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">股票代码</th>
+                                <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">买入价</th>
                                 <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">仓位</th>
                                 <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">持仓份额</th>
                               </tr>
@@ -4631,6 +4626,9 @@ function App() {
                                   <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.biz_date ?? '-'}</td>
                                   <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.stock_name ?? '-'}</td>
                                   <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.stock_code ?? '-'}</td>
+                                  <td className="px-3 py-2 text-right text-slate-700 whitespace-nowrap">
+                                    {it.buy_price == null ? '-' : Number(it.buy_price).toFixed(2)}
+                                  </td>
                                   <td className="px-3 py-2 text-right text-slate-700 whitespace-nowrap">
                                     {it.open_pct == null ? '-' : `${Number(it.open_pct).toFixed(1)}%`}
                                   </td>

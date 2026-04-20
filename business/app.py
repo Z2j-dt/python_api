@@ -3527,6 +3527,7 @@ class NavDetailRow(BaseModel):
     biz_date: str
     stock_name: Optional[str] = None
     stock_code: Optional[str] = None
+    buy_price: Optional[float] = None
     # 仓位：等价于 product_nav_daily_detail.open_pct（百分比数值，如 5 表示 5%）
     open_pct: Optional[float] = None
     position_after: Optional[float] = None
@@ -3670,7 +3671,7 @@ async def get_stock_position_nav_detail(
     返回“净值明细”（product_nav_daily_detail row_type=2）
     - 默认：仅返回最新 biz_date 的明细
     - 过滤：按 product_name（即配置页选择的产品）
-    - 字段：biz_date, stock_name, stock_code, open_pct, position_after
+    - 字段：biz_date, stock_name, stock_code, buy_price, open_pct, position_after
     """
     name = (product_name or "").strip() or "短线王"
     try:
@@ -3692,24 +3693,94 @@ async def get_stock_position_nav_detail(
 
             # 查指定（或最新）biz_date 的明细
             cur.execute(
-                f"SELECT biz_date, stock_name, stock_code, open_pct, position_after "
-                f"FROM `{PRODUCT_NAV_DAILY_DETAIL_TABLE}` "
-                f"WHERE product_name = %s AND row_type = 2 "
-                f"  AND biz_date IS NOT NULL "
-                f"  AND TRIM(CAST(biz_date AS STRING)) != '' "
-                f"  AND biz_date = %s "
-                f"ORDER BY stock_code ASC",
+                f"SELECT d.biz_date, d.stock_name, d.stock_code, d.open_pct, d.position_after "
+                f"FROM `{PRODUCT_NAV_DAILY_DETAIL_TABLE}` d "
+                f"WHERE d.product_name = %s AND d.row_type = 2 "
+                f"  AND d.biz_date IS NOT NULL "
+                f"  AND TRIM(CAST(d.biz_date AS STRING)) != '' "
+                f"  AND d.biz_date = %s "
+                f"ORDER BY d.stock_code ASC",
                 (name, target_biz_date),
             )
             rows = cur.fetchall() or []
+            buy_price_by_code: Dict[str, float] = {}
+
+            # “买入价”按当前仍持有仓位计算（按仓位%加权）：
+            # - 买入：按 position_pct 入库
+            # - 卖出：FIFO 方式扣减 position_pct
+            # - 最终剩余仓位的加权成本 = sum(remain_pct * price) / sum(remain_pct)
+            stock_codes = sorted({
+                str(r.get("stock_code") or "").strip()
+                for r in rows
+                if str(r.get("stock_code") or "").strip()
+            })
+            if stock_codes:
+                ph = ",".join(["%s"] * len(stock_codes))
+                cur.execute(
+                    f"SELECT trade_date, stock_code, side, position_pct, price, row_id, id "
+                    f"FROM `{CONFIG_STOCK_POSITION_TABLE}` "
+                    f"WHERE product_name = %s "
+                    f"  AND stock_code IN ({ph}) "
+                    f"  AND trade_date <= CAST(%s AS DATE) "
+                    f"  AND side IS NOT NULL "
+                    f"  AND position_pct IS NOT NULL "
+                    f"  AND price IS NOT NULL "
+                    f"  AND price > 0 "
+                    f"ORDER BY trade_date ASC, row_id ASC, id ASC",
+                    (name, *stock_codes, target_biz_date),
+                )
+                trade_rows = cur.fetchall() or []
+
+                lots_by_code: Dict[str, List[List[float]]] = {}
+                for tr in trade_rows:
+                    code = str(tr.get("stock_code") or "").strip()
+                    side = str(tr.get("side") or "").strip()
+                    if not code or not side:
+                        continue
+                    try:
+                        pct = float(tr.get("position_pct"))
+                        px = float(tr.get("price"))
+                    except Exception:
+                        continue
+                    if px <= 0:
+                        continue
+                    weight_pct = pct
+                    if weight_pct <= 0:
+                        continue
+                    lots = lots_by_code.setdefault(code, [])
+                    if side == "买入":
+                        lots.append([weight_pct, px])
+                    elif side == "卖出":
+                        remain = weight_pct
+                        while remain > 1e-12 and lots:
+                            lot_pct, lot_px = lots[0]
+                            if lot_pct <= remain + 1e-12:
+                                remain -= lot_pct
+                                lots.pop(0)
+                            else:
+                                lots[0] = [lot_pct - remain, lot_px]
+                                remain = 0.0
+
+                for code, lots in lots_by_code.items():
+                    total_pct = 0.0
+                    total_cost = 0.0
+                    for lot_pct, lot_px in lots:
+                        if lot_pct <= 0:
+                            continue
+                        total_pct += lot_pct
+                        total_cost += lot_pct * lot_px
+                    if total_pct > 1e-12:
+                        buy_price_by_code[code] = total_cost / total_pct
 
         items: List[NavDetailRow] = []
         for r in rows:
+            code = str(r.get("stock_code") or "").strip()
             items.append(
                 NavDetailRow(
                     biz_date=_parse_date(r.get("biz_date")) or str(r.get("biz_date") or ""),
                     stock_name=r.get("stock_name"),
-                    stock_code=r.get("stock_code"),
+                    stock_code=code or r.get("stock_code"),
+                    buy_price=buy_price_by_code.get(code),
                     open_pct=float(r.get("open_pct") or 0) if r.get("open_pct") is not None else None,
                     position_after=float(r.get("position_after") or 0) if r.get("position_after") is not None else None,
                 )
@@ -3719,6 +3790,7 @@ async def get_stock_position_nav_detail(
         # - 日期列：总计
         # - 个股列：N只
         # - 股票代码列：空
+        # - 买入价列：空
         # - 仓位列：sum(open_pct)
         # - 持仓份额列：sum(position_after)
         if items:
@@ -3739,6 +3811,7 @@ async def get_stock_position_nav_detail(
                     biz_date="总计",
                     stock_name=f"{total_cnt}只",
                     stock_code="",
+                    buy_price=None,
                     open_pct=total_open_pct if has_open_pct else None,
                     position_after=total_position_after if has_position_after else None,
                 )

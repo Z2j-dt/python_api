@@ -83,6 +83,26 @@
     background-color: rgba(245, 158, 11, 0.14) !important;
   }
 
+  body[data-theme="dark"] .bg-yellow-100 {
+    background-color: rgba(180, 83, 9, 0.22) !important;
+  }
+
+  body[data-theme="dark"] .bg-sky-50 {
+    background-color: rgba(12, 74, 110, 0.2) !important;
+  }
+
+  body[data-theme="dark"] .bg-sky-100 {
+    background-color: rgba(8, 47, 73, 0.42) !important;
+  }
+
+  body[data-theme="dark"] .bg-sky-50\/60 {
+    background-color: rgba(8, 47, 73, 0.26) !important;
+  }
+
+  body[data-theme="dark"] .bg-sky-100\/70 {
+    background-color: rgba(14, 116, 144, 0.2) !important;
+  }
+
   body[data-theme="dark"] .text-amber-600 {
     color: #fbbf24 !important;
   }
@@ -103,6 +123,23 @@
   body[data-theme="dark"] .hover\:bg-slate-100:hover,
   body[data-theme="dark"] .hover\:bg-slate-300:hover {
     background-color: #1f2937 !important;
+  }
+
+  body[data-theme="dark"] .hover\:bg-slate-100\/70:hover,
+  body[data-theme="dark"] .hover\:bg-slate-100\/80:hover {
+    background-color: rgba(30, 41, 59, 0.85) !important;
+  }
+
+  body[data-theme="dark"] .hover\:bg-sky-100\/70:hover {
+    background-color: rgba(14, 116, 144, 0.28) !important;
+  }
+
+  body[data-theme="dark"] .hover\:bg-slate-50:hover td,
+  body[data-theme="dark"] .hover\:bg-slate-100:hover td,
+  body[data-theme="dark"] .hover\:bg-slate-100\/70:hover td,
+  body[data-theme="dark"] .hover\:bg-slate-100\/80:hover td,
+  body[data-theme="dark"] .hover\:bg-sky-100\/70:hover td {
+    color: #f1f5f9 !important;
   }
 
   body[data-theme="dark"] input,
@@ -126,6 +163,10 @@
     background-color: rgba(30, 41, 59, 0.35) !important;
   }
 
+  body[data-theme="dark"] table tbody tr:hover {
+    background-color: rgba(30, 41, 59, 0.85) !important;
+  }
+
   body[data-theme="dark"] .shadow-lg,
   body[data-theme="dark"] .shadow-xl {
     box-shadow: 0 10px 30px rgba(2, 6, 23, 0.45) !important;
@@ -141,4 +182,30 @@
   color: #2563eb !important;
   line-height: 1.2;
   -webkit-text-stroke: 0.3px #2563eb;
+}
+
+/* 产品净值：按交易日分组底色（同一天同色） */
+.stock-position-table .stock-position-date-group-a {
+  background-color: rgba(224, 242, 254, 0.7);
+}
+
+.stock-position-table .stock-position-date-group-b {
+  background-color: transparent;
+}
+
+body[data-theme="dark"] .stock-position-table tbody tr:nth-child(even) {
+  background-color: transparent !important;
+}
+
+body[data-theme="dark"] .stock-position-table .stock-position-date-group-a {
+  background-color: rgba(14, 116, 144, 0.22) !important;
+}
+
+body[data-theme="dark"] .stock-position-table .stock-position-date-group-b {
+  background-color: rgba(15, 23, 42, 0.12) !important;
+}
+
+body[data-theme="dark"] .stock-position-table .stock-position-date-group-a:hover,
+body[data-theme="dark"] .stock-position-table .stock-position-date-group-b:hover {
+  background-color: rgba(30, 41, 59, 0.88) !important;
 }
