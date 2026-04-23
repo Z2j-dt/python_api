@@ -382,6 +382,7 @@ interface NavDetailRow {
   biz_date: string
   stock_name?: string | null
   stock_code?: string | null
+  buy_time?: string | null
   buy_price?: number | null
   // 仓位：后端返回 open_pct（百分比数值，如 5 表示 5%）
   open_pct?: number | null
@@ -3480,7 +3481,7 @@ function App() {
                 )}
               </div>
             ) : configTab === 'stock_position' ? (
-              <div className="mt-4">
+              <div className="mt-4 stock-position-page">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-3 flex-wrap">
                     <label className="text-sm text-slate-600">产品名称筛选（默认 短线王）：</label>
@@ -4440,7 +4441,7 @@ function App() {
                 onClick={() => setStockPositionPreviewOpen(false)}
               >
                 <div
-                  className="w-full max-w-6xl bg-white rounded-xl shadow-lg border border-slate-200 p-5 mx-4 max-h-[85vh] overflow-y-auto"
+                  className="w-full max-w-6xl bg-white rounded-xl shadow-lg border border-slate-200 p-5 mx-4 max-h-[85vh] overflow-y-auto stock-position-preview"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -4615,17 +4616,24 @@ function App() {
                                 <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">日期</th>
                                 <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">个股</th>
                                 <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">股票代码</th>
+                                <th className="px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap">买入时间</th>
                                 <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">买入价</th>
                                 <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">仓位</th>
                                 <th className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">持仓份额</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {navDetailItems.map((it, idx) => (
-                                <tr key={`${it.biz_date ?? 'd'}-${it.stock_code ?? 'c'}-${idx}`} className="border-b border-slate-100 hover:bg-slate-100/70">
+                              {navDetailItems.map((it, idx) => {
+                                const isTotalRow = String(it.biz_date ?? '') === '总计'
+                                return (
+                                <tr
+                                  key={`${it.biz_date ?? 'd'}-${it.stock_code ?? 'c'}-${idx}`}
+                                  className={`border-b border-slate-100 ${isTotalRow ? 'bg-slate-100' : 'hover:bg-slate-100/70'}`}
+                                >
                                   <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.biz_date ?? '-'}</td>
                                   <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.stock_name ?? '-'}</td>
                                   <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.stock_code ?? '-'}</td>
+                                  <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{it.buy_time ?? '-'}</td>
                                   <td className="px-3 py-2 text-right text-slate-700 whitespace-nowrap">
                                     {it.buy_price == null ? '-' : Number(it.buy_price).toFixed(2)}
                                   </td>
@@ -4636,7 +4644,7 @@ function App() {
                                     {it.position_after == null ? '-' : Number(it.position_after).toFixed(4)}
                                   </td>
                                 </tr>
-                              ))}
+                              )})}
                             </tbody>
                           </table>
                         )}

@@ -15,16 +15,26 @@
 
 @layer base {
   body {
-    font-family: "SimSun", "Songti SC", "STSong", serif !important;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI Variable Text", "Segoe UI Variable Display", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Helvetica Neue", Arial, "Microsoft YaHei UI", "Microsoft YaHei", sans-serif !important;
     font-weight: 550 !important;
+    letter-spacing: 0.01em;
+    text-rendering: optimizeLegibility;
+    font-synthesis-weight: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     background: #ffffff;
     color: #0f172a;
   }
 
   #root,
   #root * {
-    font-family: "SimSun", "Songti SC", "STSong", serif !important;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI Variable Text", "Segoe UI Variable Display", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Helvetica Neue", Arial, "Microsoft YaHei UI", "Microsoft YaHei", sans-serif !important;
     font-weight: 550 !important;
+    letter-spacing: 0.01em;
+    text-rendering: optimizeLegibility;
+    font-synthesis-weight: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   body[data-theme="dark"] {
@@ -175,7 +185,7 @@
 
 .module-page-title {
   /* 与 support 模块的 h1/全站字体保持一致 */
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI Variable Text", "Segoe UI Variable Display", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Helvetica Neue", Arial, "Microsoft YaHei UI", "Microsoft YaHei", sans-serif !important;
   /* 比默认 h1 小一档，但更粗 */
   font-size: 1.6rem !important;
   font-weight: 900 !important;
@@ -208,4 +218,25 @@ body[data-theme="dark"] .stock-position-table .stock-position-date-group-b {
 body[data-theme="dark"] .stock-position-table .stock-position-date-group-a:hover,
 body[data-theme="dark"] .stock-position-table .stock-position-date-group-b:hover {
   background-color: rgba(30, 41, 59, 0.88) !important;
+}
+
+/* 产品净值页面与预览：文字再加粗一档 */
+.stock-position-page,
+.stock-position-page *,
+.stock-position-preview,
+.stock-position-preview * {
+  font-weight: 1500 !important;
+}
+
+/* Windows 仿苹果：略微减细，Mac 保持现状 */
+body[data-os="windows"] #root,
+body[data-os="windows"] #root * {
+  font-weight: 500 !important;
+}
+
+body[data-os="windows"] .stock-position-page,
+body[data-os="windows"] .stock-position-page *,
+body[data-os="windows"] .stock-position-preview,
+body[data-os="windows"] .stock-position-preview * {
+  font-weight: 500 !important;
 }

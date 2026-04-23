@@ -15,6 +15,29 @@ function applyTheme(mode: 'light' | 'dark') {
   }
 }
 
+function detectOS(): 'mac' | 'windows' | 'other' {
+  try {
+    const ua = navigator.userAgent || ''
+    const platform = navigator.platform || ''
+    const s = `${ua} ${platform}`
+    if (/Macintosh|Mac OS X|iPhone|iPad|iPod/i.test(s)) return 'mac'
+    if (/Windows|Win32|Win64|WOW64/i.test(s)) return 'windows'
+  } catch {
+    // ignore
+  }
+  return 'other'
+}
+
+function applyOS() {
+  try {
+    const os = detectOS()
+    document.documentElement.setAttribute('data-os', os)
+    document.body.setAttribute('data-os', os)
+  } catch {
+    // ignore
+  }
+}
+
 function initThemeSync() {
   let mode: 'light' | 'dark' = 'light'
   try {
@@ -46,6 +69,7 @@ function initThemeSync() {
 }
 
 initThemeSync()
+applyOS()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

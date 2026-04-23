@@ -3527,6 +3527,7 @@ class NavDetailRow(BaseModel):
     biz_date: str
     stock_name: Optional[str] = None
     stock_code: Optional[str] = None
+    buy_time: Optional[str] = None
     buy_price: Optional[float] = None
     # 仓位：等价于 product_nav_daily_detail.open_pct（百分比数值，如 5 表示 5%）
     open_pct: Optional[float] = None
@@ -3703,17 +3704,12 @@ async def get_stock_position_nav_detail(
                 (name, target_biz_date),
             )
             rows = cur.fetchall() or []
-            buy_price_by_code: Dict[str, float] = {}
-
-            # “买入价”按当前仍持有仓位计算（按仓位%加权）：
-            # - 买入：按 position_pct 入库
-            # - 卖出：FIFO 方式扣减 position_pct
-            # - 最终剩余仓位的加权成本 = sum(remain_pct * price) / sum(remain_pct)
             stock_codes = sorted({
                 str(r.get("stock_code") or "").strip()
                 for r in rows
                 if str(r.get("stock_code") or "").strip()
             })
+            lots_by_code: Dict[str, List[Dict[str, Any]]] = {}
             if stock_codes:
                 ph = ",".join(["%s"] * len(stock_codes))
                 cur.execute(
@@ -3731,7 +3727,6 @@ async def get_stock_position_nav_detail(
                 )
                 trade_rows = cur.fetchall() or []
 
-                lots_by_code: Dict[str, List[List[float]]] = {}
                 for tr in trade_rows:
                     code = str(tr.get("stock_code") or "").strip()
                     side = str(tr.get("side") or "").strip()
@@ -3749,42 +3744,65 @@ async def get_stock_position_nav_detail(
                         continue
                     lots = lots_by_code.setdefault(code, [])
                     if side == "买入":
-                        lots.append([weight_pct, px])
+                        buy_date = _parse_date(tr.get("trade_date")) or str(tr.get("trade_date") or "")
+                        lots.append({"remain_pct": weight_pct, "price": px, "buy_time": buy_date})
                     elif side == "卖出":
                         remain = weight_pct
                         while remain > 1e-12 and lots:
-                            lot_pct, lot_px = lots[0]
+                            lot = lots[0]
+                            lot_pct = float(lot.get("remain_pct") or 0)
                             if lot_pct <= remain + 1e-12:
                                 remain -= lot_pct
                                 lots.pop(0)
                             else:
-                                lots[0] = [lot_pct - remain, lot_px]
+                                lot["remain_pct"] = lot_pct - remain
                                 remain = 0.0
 
-                for code, lots in lots_by_code.items():
-                    total_pct = 0.0
-                    total_cost = 0.0
-                    for lot_pct, lot_px in lots:
-                        if lot_pct <= 0:
-                            continue
-                        total_pct += lot_pct
-                        total_cost += lot_pct * lot_px
-                    if total_pct > 1e-12:
-                        buy_price_by_code[code] = total_cost / total_pct
-
         items: List[NavDetailRow] = []
+        detail_items: List[NavDetailRow] = []
         for r in rows:
             code = str(r.get("stock_code") or "").strip()
-            items.append(
-                NavDetailRow(
-                    biz_date=_parse_date(r.get("biz_date")) or str(r.get("biz_date") or ""),
-                    stock_name=r.get("stock_name"),
-                    stock_code=code or r.get("stock_code"),
-                    buy_price=buy_price_by_code.get(code),
-                    open_pct=float(r.get("open_pct") or 0) if r.get("open_pct") is not None else None,
-                    position_after=float(r.get("position_after") or 0) if r.get("position_after") is not None else None,
+            biz_dt = _parse_date(r.get("biz_date")) or str(r.get("biz_date") or "")
+            stock_name = r.get("stock_name")
+            row_open_pct = float(r.get("open_pct") or 0) if r.get("open_pct") is not None else None
+            row_position_after = float(r.get("position_after") or 0) if r.get("position_after") is not None else None
+            code_lots = [
+                lot for lot in lots_by_code.get(code, [])
+                if float(lot.get("remain_pct") or 0) > 1e-12
+            ]
+            total_remain_pct = sum(float(lot.get("remain_pct") or 0) for lot in code_lots)
+
+            if code_lots and total_remain_pct > 1e-12:
+                for lot in code_lots:
+                    lot_pct = float(lot.get("remain_pct") or 0)
+                    ratio = lot_pct / total_remain_pct if total_remain_pct > 1e-12 else 0.0
+                    buy_time = str(lot.get("buy_time") or "")
+                    detail_items.append(
+                        NavDetailRow(
+                            biz_date=biz_dt,
+                            stock_name=stock_name,
+                            stock_code=code or r.get("stock_code"),
+                            buy_time=buy_time or None,
+                            buy_price=float(lot.get("price")) if lot.get("price") is not None else None,
+                            open_pct=(row_open_pct * ratio) if row_open_pct is not None else None,
+                            position_after=(row_position_after * ratio) if row_position_after is not None else None,
+                        )
+                    )
+            else:
+                detail_items.append(
+                    NavDetailRow(
+                        biz_date=biz_dt,
+                        stock_name=stock_name,
+                        stock_code=code or r.get("stock_code"),
+                        buy_time=None,
+                        buy_price=None,
+                        open_pct=row_open_pct,
+                        position_after=row_position_after,
+                    )
                 )
-            )
+
+        detail_items.sort(key=lambda x: str(x.buy_time or ""), reverse=True)
+        items.extend(detail_items)
 
         # 追加“总计”汇总行：
         # - 日期列：总计
@@ -3794,7 +3812,12 @@ async def get_stock_position_nav_detail(
         # - 仓位列：sum(open_pct)
         # - 持仓份额列：sum(position_after)
         if items:
-            total_cnt = len(items)
+            unique_codes = {
+                str(it.stock_code or "").strip()
+                for it in items
+                if str(it.stock_code or "").strip()
+            }
+            total_cnt = len(unique_codes)
             total_open_pct = 0.0
             total_position_after = 0.0
             has_open_pct = False
