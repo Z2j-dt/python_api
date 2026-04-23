@@ -291,6 +291,33 @@ _SQL_HAS_LIMIT = re.compile(r"\blimit\s+\d+", re.I)
 _SQL_PREVIEW_LIMIT = 500
 
 
+def _leading_keyword(sql: str) -> str:
+    """
+    返回去掉前置注释后的首个关键字（小写）。
+    仅用于语句类型判断（select/with/show/refresh）。
+    """
+    s = (sql or "").strip()
+    if not s:
+        return ""
+    head_sql = s.lstrip()
+    while True:
+        if head_sql.startswith("--"):
+            nl = head_sql.find("\n")
+            if nl == -1:
+                return ""
+            head_sql = head_sql[nl + 1 :].lstrip()
+            continue
+        if head_sql.startswith("/*"):
+            end = head_sql.find("*/")
+            if end == -1:
+                return ""
+            head_sql = head_sql[end + 2 :].lstrip()
+            continue
+        break
+    m = re.match(r"([A-Za-z_]+)", head_sql)
+    return (m.group(1).lower() if m else "")
+
+
 def _normalize_sql(sql: str) -> str:
     s = (sql or "").strip()
     if not s:
@@ -299,26 +326,19 @@ def _normalize_sql(sql: str) -> str:
     if ";" in s.strip().rstrip(";"):
         raise ValueError("不支持多语句（请只提交一条 SELECT/WITH 查询）")
     # 允许前置注释（-- ... 或 /* ... */），忽略后再校验
-    head_sql = s.lstrip()
-    while True:
-        if head_sql.startswith("--"):
-            nl = head_sql.find("\n")
-            if nl == -1:
-                # 整条都是注释
-                raise ValueError("SQL 不能为空（仅包含注释）")
-            head_sql = head_sql[nl + 1 :].lstrip()
-            continue
-        if head_sql.startswith("/*"):
-            end = head_sql.find("*/")
-            if end == -1:
-                raise ValueError("SQL 注释不完整（缺少 */）")
-            head_sql = head_sql[end + 2 :].lstrip()
-            continue
-        break
-    head = head_sql.lower()
-    if not (head.startswith("select") or head.startswith("with")):
-        raise ValueError("仅支持 SELECT/WITH 查询")
-    if _SQL_FORBIDDEN.search(s):
+    head_kw = _leading_keyword(s)
+    if not head_kw:
+        # 可能整条都是注释、或注释不完整
+        head_sql = s.lstrip()
+        if head_sql.startswith("/*") and "*/" not in head_sql:
+            raise ValueError("SQL 注释不完整（缺少 */）")
+        raise ValueError("SQL 不能为空（仅包含注释）")
+    allowed_prefixes = ("select", "with", "show", "refresh")
+    if head_kw not in allowed_prefixes:
+        raise ValueError("仅支持 SELECT/WITH/SHOW/REFRESH（不支持多语句）")
+    # 对 SELECT/WITH 做更严格的“只读”关键字校验；SHOW/REFRESH 可能包含诸如 "SHOW CREATE ..."
+    # 这种字符串，否则会被误判为写入语句。
+    if head_kw in ("select", "with") and _SQL_FORBIDDEN.search(s):
         raise ValueError("SQL 包含不允许的关键字（仅支持只读查询）")
     return s
 
@@ -396,11 +416,12 @@ def sql_to_excel_preview():
         # 校验错误：返回 200 + JSON，避免上游改成 HTML 错误页
         return jsonify({"success": False, "message": str(e)})
     s = raw_sql.rstrip().rstrip(";")
-    # 若原 SQL 已带 LIMIT，则直接按原 SQL 执行；否则追加 LIMIT 500 作为预览
-    if _SQL_HAS_LIMIT.search(s):
-        preview_sql = s
-    else:
+    # 仅对 SELECT/WITH 追加 LIMIT 500 作为预览；SHOW/REFRESH 直接原样执行（这类语句不支持 LIMIT）。
+    head_kw = _leading_keyword(s)
+    if head_kw in ("select", "with") and not _SQL_HAS_LIMIT.search(s):
         preview_sql = s + f" LIMIT {_SQL_PREVIEW_LIMIT}"
+    else:
+        preview_sql = s
     try:
         conn = _get_starrocks_conn()
         cur = conn.cursor()
