@@ -21,14 +21,22 @@
         </div>
         <div class="form-group">
             <label for="table_name">表名（可选，默认取文件名）</label>
-            <input type="text" id="table_name" name="table_name" placeholder="例如: my_data">
+            <div class="inline-input-action">
+                <input type="text" id="table_name" name="table_name" placeholder="例如: my_data">
+                <button type="button" class="btn-secondary" id="previewBtn">
+                    <i class="fas fa-eye"></i> 预览建表语句
+                </button>
+            </div>
         </div>
-        <button type="submit" class="btn-primary" id="submitBtn">
-            <i class="fas fa-upload"></i> 上传并入库
-        </button>
+        <div class="form-group">
+            <button type="submit" class="btn-primary" id="submitBtn">
+                <i class="fas fa-upload"></i> 上传并入库（同名表会先删除再重建）
+            </button>
+        </div>
     </form>
 </div>
 
+<div id="previewSection" class="result-box" style="display: none;"></div>
 <div id="result" class="result-box" style="display: none;"></div>
 <div id="error" class="error-box" style="display: none;"></div>
 {% endblock %}
@@ -40,27 +48,103 @@
     var resultEl = document.getElementById('result');
     var errorEl = document.getElementById('error');
     var submitBtn = document.getElementById('submitBtn');
+    var previewBtn = document.getElementById('previewBtn');
+    var previewSection = document.getElementById('previewSection');
+    var customColumns = [];
+
+    function getCurrentCustomColumns() {
+        var inputs = document.querySelectorAll('.column-edit-input');
+        if (!inputs || !inputs.length) return customColumns;
+        var vals = [];
+        inputs.forEach(function(input) {
+            vals.push((input.value || '').trim());
+        });
+        return vals;
+    }
+
+    function makeFormData() {
+        var fd = new FormData();
+        var file = document.getElementById('file').files[0];
+        var tableName = document.getElementById('table_name').value.trim();
+        if (!file) return { fd: null, file: null };
+        fd.append('file', file);
+        if (tableName) fd.append('table_name', tableName);
+        var cols = getCurrentCustomColumns();
+        if (cols && cols.length) fd.append('custom_columns', JSON.stringify(cols));
+        return { fd: fd, file: file };
+    }
+
+    function renderPreview(data) {
+        customColumns = data.columns || [];
+        var rows = '';
+        customColumns.forEach(function(col, idx) {
+            var src = (data.source_headers && data.source_headers[idx]) ? data.source_headers[idx] : ('col_' + idx);
+            rows += '<tr><td style="padding:6px 8px;">' + (idx + 1) + '</td>'
+                + '<td style="padding:6px 8px;"><code>' + src + '</code></td>'
+                + '<td style="padding:6px 8px;"><input class="column-edit-input" data-idx="' + idx + '" value="' + col + '" style="width:100%;padding:4px 8px;"></td></tr>';
+        });
+        previewSection.innerHTML =
+            '<h3 style="margin:0 0 8px 0;">建表预览</h3>'
+            + '<div style="margin-bottom:8px;">目标表：<code>' + (data.database || '') + '.' + (data.table_name || '') + '</code>，数据行数：' + (data.rows || 0) + '</div>'
+            + '<div style="margin-bottom:8px;font-size:13px;color:#666;">可直接改“目标字段名”，再点“预览建表语句”刷新 SQL，或直接上传。</div>'
+            + '<table style="width:100%;border-collapse:collapse;border:1px solid #ddd;margin-bottom:10px;">'
+            + '<thead><tr><th style="text-align:left;padding:6px 8px;">#</th><th style="text-align:left;padding:6px 8px;">源字段</th><th style="text-align:left;padding:6px 8px;">目标字段</th></tr></thead>'
+            + '<tbody>' + rows + '</tbody></table>'
+            + '<pre class="ddl">' + (data.ddl || '') + '</pre>';
+        previewSection.className = 'result-box';
+        previewSection.style.display = 'block';
+    }
+
+    previewBtn.addEventListener('click', function() {
+        errorEl.style.display = 'none';
+        resultEl.style.display = 'none';
+        var built = makeFormData();
+        if (!built.file) {
+            errorEl.textContent = '请选择文件';
+            errorEl.style.display = 'block';
+            return;
+        }
+        previewBtn.disabled = true;
+        previewBtn.textContent = '预览中...';
+        fetch('{{ base_path }}/api/preview-ddl', {
+            method: 'POST',
+            body: built.fd
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                renderPreview(data);
+            } else {
+                errorEl.textContent = data.message || '预览失败';
+                errorEl.style.display = 'block';
+            }
+        })
+        .catch(function(err) {
+            errorEl.textContent = '请求失败: ' + err.message;
+            errorEl.style.display = 'block';
+        })
+        .finally(function() {
+            previewBtn.disabled = false;
+            previewBtn.innerHTML = '<i class="fas fa-eye"></i> 预览建表语句';
+        });
+    });
 
     form.addEventListener('submit', function(e) {
         e.preventDefault();
         errorEl.style.display = 'none';
         resultEl.style.display = 'none';
-        var fd = new FormData();
-        var file = document.getElementById('file').files[0];
-        var tableName = document.getElementById('table_name').value.trim();
-        if (!file) {
+        var built = makeFormData();
+        if (!built.file) {
             errorEl.textContent = '请选择文件';
             errorEl.style.display = 'block';
             return;
         }
-        fd.append('file', file);
-        if (tableName) fd.append('table_name', tableName);
         submitBtn.disabled = true;
         submitBtn.textContent = '处理中...';
 
         fetch('{{ base_path }}/api/upload', {
             method: 'POST',
-            body: fd
+            body: built.fd
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {

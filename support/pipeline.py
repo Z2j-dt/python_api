@@ -112,6 +112,24 @@ def infer_schema(df: pd.DataFrame) -> List[Tuple[str, str, str]]:
         cols.append((name, "STRING", orig or f"col_{i}"))
     return cols
 
+def sanitize_column_names(column_names: List[str], fallback_count: int) -> List[str]:
+    names = list(column_names or [])
+    seen = {}
+    out: List[str] = []
+    total = max(fallback_count, len(names))
+    for i in range(total):
+        raw = names[i] if i < len(names) else ""
+        clean = re.sub(r"_+", "_", re.sub(r"[^a-zA-Z0-9_]", "_", str(raw or "").strip())).strip("_").lower()
+        if not clean:
+            clean = f"col_{i}"
+        name, idx = clean, 0
+        while name in seen:
+            idx += 1
+            name = f"{clean}_{idx}"
+        seen[name] = True
+        out.append(name)
+    return out
+
 def build_create_external_ddl(database: str, table_name: str, columns: List[Tuple[str, str, str]], has_header: bool = True, encoding: str = "UTF-8", table_comment: Optional[str] = None) -> str:
     def esc(s): return (s or "").replace("'", "''")
     col_defs = ", ".join(f"`{c[0]}` {c[1]} COMMENT '{esc(c[2])}'" for c in columns)
@@ -191,7 +209,7 @@ def run_impala_sql(host: str, port: int, sql: str, user: Optional[str] = None, p
         finally:
             os.unlink(tmp_sql)
 
-def run_pipeline(excel_path: str, table_name: str, tmp_database: str, hdfs_base_path: str, impala_host: str, impala_port: int, impala_user: Optional[str] = None, impala_password: Optional[str] = None, impala_run_as_os_user: Optional[str] = None, hdfs_upload_as_user: Optional[str] = None, sheet: int = 0, csv_encoding: str = "GBK", table_comment: Optional[str] = None) -> dict:
+def run_pipeline(excel_path: str, table_name: str, tmp_database: str, hdfs_base_path: str, impala_host: str, impala_port: int, impala_user: Optional[str] = None, impala_password: Optional[str] = None, impala_run_as_os_user: Optional[str] = None, hdfs_upload_as_user: Optional[str] = None, sheet: int = 0, csv_encoding: str = "GBK", table_comment: Optional[str] = None, custom_columns: Optional[List[str]] = None, replace_table: bool = True) -> dict:
     result = {"ok": False, "message": "", "has_header": True, "rows": 0, "table": table_name, "hdfs_path": "", "ddl": ""}
     if not _allowed_ext(excel_path):
         result["message"] = "仅支持 .xlsx / .xls 文件"
@@ -208,12 +226,24 @@ def run_pipeline(excel_path: str, table_name: str, tmp_database: str, hdfs_base_
         df.columns = [f"col_{i}" for i in range(len(df.columns))]
     result["rows"] = len(df)
     schema = infer_schema(df)
+    if custom_columns:
+        fixed = sanitize_column_names(custom_columns, len(schema))
+        schema = [(fixed[i], schema[i][1], schema[i][2]) for i in range(len(schema))]
     safe_table = re.sub(r"[^\w]", "_", table_name).strip("_") or "excel_table"
     hdfs_dir = f"{hdfs_base_path.rstrip('/')}/{safe_table}"
     result["hdfs_path"] = hdfs_dir
     ddl = build_create_external_ddl(tmp_database, safe_table, schema, has_header=has_header, encoding=csv_encoding, table_comment=table_comment)
     result["ddl"] = ddl
     result["table"] = f"{tmp_database}.{safe_table}"
+    if replace_table:
+        run_impala_sql(
+            impala_host,
+            impala_port,
+            f"DROP TABLE IF EXISTS `{tmp_database}`.`{safe_table}`;",
+            user=impala_user,
+            password=impala_password,
+            run_as_os_user=impala_run_as_os_user,
+        )
     run_impala_sql(impala_host, impala_port, ddl, user=impala_user, password=impala_password, run_as_os_user=impala_run_as_os_user)
     fd, csv_path = tempfile.mkstemp(suffix=".csv")
     os.close(fd)

@@ -56,6 +56,38 @@
     display: none;
   }
 
+  .floating-scrollbar {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    bottom: 12px;
+    z-index: 1200;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.1);
+    display: none;
+    padding: 8px 10px;
+  }
+
+  .floating-scrollbar-title {
+    font-size: 12px;
+    color: #64748b;
+    margin-bottom: 6px;
+    user-select: none;
+  }
+
+  .floating-scrollbar-track {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    height: 20px;
+  }
+
+  .floating-scrollbar-spacer {
+    height: 1px;
+  }
+
   .preview-th {
     text-align: left;
     padding: 8px 10px;
@@ -187,6 +219,11 @@
   [data-theme="dark"] #previewTable tbody tr:hover .preview-td {
     background: #1e293b !important;
   }
+
+  [data-theme="dark"] .floating-scrollbar {
+    background: rgba(17, 24, 39, 0.96);
+    border-color: #334155;
+  }
 </style>
 <h1>数据导出（StarRocks SQL）</h1>
 
@@ -235,6 +272,12 @@
 <div id="tableWrap" class="preview-wrap">
   <table id="previewTable" style="width:100%; border-collapse: collapse; font-size: 13px;"></table>
 </div>
+<div id="floatingScrollbar" class="floating-scrollbar" aria-hidden="true">
+  <div class="floating-scrollbar-title">左右拖动查看隐藏列</div>
+  <div id="floatingScrollbarTrack" class="floating-scrollbar-track">
+    <div id="floatingScrollbarSpacer" class="floating-scrollbar-spacer"></div>
+  </div>
+</div>
 
 <!-- 单元格详情弹窗：用于复制超长字段 -->
 <div id="cellModalMask" style="display:none; position:fixed; inset:0; background:rgba(17,24,39,.55); z-index:9999;"></div>
@@ -273,6 +316,10 @@
   var metaStatusEl = document.getElementById('metaStatus');
   var metaSearchEl = document.getElementById('metaSearch');
   var btnReloadMeta = document.getElementById('btnReloadMeta');
+  var floatingScrollbar = document.getElementById('floatingScrollbar');
+  var floatingScrollbarTrack = document.getElementById('floatingScrollbarTrack');
+  var floatingScrollbarSpacer = document.getElementById('floatingScrollbarSpacer');
+  var isSyncingFloatingScroll = false;
   var _metaRaw = [];
 
   // 单元格详情弹窗
@@ -293,6 +340,7 @@
     resEl.style.display = 'none';
     tableWrap.style.display = 'none';
     tableEl.innerHTML = '';
+    updateFloatingScrollbar();
   }
   function setBusy(b){
     btnPreview.disabled = b;
@@ -464,6 +512,28 @@
     }).join('') + '</tbody>';
     tableEl.innerHTML = thead + tbody;
     tableWrap.style.display = 'block';
+    updateFloatingScrollbar();
+  }
+
+  function updateFloatingScrollbar(){
+    if (!tableWrap || !floatingScrollbar || !floatingScrollbarTrack || !floatingScrollbarSpacer) return;
+    var isTableVisible = tableWrap.style.display !== 'none';
+    if (!isTableVisible) {
+      floatingScrollbar.style.display = 'none';
+      return;
+    }
+    var needHorizontal = tableWrap.scrollWidth > tableWrap.clientWidth + 2;
+    if (!needHorizontal) {
+      floatingScrollbar.style.display = 'none';
+      return;
+    }
+    floatingScrollbar.style.display = 'block';
+    floatingScrollbarSpacer.style.width = tableWrap.scrollWidth + 'px';
+    if (!isSyncingFloatingScroll) {
+      isSyncingFloatingScroll = true;
+      floatingScrollbarTrack.scrollLeft = tableWrap.scrollLeft;
+      isSyncingFloatingScroll = false;
+    }
   }
 
   if (metaSearchEl) {
@@ -518,6 +588,22 @@
         }
         ev.preventDefault();
       }
+    });
+  }
+
+  if (tableWrap && floatingScrollbarTrack) {
+    tableWrap.addEventListener('scroll', function(){
+      if (isSyncingFloatingScroll) return;
+      isSyncingFloatingScroll = true;
+      floatingScrollbarTrack.scrollLeft = tableWrap.scrollLeft;
+      isSyncingFloatingScroll = false;
+      updateFloatingScrollbar();
+    });
+    floatingScrollbarTrack.addEventListener('scroll', function(){
+      if (isSyncingFloatingScroll) return;
+      isSyncingFloatingScroll = true;
+      tableWrap.scrollLeft = floatingScrollbarTrack.scrollLeft;
+      isSyncingFloatingScroll = false;
     });
   }
 
@@ -615,7 +701,10 @@
     }
   });
 
+  window.addEventListener('resize', updateFloatingScrollbar);
+
   // 初始化加载元数据
+  updateFloatingScrollbar();
   loadMeta();
 })();
 </script>

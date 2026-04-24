@@ -185,12 +185,13 @@
 
 /* Windows：全局统一更细；Mac 仍用 @layer base 的 550，不套本段 */
 body[data-os="windows"] {
-  font-weight: 200 !important;
+  font-weight: 260 !important;
+  color: #475569 !important;
 }
 
 body[data-os="windows"] #root,
 body[data-os="windows"] #root * {
-  font-weight: 200 !important;
+  font-weight: 260 !important;
 }
 
 .module-page-title {
@@ -205,7 +206,7 @@ body[data-os="windows"] #root * {
 }
 
 body[data-os="windows"] .module-page-title {
-  font-weight: 500 !important;
+  font-weight: 340 !important;
   -webkit-text-stroke: 0;
 }
 

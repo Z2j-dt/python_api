@@ -296,6 +296,7 @@ body {
     font-size: 0.85rem;
     color: #2563eb;
     text-decoration: none;
+    font-family: "SimSun", "Songti SC", "STSong", serif;
 }
 
 .theme-toggle {

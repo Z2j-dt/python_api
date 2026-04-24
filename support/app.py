@@ -6,6 +6,7 @@ support 下仅 app.py + pipeline.py（内部模块），templates、static、col
 import os
 import re
 import time
+import json
 from pathlib import Path
 from datetime import datetime, date
 
@@ -27,7 +28,7 @@ if str(ROOT) not in __import__("sys").path:
 
 from portal.config import Config as PortalConfig
 from portal.middleware import auth_middleware
-from support.pipeline import run_pipeline, _allowed_ext
+from support.pipeline import run_pipeline, _allowed_ext, read_excel, detect_has_header, infer_schema, sanitize_column_names, build_create_external_ddl
 
 # Excel 入库配置
 _EXCEL_CONFIG = {
@@ -552,6 +553,15 @@ def excel_upload():
     table_name = (request.form.get("table_name") or "").strip() or Path(f.filename).stem
     table_name = re.sub(r"[^\w\u4e00-\u9fff]", "_", table_name).strip("_") or "excel_table"
     save_path = upload_dir / f.filename
+    custom_columns_raw = (request.form.get("custom_columns") or "").strip()
+    custom_columns = None
+    if custom_columns_raw:
+        try:
+            parsed = json.loads(custom_columns_raw)
+            if isinstance(parsed, list):
+                custom_columns = [str(x or "").strip() for x in parsed]
+        except Exception:
+            return jsonify({"success": False, "message": "custom_columns 格式错误，应为 JSON 数组"}), 400
     try:
         f.save(str(save_path))
         result = run_pipeline(
@@ -567,10 +577,76 @@ def excel_upload():
             hdfs_upload_as_user=_excel_app.config.get("HDFS_UPLOAD_AS_USER") or None,
             csv_encoding=_excel_app.config.get("CSV_ENCODING", "GBK"),
             table_comment=request.form.get("table_comment") or Path(f.filename).stem,
+            custom_columns=custom_columns,
+            replace_table=True,
         )
         if result["ok"]:
             return jsonify({"success": True, **result})
         return jsonify({"success": False, "message": result["message"], "detail": result}), 500
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+    finally:
+        if save_path.exists():
+            try:
+                save_path.unlink()
+            except OSError:
+                pass
+
+@_excel_app.route("/api/preview-ddl", methods=["POST"])
+def excel_preview_ddl():
+    if "file" not in request.files:
+        return jsonify({"success": False, "message": "未选择文件"}), 400
+    f = request.files["file"]
+    if not f.filename:
+        return jsonify({"success": False, "message": "未选择文件"}), 400
+    if not _allowed_ext(f.filename):
+        return jsonify({"success": False, "message": "仅支持 .xlsx 或 .xls 文件"}), 400
+    table_name = (request.form.get("table_name") or "").strip() or Path(f.filename).stem
+    table_name = re.sub(r"[^\w\u4e00-\u9fff]", "_", table_name).strip("_") or "excel_table"
+    save_path = upload_dir / f"preview_{int(time.time() * 1000)}_{Path(f.filename).name}"
+    custom_columns_raw = (request.form.get("custom_columns") or "").strip()
+    custom_columns = None
+    if custom_columns_raw:
+        try:
+            parsed = json.loads(custom_columns_raw)
+            if isinstance(parsed, list):
+                custom_columns = [str(x or "").strip() for x in parsed]
+        except Exception:
+            return jsonify({"success": False, "message": "custom_columns 格式错误，应为 JSON 数组"}), 400
+    try:
+        f.save(str(save_path))
+        df_raw = read_excel(str(save_path), sheet=0, header=None)
+        if df_raw.empty:
+            return jsonify({"success": False, "message": "Excel 为空或无法读取"}), 400
+        has_header = detect_has_header(df_raw)
+        header = 0 if has_header else None
+        df = read_excel(str(save_path), sheet=0, header=header)
+        if not has_header:
+            df.columns = [f"col_{i}" for i in range(len(df.columns))]
+        schema = infer_schema(df)
+        generated_columns = [c[0] for c in schema]
+        if custom_columns:
+            generated_columns = sanitize_column_names(custom_columns, len(schema))
+            schema = [(generated_columns[i], schema[i][1], schema[i][2]) for i in range(len(schema))]
+        safe_table = re.sub(r"[^\w]", "_", table_name).strip("_") or "excel_table"
+        ddl = build_create_external_ddl(
+            _excel_app.config["TMP_DATABASE"],
+            safe_table,
+            schema,
+            has_header=has_header,
+            encoding=_excel_app.config.get("CSV_ENCODING", "GBK"),
+            table_comment=request.form.get("table_comment") or Path(f.filename).stem,
+        )
+        return jsonify({
+            "success": True,
+            "table_name": safe_table,
+            "database": _excel_app.config["TMP_DATABASE"],
+            "has_header": has_header,
+            "rows": int(len(df)),
+            "columns": generated_columns,
+            "source_headers": [c[2] for c in schema],
+            "ddl": ddl,
+        })
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
     finally:
