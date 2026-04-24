@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import * as XLSX from 'xlsx'
+import { FloatingHorizontalScroll } from './components/FloatingHorizontalScroll'
 
 // 挂载在统一门户时为 /sr_api；单独起后端时用 ''。后端可注入 window.__API_BASE__，无需重新构建
 const API_BASE =
@@ -2720,7 +2721,7 @@ function App() {
                 </div>
 
                 <div className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
-                  <div className="overflow-x-auto">
+                  <FloatingHorizontalScroll>
                     {salesDailyLoading && salesDailyItems.length === 0 ? (
                       <div className="py-20 text-center text-slate-500">加载中...</div>
                     ) : salesDailyItems.length === 0 ? (
@@ -2753,7 +2754,7 @@ function App() {
                         </tbody>
                       </table>
                     )}
-                  </div>
+                  </FloatingHorizontalScroll>
                 </div>
               </>
             ) : (
@@ -2810,7 +2811,7 @@ function App() {
                 </div>
 
                 <div className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
-                  <div className="overflow-x-auto">
+                  <FloatingHorizontalScroll>
                     {loading && data.length === 0 ? (
                       <div className="py-20 text-center text-slate-500">加载中...</div>
                     ) : data.length === 0 ? (
@@ -2847,7 +2848,7 @@ function App() {
                         </tbody>
                       </table>
                     )}
-                  </div>
+                  </FloatingHorizontalScroll>
                   {data.length > 0 && (
                     <div className="px-4 py-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 bg-white">
                       <span className="text-slate-600 text-sm">
@@ -2947,7 +2948,7 @@ function App() {
             {isChannelDictTab ? (
               <div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
-                  <div className="overflow-x-auto">
+                  <FloatingHorizontalScroll>
                     {configLoading && openChannelItems.length === 0 ? (
                       <div className="py-10 text-center text-slate-500">加载中...</div>
                     ) : openChannelItems.length === 0 ? (
@@ -3022,13 +3023,13 @@ function App() {
                         </tbody>
                       </table>
                     )}
-                  </div>
+                  </FloatingHorizontalScroll>
                 </div>
               </div>
             ) : configTab === 'channel_staff' ? (
               <div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
-                  <div className="overflow-x-auto">
+                  <FloatingHorizontalScroll>
                     {configLoading && channelStaffItems.length === 0 ? (
                       <div className="py-10 text-center text-slate-500">加载中...</div>
                     ) : channelStaffItems.length === 0 ? (
@@ -3109,13 +3110,13 @@ function App() {
                         </tbody>
                       </table>
                     )}
-                  </div>
+                  </FloatingHorizontalScroll>
                 </div>
               </div>
             ) : configTab === 'opportunity_lead' ? (
               <div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
-                  <div className="overflow-x-auto">
+                  <FloatingHorizontalScroll>
                     {configLoading && opportunityLeadItems.length === 0 ? (
                       <div className="py-10 text-center text-slate-500">加载中...</div>
                     ) : opportunityLeadItems.length === 0 ? (
@@ -3178,7 +3179,7 @@ function App() {
                         </tbody>
                       </table>
                     )}
-                  </div>
+                  </FloatingHorizontalScroll>
                 </div>
               </div>
             ) : configTab === 'morning_hot_stock_track' ? (
@@ -3221,7 +3222,7 @@ function App() {
                   </div>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
-                  <div className="overflow-x-auto">
+                  <FloatingHorizontalScroll>
                     {configLoading && morningHotStockTrackItems.length === 0 ? (
                       <div className="py-10 text-center text-slate-500">加载中...</div>
                     ) : morningHotStockTrackItems.length === 0 ? (
@@ -3321,7 +3322,7 @@ function App() {
                         })()}
                       </>
                     )}
-                  </div>
+                  </FloatingHorizontalScroll>
                 </div>
 
                 {/* 战绩弹窗 */}
@@ -3427,7 +3428,7 @@ function App() {
                             </div>
                           </div>
                         </div>
-                        <div className="overflow-x-auto bg-sky-50">
+                        <FloatingHorizontalScroll trackClassName="bg-sky-50" mirrorZIndex={60}>
                           <table className="w-full text-[11px]">
                             <thead>
                               <tr className="border-b border-slate-200 bg-sky-100">
@@ -3474,14 +3475,14 @@ function App() {
                               )}
                             </tbody>
                           </table>
-                        </div>
+                        </FloatingHorizontalScroll>
                       </div>
                     </div>
                   </div>
                 )}
               </div>
             ) : configTab === 'stock_position' ? (
-              <div className="mt-4 stock-position-page">
+              <div className="mt-4">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-3 flex-wrap">
                     <label className="text-sm text-slate-600">产品名称筛选（默认 短线王）：</label>
@@ -3545,7 +3546,7 @@ function App() {
                   </div>
                 )}
                 <div className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
-                  <div className="overflow-x-auto">
+                  <FloatingHorizontalScroll>
                     <table className="w-full text-sm stock-position-table">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-100">
@@ -3864,7 +3865,7 @@ function App() {
                         )}
                       </tbody>
                     </table>
-                  </div>
+                  </FloatingHorizontalScroll>
                 </div>
                 {stockPositionTotal > 0 && (
                   <div className="mt-3 flex items-center justify-between">
@@ -4441,7 +4442,7 @@ function App() {
                 onClick={() => setStockPositionPreviewOpen(false)}
               >
                 <div
-                  className="w-full max-w-6xl bg-white rounded-xl shadow-lg border border-slate-200 p-5 mx-4 max-h-[85vh] overflow-y-auto stock-position-preview"
+                  className="w-full max-w-6xl bg-white rounded-xl shadow-lg border border-slate-200 p-5 mx-4 max-h-[85vh] overflow-y-auto"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -4517,7 +4518,7 @@ function App() {
 
                   {stockPositionPreviewTab === 'position' && (
                     <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
-                      <div className="overflow-x-auto">
+                      <FloatingHorizontalScroll mirrorZIndex={60}>
                         {stockPositionPreviewPositionLoading && stockPositionPreviewPositionItems.length === 0 ? (
                           <div className="py-12 text-center text-slate-500">加载中...</div>
                         ) : stockPositionPreviewPositionError ? (
@@ -4556,13 +4557,13 @@ function App() {
                             </tbody>
                           </table>
                         )}
-                      </div>
+                      </FloatingHorizontalScroll>
                     </div>
                   )}
 
                   {stockPositionPreviewTab === 'nav' && (
                     <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
-                      <div className="overflow-x-auto">
+                      <FloatingHorizontalScroll mirrorZIndex={60}>
                         {stockPositionPreviewNavLoading && stockPositionPreviewNavItems.length === 0 ? (
                           <div className="py-12 text-center text-slate-500">加载中...</div>
                         ) : stockPositionPreviewNavError ? (
@@ -4596,13 +4597,13 @@ function App() {
                             </tbody>
                           </table>
                         )}
-                      </div>
+                      </FloatingHorizontalScroll>
                     </div>
                   )}
 
                   {stockPositionPreviewTab === 'nav_detail' && (
                     <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
-                      <div className="overflow-x-auto">
+                      <FloatingHorizontalScroll mirrorZIndex={60}>
                         {navDetailError ? (
                           <div className="py-12 text-center text-red-600 text-sm">{navDetailError}</div>
                         ) : navDetailLoading && navDetailItems.length === 0 ? (
@@ -4648,7 +4649,7 @@ function App() {
                             </tbody>
                           </table>
                         )}
-                      </div>
+                      </FloatingHorizontalScroll>
                     </div>
                   )}
                 </div>
@@ -4701,7 +4702,7 @@ function App() {
                 </div>
 
                 <div className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
-                  <div className="overflow-x-auto">
+                  <FloatingHorizontalScroll>
                     {salesOrderError ? (
                       <div className="py-10 text-center text-red-600">{salesOrderError}</div>
                     ) : salesOrderLoading && salesOrderItems.length === 0 ? (
@@ -4755,7 +4756,7 @@ function App() {
                         </tbody>
                       </table>
                     )}
-                  </div>
+                  </FloatingHorizontalScroll>
                 </div>
                 <div className="mt-2 px-4 text-sm text-slate-600">共 {salesOrderTotal} 条</div>
 
@@ -4949,7 +4950,7 @@ function App() {
                           <button onClick={() => setSalesOrderDetailOpen(false)} className="text-slate-500 hover:text-slate-700">✕</button>
                         </div>
                       </div>
-                      <div className="rounded-xl border border-slate-200 overflow-x-auto">
+                      <FloatingHorizontalScroll trackClassName="rounded-xl border border-slate-200" mirrorZIndex={60}>
                         <table className="w-full text-[11px]">
                           <thead>
                             <tr className="border-b border-slate-200 bg-slate-100">
@@ -5018,7 +5019,7 @@ function App() {
                             )}
                           </tbody>
                         </table>
-                      </div>
+                      </FloatingHorizontalScroll>
                     </div>
                   </div>
                 )}
@@ -5069,7 +5070,7 @@ function App() {
                           <button onClick={() => setSalesOrderSummaryOpen(false)} className="text-slate-500 hover:text-slate-700">✕</button>
                         </div>
                       </div>
-                      <div className="rounded-xl border border-slate-200 overflow-x-auto">
+                      <FloatingHorizontalScroll trackClassName="rounded-xl border border-slate-200" mirrorZIndex={60}>
                         <table className="w-full text-[11px]">
                           <thead>
                             <tr className="border-b border-slate-200 bg-slate-100">
@@ -5098,7 +5099,7 @@ function App() {
                             ))}
                           </tbody>
                         </table>
-                      </div>
+                      </FloatingHorizontalScroll>
                     </div>
                   </div>
                 )}
@@ -5131,7 +5132,7 @@ function App() {
                   </button>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
-                  <div className="overflow-x-auto">
+                  <FloatingHorizontalScroll>
                     {signCustomerGroupError ? (
                       <div className="py-10 text-center text-red-600">{signCustomerGroupError}</div>
                     ) : signCustomerGroupLoading && signCustomerGroupItems.length === 0 ? (
@@ -5200,7 +5201,7 @@ function App() {
                         </tbody>
                       </table>
                     )}
-                  </div>
+                  </FloatingHorizontalScroll>
                 </div>
                 <div className="mt-3 flex items-center justify-between text-sm text-slate-600">
                   <div>共 {signCustomerGroupTotal} 条</div>
@@ -5260,7 +5261,7 @@ function App() {
               )}
 
               <div className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
-                <div className="overflow-x-auto">
+                <FloatingHorizontalScroll>
                   {codeMappingLoading && codeMappingItems.length === 0 ? (
                     <div className="py-10 text-center text-slate-500">加载中...</div>
                   ) : codeMappingItems.length === 0 ? (
@@ -5315,7 +5316,7 @@ function App() {
                       </tbody>
                     </table>
                   )}
-                </div>
+                </FloatingHorizontalScroll>
               </div>
             </div>
             )}
@@ -5891,7 +5892,7 @@ function App() {
                     </button>
                   </div>
                 </div>
-                <div className="rounded-xl border border-slate-200 overflow-x-auto">
+                <FloatingHorizontalScroll trackClassName="rounded-xl border border-slate-200" mirrorZIndex={60}>
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-100">
@@ -5923,7 +5924,7 @@ function App() {
                       )}
                     </tbody>
                   </table>
-                </div>
+                </FloatingHorizontalScroll>
               </>
             ) : (
               <>
@@ -5952,7 +5953,7 @@ function App() {
                     下载（全量）
                   </button>
                 </div>
-                <div className="rounded-xl border border-slate-200 overflow-x-auto">
+                <FloatingHorizontalScroll trackClassName="rounded-xl border border-slate-200" mirrorZIndex={60}>
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-100">
@@ -5984,7 +5985,7 @@ function App() {
                       )}
                     </tbody>
                   </table>
-                </div>
+                </FloatingHorizontalScroll>
               </>
             )}
           </div>
@@ -6092,7 +6093,7 @@ function App() {
               </button>
             </div>
 
-            <div className="rounded-xl border border-slate-200 overflow-x-auto">
+            <FloatingHorizontalScroll trackClassName="rounded-xl border border-slate-200" mirrorZIndex={60}>
               {salesConversionMode === 'simple' ? (
                 <table className="w-full text-sm min-w-[640px]">
                   <thead>
@@ -6257,7 +6258,7 @@ function App() {
                   </tbody>
                 </table>
               )}
-            </div>
+            </FloatingHorizontalScroll>
             <p className="mt-2 text-xs text-slate-500">
               列表按所选月份筛选；下载为物化视图全量（所有月份），格式与当前「简易 / 复杂 / 未开户」一致。
             </p>

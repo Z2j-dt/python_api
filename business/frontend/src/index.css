@@ -183,6 +183,16 @@
   }
 }
 
+/* Windows：全局统一更细；Mac 仍用 @layer base 的 550，不套本段 */
+body[data-os="windows"] {
+  font-weight: 200 !important;
+}
+
+body[data-os="windows"] #root,
+body[data-os="windows"] #root * {
+  font-weight: 200 !important;
+}
+
 .module-page-title {
   /* 与 support 模块的 h1/全站字体保持一致 */
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI Variable Text", "Segoe UI Variable Display", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Helvetica Neue", Arial, "Microsoft YaHei UI", "Microsoft YaHei", sans-serif !important;
@@ -192,6 +202,11 @@
   color: #2563eb !important;
   line-height: 1.2;
   -webkit-text-stroke: 0.3px #2563eb;
+}
+
+body[data-os="windows"] .module-page-title {
+  font-weight: 500 !important;
+  -webkit-text-stroke: 0;
 }
 
 /* 产品净值：按交易日分组底色（同一天同色） */
@@ -218,25 +233,4 @@ body[data-theme="dark"] .stock-position-table .stock-position-date-group-b {
 body[data-theme="dark"] .stock-position-table .stock-position-date-group-a:hover,
 body[data-theme="dark"] .stock-position-table .stock-position-date-group-b:hover {
   background-color: rgba(30, 41, 59, 0.88) !important;
-}
-
-/* 产品净值页面与预览：文字再加粗一档 */
-.stock-position-page,
-.stock-position-page *,
-.stock-position-preview,
-.stock-position-preview * {
-  font-weight: 1500 !important;
-}
-
-/* Windows 仿苹果：略微减细，Mac 保持现状 */
-body[data-os="windows"] #root,
-body[data-os="windows"] #root * {
-  font-weight: 500 !important;
-}
-
-body[data-os="windows"] .stock-position-page,
-body[data-os="windows"] .stock-position-page *,
-body[data-os="windows"] .stock-position-preview,
-body[data-os="windows"] .stock-position-preview * {
-  font-weight: 500 !important;
 }
