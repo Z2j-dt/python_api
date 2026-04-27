@@ -43,6 +43,154 @@
 <div class="container">
     {% block content %}{% endblock %}
 </div>
+
+<!-- 字段映射详情弹窗（全局复用：表详情页 & 搜索结果页） -->
+<div id="fieldMappingModal" class="fm-modal" style="display:none;" aria-hidden="true">
+    <div class="fm-backdrop" data-fm-action="close"></div>
+    <div class="fm-dialog" role="dialog" aria-modal="true" aria-label="字段详情">
+        <div class="fm-header">
+            <div class="fm-title">
+                <div class="fm-title-main">字段详情</div>
+                <div class="fm-title-sub" id="fmTitleSub">-</div>
+            </div>
+            <button class="fm-close" type="button" title="关闭" data-fm-action="close">×</button>
+        </div>
+        <div class="fm-body">
+            <div id="fmLoading" class="fm-loading" style="display:none;">加载中...</div>
+            <div id="fmEmpty" class="fm-empty" style="display:none;">暂无映射信息</div>
+            <div id="fmError" class="fm-error" style="display:none;"></div>
+            <div id="fmContent" class="fm-content" style="display:none;"></div>
+        </div>
+        <div class="fm-footer">
+            <button class="secondary-button" type="button" data-fm-action="close">关闭</button>
+        </div>
+    </div>
+</div>
+
 {% block scripts %}{% endblock %}
+
+<script>
+    (function () {
+        function escapeHtml(str){
+            return String(str || '')
+                .replace(/&/g,'&amp;')
+                .replace(/</g,'&lt;')
+                .replace(/>/g,'&gt;')
+                .replace(/"/g,'&quot;')
+                .replace(/'/g,'&#39;');
+        }
+        function tryPrettyJson(val){
+            var s = (val == null) ? '' : String(val);
+            if (!s) return '';
+            try {
+                var obj = JSON.parse(s);
+                return JSON.stringify(obj, null, 2);
+            } catch (e) {
+                return s;
+            }
+        }
+        function setDisplay(el, show){ if (!el) return; el.style.display = show ? 'block' : 'none'; }
+        function setText(el, text){ if (!el) return; el.textContent = text == null ? '' : String(text); }
+
+        var modal = document.getElementById('fieldMappingModal');
+        var titleSub = document.getElementById('fmTitleSub');
+        var loadingEl = document.getElementById('fmLoading');
+        var emptyEl = document.getElementById('fmEmpty');
+        var errorEl = document.getElementById('fmError');
+        var contentEl = document.getElementById('fmContent');
+
+        function openModal(){
+            if (!modal) return;
+            modal.style.display = 'block';
+            modal.setAttribute('aria-hidden', 'false');
+            try { document.body.classList.add('fm-modal-open'); } catch (e) {}
+        }
+        function closeModal(){
+            if (!modal) return;
+            modal.style.display = 'none';
+            modal.setAttribute('aria-hidden', 'true');
+            try { document.body.classList.remove('fm-modal-open'); } catch (e) {}
+        }
+
+        async function openFieldMapping(targetTable, fieldName){
+            openModal();
+            setText(titleSub, (targetTable || '-') + ' · ' + (fieldName || '-'));
+            setDisplay(loadingEl, true);
+            setDisplay(emptyEl, false);
+            setDisplay(errorEl, false);
+            setDisplay(contentEl, false);
+            if (contentEl) contentEl.innerHTML = '';
+
+            var base = (window.BASE_PATH || '');
+            var url = base + '/api/field-mapping?target_table=' + encodeURIComponent(targetTable || '') + '&field_name=' + encodeURIComponent(fieldName || '');
+            try {
+                var resp = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' }});
+                var contentType = ((resp.headers && resp.headers.get) ? (resp.headers.get('content-type') || '') : '').toLowerCase();
+                var data = null;
+                if (contentType.indexOf('application/json') >= 0) {
+                    data = await resp.json();
+                } else {
+                    // 兼容服务未重启/路由不匹配时返回 HTML（404/登录页）
+                    var raw = await resp.text();
+                    throw new Error('接口返回非 JSON（HTTP ' + resp.status + '），请检查服务是否已重启。URL: ' + url + (raw && raw.slice(0, 1) === '<' ? '（返回了 HTML 页面）' : ''));
+                }
+                setDisplay(loadingEl, false);
+                if (!data || !data.success) {
+                    setDisplay(errorEl, true);
+                    setText(errorEl, (data && (data.error || data.message)) || '加载失败');
+                    return;
+                }
+                var rows = data.rows || [];
+                if (!rows.length) {
+                    setDisplay(emptyEl, true);
+                    return;
+                }
+
+                var html = '';
+                rows.forEach(function(r, idx){
+                    var expr = (r && r.expression) ? String(r.expression) : '';
+                    var src = tryPrettyJson(r && r.source_details);
+                    html += ''
+                        + '<div class="fm-block">'
+                        +   '<div class="fm-block-head">'
+                        +     '<div class="fm-block-title">映射记录 #' + (idx + 1) + '</div>'
+                        +   '</div>'
+                        +   '<div class="fm-kv">'
+                        +     '<div class="fm-k">逻辑代码</div>'
+                        +     '<pre class="fm-pre">' + escapeHtml(expr || '-') + '</pre>'
+                        +   '</div>'
+                        +   '<div class="fm-kv">'
+                        +     '<div class="fm-k">数据来源</div>'
+                        +     '<pre class="fm-pre fm-pre-muted">' + escapeHtml(src || '-') + '</pre>'
+                        +   '</div>'
+                        + '</div>';
+                });
+                if (contentEl) contentEl.innerHTML = html;
+                setDisplay(contentEl, true);
+            } catch (e) {
+                setDisplay(loadingEl, false);
+                setDisplay(errorEl, true);
+                setText(errorEl, '加载失败：' + (e && e.message ? e.message : '未知错误'));
+            }
+        }
+
+        // 暴露给页面脚本调用
+        window.openFieldMappingModal = openFieldMapping;
+        window.closeFieldMappingModal = closeModal;
+
+        // 关闭交互
+        if (modal) {
+            modal.addEventListener('click', function(ev){
+                var t = ev.target;
+                if (!t) return;
+                var act = (t.getAttribute && t.getAttribute('data-fm-action')) || '';
+                if (act === 'close') closeModal();
+            });
+        }
+        window.addEventListener('keydown', function(ev){
+            if (ev.key === 'Escape') closeModal();
+        });
+    })();
+</script>
 </body>
 </html>

@@ -395,6 +395,10 @@
                                 <span class="field-label">匹配字段：</span>
                                 <span class="field-value">${highlightedFieldName}</span>
                                 <span class="field-type">${item.field_type ? `(${item.field_type})` : ''}</span>
+                                <button class="fm-inline-detail-btn" type="button"
+                                    onclick="event.stopPropagation(); openFieldMappingModal('${(schema + '.' + ((item && item.table_name) || '')).replace(/'/g, "\\'")}', '${String(item.field_name || '').replace(/'/g, "\\'")}')">
+                                    详情
+                                </button>
                             </div>
                             <div class="field-comment">
                                 <span class="field-label">字段注释：</span>

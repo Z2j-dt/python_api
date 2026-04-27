@@ -69,6 +69,9 @@
                         <i class="fas fa-comment"></i>
                         字段注释
                     </th>
+                    <th class="detail-col">
+                        详情
+                    </th>
                 </tr>
                 </thead>
                 <tbody id="fieldsBody">
@@ -150,6 +153,9 @@
         const fieldsBody = document.getElementById('fieldsBody');
         const fieldsCount = document.getElementById('fieldsCount');
         const noFields = document.getElementById('noFields');
+        const schema = "{{ schema }}";
+        const tableName = "{{ table_name }}";
+        const targetTable = `${schema}.${tableName}`;
 
         if (!columns || columns.length === 0) {
             fieldsBody.innerHTML = '';
@@ -180,6 +186,12 @@
                     <div class="field-comment" title="${col.comment}">
                         ${col.comment || '<span class="no-comment">暂无注释</span>'}
                     </div>
+                </td>
+                <td class="detail-cell">
+                    <button class="fm-detail-btn" type="button"
+                        onclick="openFieldMappingModal('${targetTable.replace(/'/g, "\\'")}', '${String(col.name || '').replace(/'/g, "\\'")}')">
+                        详情
+                    </button>
                 </td>
             </tr>
             `;

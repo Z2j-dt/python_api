@@ -43,6 +43,29 @@ HIVE_TARGET_SCHEMAS = ['dwd', 'dws', 'ads']
 def _get_hive_conn():
     return pymysql.connect(**HIVE_DB, cursorclass=pymysql.cursors.DictCursor)
 
+def _get_portal_sr_conn():
+    """
+    连接 StarRocks（portal_db），用于字段映射结果查询。
+    连接信息复用 STARROCKS_* 环境变量；库名默认 portal_db，可用 PORTAL_SR_DATABASE 覆盖。
+    """
+    sr_host = os.environ.get("PORTAL_SR_HOST", os.environ.get("STARROCKS_HOST", "10.8.93.40"))
+    sr_port = int(os.environ.get("PORTAL_SR_PORT", os.environ.get("STARROCKS_PORT", "9030")))
+    sr_user = os.environ.get("PORTAL_SR_USER", os.environ.get("STARROCKS_USER", "root"))
+    sr_password = os.environ.get("PORTAL_SR_PASSWORD", os.environ.get("STARROCKS_PASSWORD", "star@dt1988"))
+    sr_database = os.environ.get("PORTAL_SR_DATABASE", os.environ.get("STARROCKS_DATABASE", "portal_db"))
+    return pymysql.connect(
+        host=sr_host,
+        port=sr_port,
+        user=sr_user,
+        password=sr_password,
+        database=sr_database,
+        charset="utf8mb4",
+        cursorclass=pymysql.cursors.DictCursor,
+        connect_timeout=10,
+        read_timeout=30,
+        write_timeout=30,
+    )
+
 def _is_chinese(text):
     return text and any('\u4e00' <= c <= '\u9fff' for c in text)
 
@@ -256,6 +279,51 @@ def hive_table_api(schema, table_name):
     finally:
         conn.close()
 
+@_hive_app.route('/api/field-mapping', methods=['GET'])
+@_hive_app.route('/api/field_mapping', methods=['GET'])
+def hive_field_mapping():
+    """
+    字段映射详情：按 target_table + field_name 查询 portal_db.sql_field_mapping_results。
+    返回 expression、source_details 等信息，用于前端“字段详情”展示。
+    """
+    target_table = (request.args.get('target_table') or '').strip()
+    field_name = (request.args.get('field_name') or '').strip()
+    if not target_table or not field_name:
+        return jsonify({'success': False, 'error': '缺少参数 target_table / field_name'}), 400
+
+    conn = None
+    try:
+        conn = _get_portal_sr_conn()
+        with conn.cursor() as cur:
+            sql = """
+SELECT
+  target_table,
+  field_name,
+  expression,
+  source_details
+FROM sql_field_mapping_results
+WHERE target_table = %s AND field_name = %s
+LIMIT 50
+""".strip()
+            cur.execute(sql, (target_table, field_name))
+            rows = cur.fetchall() or []
+            return jsonify({
+                'success': True,
+                'target_table': target_table,
+                'field_name': field_name,
+                'count': len(rows),
+                'rows': rows,
+                'timestamp': datetime.now().isoformat(),
+            })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e), 'timestamp': datetime.now().isoformat()}), 500
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
 @_hive_app.route('/table/<path:schema>/<path:table_name>')
 def hive_table_page(schema, table_name):
     base = (request.environ.get('SCRIPT_NAME') or '').rstrip('/')
@@ -272,6 +340,18 @@ def hive_layer_stats():
         return jsonify({'success':False,'error':str(e),'timestamp':datetime.now().isoformat()}), 500
     finally:
         conn.close()
+
+@_hive_app.errorhandler(Exception)
+def hive_api_error_handler(err):
+    """
+    API 路由统一 JSON 错误，避免前端拿到 HTML 报错 Unexpected token '<'。
+    非 API 路径仍返回默认错误页。
+    """
+    req_path = (request.path or '')
+    if req_path.startswith('/api/'):
+        code = getattr(err, 'code', 500) or 500
+        return jsonify({'success': False, 'error': str(err), 'timestamp': datetime.now().isoformat()}), code
+    raise err
 
 # ========== 数据血缘 Flask App ==========
 _lineage_app = Flask('sql_lineage_web',
