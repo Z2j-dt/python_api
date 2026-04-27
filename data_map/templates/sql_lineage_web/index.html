@@ -603,6 +603,7 @@
     let showAllDownstream = false;
     let centerHistory = [];
     let isNavigatingBack = false;
+    let clickTimer = null;
     let dragThreshold = 5; // 拖拽阈值（像素）
 
     // DOM元素
@@ -973,6 +974,17 @@
             document.addEventListener('mouseup', onMouseUp);
         });
 
+        // 双击：联动打开数据字典表详情（新标签页）
+        node.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (clickTimer) {
+                clearTimeout(clickTimer);
+                clickTimer = null;
+            }
+            openInDataDictionary(nodeData.id);
+        });
+
         node.addEventListener('touchstart', (e) => {
             if (e.touches.length === 1) {
                 e.preventDefault();
@@ -1049,12 +1061,17 @@
             const distance = Math.sqrt(dx * dx + dy * dy);
 
             if (distance <= dragThreshold) {
-                if (nodeData.id !== currentTable) {
-                    loadLineage(nodeData.id);
-                } else {
-                    focusNodeId = (focusNodeId === nodeData.id) ? null : nodeData.id;
-                    applyFocusHighlight();
-                }
+                // 单击行为延迟触发，避免与双击冲突
+                if (clickTimer) clearTimeout(clickTimer);
+                clickTimer = setTimeout(() => {
+                    clickTimer = null;
+                    if (nodeData.id !== currentTable) {
+                        loadLineage(nodeData.id);
+                    } else {
+                        focusNodeId = (focusNodeId === nodeData.id) ? null : nodeData.id;
+                        applyFocusHighlight();
+                    }
+                }, 220);
             }
 
             cleanup();
@@ -1089,6 +1106,17 @@
             document.removeEventListener('touchmove', onTouchMove);
             document.removeEventListener('touchend', onTouchEnd);
         }
+    }
+
+    function openInDataDictionary(tableFullName) {
+        if (!tableFullName) return;
+        const parts = String(tableFullName).split('.');
+        if (parts.length < 2) return;
+        const schema = parts[0];
+        const tableName = parts.slice(1).join('.');
+        const rootBase = (BASE_PATH || '').replace(/\/sql_lineage_web\/?$/, '').replace(/\/$/, '');
+        const dictUrl = `${rootBase}/hive_metadata/table/${encodeURIComponent(schema)}/${encodeURIComponent(tableName)}`;
+        window.open(dictUrl, '_blank');
     }
 
     function createAllLines(centerNode, upstreamNodes, downstreamNodes) {
