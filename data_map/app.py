@@ -13,8 +13,6 @@ from datetime import datetime
 
 from flask import Flask, render_template, request, jsonify
 import pymysql
-import mysql.connector
-from mysql.connector import Error
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
 
 # 路径
@@ -71,25 +69,32 @@ def _is_chinese(text):
 
 # ========== 数据血缘 (sql_lineage_web) ==========
 LINEAGE_DB = {
-    'host': os.environ.get('LINEAGE_DB_HOST', '10.8.93.32'),
-    'port': int(os.environ.get('LINEAGE_DB_PORT', 3306)),
-    'user': os.environ.get('LINEAGE_DB_USER', 'root'),
-    'password': os.environ.get('LINEAGE_DB_PASSWORD', 'dolphinscheduler@dt'),
-    'database': os.environ.get('LINEAGE_DB_NAME', 'dolphinscheduler'),
+    # 血缘默认切到 StarRocks（portal_db.sql_lineage_results）
+    'host': os.environ.get('LINEAGE_DB_HOST', os.environ.get('STARROCKS_HOST', '10.8.93.40')),
+    'port': int(os.environ.get('LINEAGE_DB_PORT', os.environ.get('STARROCKS_PORT', 9030))),
+    'user': os.environ.get('LINEAGE_DB_USER', os.environ.get('STARROCKS_USER', 'root')),
+    'password': os.environ.get('LINEAGE_DB_PASSWORD', os.environ.get('STARROCKS_PASSWORD', 'star@dt1988')),
+    'database': os.environ.get('LINEAGE_DB_NAME', os.environ.get('STARROCKS_DATABASE', 'portal_db')),
+    'charset': 'utf8mb4',
 }
 
 class _LineageDb:
     def __init__(self):
         self.conn = None
     def get_conn(self):
-        if not self.conn or not self.conn.is_connected():
-            self.conn = mysql.connector.connect(**LINEAGE_DB)
+        if not self.conn:
+            self.conn = pymysql.connect(**LINEAGE_DB, cursorclass=pymysql.cursors.DictCursor)
+        else:
+            try:
+                self.conn.ping(reconnect=True)
+            except Exception:
+                self.conn = pymysql.connect(**LINEAGE_DB, cursorclass=pymysql.cursors.DictCursor)
         return self.conn
     def execute(self, query, params=None):
         conn = self.get_conn()
-        cur = conn.cursor(dictionary=True)
-        cur.execute(query, params or ())
-        rows = cur.fetchall()
+        with conn.cursor() as cur:
+            cur.execute(query, params or ())
+            rows = cur.fetchall()
         for r in rows:
             for k, v in r.items():
                 if isinstance(v, bytes):
@@ -108,28 +113,13 @@ class _LineageAnalyzer:
     def get_table_lineage(self, table_name):
         if not table_name:
             return None
-        try:
-            up = self.db.execute("SELECT source_table_name FROM sql_lineage_results WHERE target_table_name = %s AND error_message IS NULL AND source_table_name IS NOT NULL", (table_name,))
-            down = self.db.execute("SELECT DISTINCT target_table_name FROM sql_lineage_results WHERE source_table_name LIKE %s AND error_message IS NULL", (f"%{table_name}%",))
-            upstream = set()
-            if up and up[0].get('source_table_name'):
-                upstream = set(t.strip() for t in up[0]['source_table_name'].split(',') if t.strip())
-            downstream = {r['target_table_name'] for r in down if r.get('target_table_name')}
-            if not upstream and not downstream:
-                return self._demo(table_name)
-            return self._build(table_name, upstream, downstream)
-        except Exception as e:
-            return self._demo(table_name)
-    def _demo(self, t):
-        if t.startswith('ads.'):
-            u, d = [f"dwd.{t.split('.')[1]}_detail","dim.product_info","dwd.user_behavior"],[f"report.{t.split('.')[1]}_summary","dashboard.sales_overview"]
-        elif t.startswith('dwd.'):
-            u, d = [f"ods.{t.split('.')[1]}_raw","ods.customer_info"],[f"ads.{t.split('.')[1]}_summary","dws.user_profile"]
-        elif t.startswith('ods.'):
-            u, d = ["source_system.sales_db","external_api.data_feed"],[f"dwd.{t.split('.')[1]}_processed"]
-        else:
-            u, d = [f"source.{t}","raw.{t}"],[f"target.{t}","report.{t}"]
-        return self._build(t, set(u), set(d))
+        up = self.db.execute("SELECT source_table_name FROM sql_lineage_results WHERE target_table_name = %s AND error_message IS NULL AND source_table_name IS NOT NULL", (table_name,))
+        down = self.db.execute("SELECT DISTINCT target_table_name FROM sql_lineage_results WHERE source_table_name LIKE %s AND error_message IS NULL", (f"%{table_name}%",))
+        upstream = set()
+        if up and up[0].get('source_table_name'):
+            upstream = set(t.strip() for t in up[0]['source_table_name'].split(',') if t.strip())
+        downstream = {r['target_table_name'] for r in down if r.get('target_table_name')}
+        return self._build(table_name, upstream, downstream)
     def _build(self, center, up, down):
         layer = lambda x: 'ODS' if x.startswith('ods.') else 'DWD' if x.startswith('dwd.') else 'DWS' if x.startswith('dws.') else 'ADS' if x.startswith('ads.') else 'DIM' if x.startswith('dim.') else 'OTHER'
         nodes = [{'id':center,'name':center.split('.')[-1] if '.' in center else center,'type':'center','layer':layer(center)}]
@@ -371,8 +361,9 @@ def lineage_search():
         return jsonify({'tables': []})
     try:
         return jsonify({'tables': _lineage.search_tables(kw)})
-    except:
-        return jsonify({'tables': [t for t in ["ads.sales_summary","dwd.sales_detail","ods.sales_order"] if kw.lower() in t.lower()]})
+    except Exception as e:
+        logger.exception("lineage_search error: %s", e)
+        return jsonify({'tables': []})
 
 @_lineage_app.route('/api/lineage/<path:table_name>')
 def lineage_api(table_name):

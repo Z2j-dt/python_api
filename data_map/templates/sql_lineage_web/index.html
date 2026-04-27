@@ -70,8 +70,83 @@
         }
 
         .search-box {
-            max-width: 600px;
+            max-width: 980px;
             margin: 0 auto;
+        }
+
+        .search-top-row {
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+        }
+
+        .search-left {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .legend.legend-in-search {
+            position: static;
+            top: auto;
+            left: auto;
+            right: auto;
+            bottom: auto;
+            transform: none;
+            min-width: 120px;
+            flex-shrink: 0;
+            margin: 0;
+        }
+
+        .view-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px 16px;
+            align-items: center;
+            margin-top: 8px;
+            font-size: 12px;
+            color: #475569;
+        }
+
+        .view-controls label {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+        }
+
+        .view-controls select {
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 2px 6px;
+            font-size: 12px;
+            background: #ffffff;
+        }
+
+        .hint-text {
+            color: #64748b;
+            font-size: 12px;
+            margin-top: 4px;
+        }
+
+        .more-actions {
+            margin-top: 6px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .more-btn {
+            border: 1px solid #cbd5e1;
+            background: #ffffff;
+            color: #334155;
+            border-radius: 6px;
+            padding: 4px 8px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .more-btn:hover {
+            background: #f8fafc;
         }
 
         .search-input-container {
@@ -143,8 +218,9 @@
         }
 
         .graph-canvas {
-            width: 100%;
-            height: 100%;
+            width: calc(100% - 80px);
+            height: calc(100% - 80px);
+            margin: 40px;
             position: relative;
             border: 1px solid #e2e8f0;
             border-radius: 8px;
@@ -153,17 +229,41 @@
             touch-action: none;
         }
 
+        .line-layer {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 8;
+            pointer-events: none;
+            overflow: visible;
+        }
+
         /* 节点样式 */
         .graph-node {
             position: absolute;
             display: flex;
-            flex-direction: column;
             align-items: center;
+            justify-content: center;
             cursor: pointer;
             transition: all 0.2s ease;
             z-index: 10;
-            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+            filter: drop-shadow(0 2px 5px rgba(15, 23, 42, 0.12));
             user-select: none;
+            min-width: 150px;
+            max-width: none;
+            min-height: 42px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 2px solid #94a3b8;
+            background: #ffffff;
+            color: #0f172a;
+            font-size: 13px;
+            font-weight: 600;
+            text-align: center;
+            word-break: normal;
+            white-space: nowrap;
+            width: max-content;
         }
 
         .graph-node:hover {
@@ -174,64 +274,52 @@
         .graph-node.dragging {
             cursor: grabbing !important;
             z-index: 1000 !important;
-            transform: scale(1.1);
-            filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
+            transform: scale(1.03);
+            filter: drop-shadow(0 5px 12px rgba(15, 23, 42, 0.2));
         }
 
-        .node-circle {
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: 600;
-            font-size: 14px;
-            border: 3px solid white;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-            transition: all 0.2s ease;
+        .graph-node.muted {
+            opacity: 0.22;
         }
 
-        .node-label {
-            margin-top: 6px;
-            padding: 3px 8px;
-            background: white;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 500;
-            color: #334155;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-            max-width: 120px;
-            text-align: center;
-            word-break: break-word;
-            border: 1px solid #e2e8f0;
+        .node-center { border-color: #667eea; background: #eef2ff; color: #3730a3; }
+        .node-upstream {
+            border-color: #16a34a;
+            background: #ecfdf3;
+            color: #166534;
+            justify-content: flex-end;
+            text-align: right;
+        }
+        .node-downstream {
+            border-color: #ea580c;
+            background: #fff7ed;
+            color: #9a3412;
+            justify-content: flex-start;
+            text-align: left;
+        }
+        .graph-node.focused {
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+            transform: scale(1.02);
         }
 
         /* 连线样式 */
-        .graph-line {
-            position: absolute;
-            background: #94a3b8;
-            transform-origin: 0 0;
-            z-index: 5;
-            border-radius: 1px;
-            pointer-events: none;
+        .line-path {
+            fill: none;
+            stroke-width: 1;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            opacity: 0.85;
         }
 
-        .line-arrow {
-            position: absolute;
-            width: 0;
-            height: 0;
-            border-left: 5px solid transparent;
-            border-right: 5px solid transparent;
-            border-top: 8px solid #94a3b8;
+        .line-path.muted {
+            opacity: 0.18;
         }
 
         /* 图例 */
         .legend {
             position: absolute;
-            top: 20px;
-            right: 20px;
+            top: 8px;
+            right: 8px;
             background: white;
             padding: 12px 16px;
             border-radius: 8px;
@@ -273,8 +361,8 @@
         /* 状态栏 */
         .status-bar {
             position: absolute;
-            bottom: 20px;
-            left: 20px;
+            top: 0;
+            left: 0;
             background: white;
             padding: 12px 16px;
             border-radius: 8px;
@@ -384,22 +472,19 @@
             }
 
             .legend {
-                top: 10px;
-                right: 10px;
                 padding: 10px;
                 max-width: 130px;
             }
 
             .status-bar {
-                bottom: 10px;
-                left: 10px;
                 padding: 10px;
             }
 
-            .node-circle {
-                width: 45px;
-                height: 45px;
-                font-size: 13px;
+            .graph-node {
+                min-width: 120px;
+                max-width: 200px;
+                min-height: 38px;
+                font-size: 12px;
             }
         }
 
@@ -410,8 +495,11 @@
         [data-theme="dark"] .graph-canvas,
         [data-theme="dark"] .legend,
         [data-theme="dark"] .status-bar,
-        [data-theme="dark"] .node-label,
+        [data-theme="dark"] .graph-node,
         [data-theme="dark"] .table-list { background: #1f2937; border-color: #334155; color: #e5e7eb; }
+        [data-theme="dark"] .node-center { border-color: #60a5fa; background: #1e3a8a; color: #dbeafe; }
+        [data-theme="dark"] .node-upstream { border-color: #34d399; background: #064e3b; color: #d1fae5; }
+        [data-theme="dark"] .node-downstream { border-color: #fb923c; background: #7c2d12; color: #ffedd5; }
         [data-theme="dark"] .search-input { background: #0b1220; border-color: #334155; color: #e5e7eb; }
         [data-theme="dark"] .search-input::placeholder { color: #94a3b8; }
     </style>
@@ -421,13 +509,39 @@
     <!-- 搜索栏 -->
     <div class="search-bar">
         <div class="search-box">
-            <div class="search-input-container">
-                <input type="text"
-                       class="search-input"
-                       id="searchInput"
-                       placeholder="输入表名搜索（如：ads.sales_summary）"
-                       autocomplete="off">
-                <button class="search-btn" id="searchBtn">搜索</button>
+            <div class="search-top-row">
+                <div class="search-left">
+                    <div class="search-input-container">
+                        <input type="text"
+                               class="search-input"
+                               id="searchInput"
+                               placeholder="输入表名搜索（如：ads.sales_summary）"
+                               autocomplete="off">
+                        <button class="search-btn" id="searchBtn">搜索</button>
+                    </div>
+                </div>
+            </div>
+            <div class="view-controls">
+                <label><input type="checkbox" id="showUpstream" checked> 显示上游</label>
+                <label><input type="checkbox" id="showDownstream" checked> 显示下游</label>
+                <label>每侧最多显示
+                    <select id="nodeLimit">
+                        <option value="5">5</option>
+                        <option value="10" selected>10</option>
+                        <option value="15">15</option>
+                        <option value="20">20</option>
+                        <option value="25">25</option>
+                        <option value="30">30</option>
+                        <option value="9999">全部</option>
+                    </select>
+                    个
+                </label>
+            </div>
+            <div class="hint-text">点击节点可高亮一跳关系，再点一次取消高亮。</div>
+            <div class="more-actions" id="moreActions" style="display:none;">
+                <button class="more-btn" id="goBackBtn" style="display:none;">返回上一层</button>
+                <button class="more-btn" id="expandUpstreamBtn" style="display:none;"></button>
+                <button class="more-btn" id="expandDownstreamBtn" style="display:none;"></button>
             </div>
             <div class="table-list" id="tableList"></div>
         </div>
@@ -435,7 +549,7 @@
 
     <!-- 图形区域 -->
     <div class="graph-container">
-        <!-- 图例 -->
+        <!-- 图例（右上角） -->
         <div class="legend">
             <div class="legend-title">图例说明</div>
             <div class="legend-item">
@@ -452,23 +566,6 @@
             </div>
         </div>
 
-        <!-- 状态栏 -->
-        <div class="status-bar" id="statusBar">
-            <div class="status-title">血缘关系</div>
-            <div class="status-item">
-                <span class="status-label">当前表：</span>
-                <span class="status-value" id="currentTable">-</span>
-            </div>
-            <div class="status-item">
-                <span class="status-label">上游表：</span>
-                <span class="status-value" id="upstreamCount">0</span>
-            </div>
-            <div class="status-item">
-                <span class="status-label">下游表：</span>
-                <span class="status-value" id="downstreamCount">0</span>
-            </div>
-        </div>
-
         <!-- 加载状态 -->
         <div class="loading" id="loading">
             <div class="spinner"></div>
@@ -482,7 +579,9 @@
         </div>
 
         <!-- 图形画布 -->
-        <div class="graph-canvas" id="graphCanvas"></div>
+        <div class="graph-canvas" id="graphCanvas">
+            <svg class="line-layer" id="lineLayer" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+        </div>
     </div>
 </div>
 
@@ -490,10 +589,20 @@
     var BASE_PATH = "{{ base_path or '' }}";
     // 全局变量
     let currentTable = '';
+    let rawData = null;
     let currentData = null;
     let nodes = [];
     let lines = [];
     let nodePositions = new Map();
+    let nodeMap = new Map();
+    let focusNodeId = null;
+    let showUpstream = true;
+    let showDownstream = true;
+    let nodeLimit = 10;
+    let showAllUpstream = false;
+    let showAllDownstream = false;
+    let centerHistory = [];
+    let isNavigatingBack = false;
     let dragThreshold = 5; // 拖拽阈值（像素）
 
     // DOM元素
@@ -501,22 +610,23 @@
     const searchBtn = document.getElementById('searchBtn');
     const tableList = document.getElementById('tableList');
     const graphCanvas = document.getElementById('graphCanvas');
+    const lineLayer = document.getElementById('lineLayer');
     const loading = document.getElementById('loading');
     const emptyState = document.getElementById('emptyState');
-    const statusBar = document.getElementById('statusBar');
-    const currentTableSpan = document.getElementById('currentTable');
-    const upstreamCountSpan = document.getElementById('upstreamCount');
-    const downstreamCountSpan = document.getElementById('downstreamCount');
+    const showUpstreamCheckbox = document.getElementById('showUpstream');
+    const showDownstreamCheckbox = document.getElementById('showDownstream');
+    const nodeLimitSelect = document.getElementById('nodeLimit');
+    const moreActions = document.getElementById('moreActions');
+    const goBackBtn = document.getElementById('goBackBtn');
+    const expandUpstreamBtn = document.getElementById('expandUpstreamBtn');
+    const expandDownstreamBtn = document.getElementById('expandDownstreamBtn');
 
     // 初始化
     document.addEventListener('DOMContentLoaded', () => {
         console.log('页面加载完成');
         setupEventListeners();
 
-        // 延迟加载默认表
-        setTimeout(() => {
-            loadLineage('ads.sales_summary');
-        }, 100);
+        // 首次打开不自动加载默认表，避免展示演示数据
     });
 
     function setupEventListeners() {
@@ -533,6 +643,30 @@
         searchInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') performSearch();
         });
+
+        showUpstreamCheckbox.addEventListener('change', () => {
+            showUpstream = showUpstreamCheckbox.checked;
+            renderCurrentView();
+        });
+        showDownstreamCheckbox.addEventListener('change', () => {
+            showDownstream = showDownstreamCheckbox.checked;
+            renderCurrentView();
+        });
+        nodeLimitSelect.addEventListener('change', () => {
+            nodeLimit = parseInt(nodeLimitSelect.value, 10) || 10;
+            showAllUpstream = false;
+            showAllDownstream = false;
+            renderCurrentView();
+        });
+        expandUpstreamBtn.addEventListener('click', () => {
+            showAllUpstream = true;
+            renderCurrentView();
+        });
+        expandDownstreamBtn.addEventListener('click', () => {
+            showAllDownstream = true;
+            renderCurrentView();
+        });
+        goBackBtn.addEventListener('click', navigateBack);
 
         // 点击空白处隐藏搜索结果
         document.addEventListener('click', (e) => {
@@ -587,8 +721,14 @@
     async function loadLineage(tableName) {
         if (currentTable === tableName) return;
 
+        if (!isNavigatingBack && currentTable) {
+            centerHistory.push(currentTable);
+        }
         currentTable = tableName;
         searchInput.value = tableName;
+        focusNodeId = null;
+        showAllUpstream = false;
+        showAllDownstream = false;
         showLoading();
         clearGraph();
         nodePositions.clear();
@@ -608,13 +748,95 @@
                 throw new Error(data.error);
             }
 
-            currentData = data;
-            renderGraphOptimized(data);
+            rawData = data;
+            renderCurrentView();
             hideLoading();
         } catch (error) {
             console.error('加载失败:', error);
             showError('加载失败，请重试');
             hideLoading();
+        }
+    }
+
+    function navigateBack() {
+        if (centerHistory.length === 0) return;
+        const previous = centerHistory.pop();
+        isNavigatingBack = true;
+        loadLineage(previous).finally(() => {
+            isNavigatingBack = false;
+            updateBackButton();
+        });
+    }
+
+    function renderCurrentView() {
+        if (!rawData) return;
+        currentData = buildViewData(rawData);
+        updateMoreButtons(rawData, currentData);
+        renderGraphOptimized(currentData);
+    }
+
+    function buildViewData(data) {
+        const centerNode = data.nodes.find(n => n.type === 'center');
+        let upstreamNodes = data.nodes.filter(n => n.type === 'upstream');
+        let downstreamNodes = data.nodes.filter(n => n.type === 'downstream');
+
+        upstreamNodes.sort((a, b) => a.id.localeCompare(b.id));
+        downstreamNodes.sort((a, b) => a.id.localeCompare(b.id));
+
+        if (!showUpstream) upstreamNodes = [];
+        if (!showDownstream) downstreamNodes = [];
+
+        if (!showAllUpstream) {
+            // 上游优先展示重点表：非 ods.* 的表
+            const keyUpstream = upstreamNodes.filter(n => !n.id.toLowerCase().startsWith('ods.'));
+            const odsUpstream = upstreamNodes.filter(n => n.id.toLowerCase().startsWith('ods.'));
+            const prioritized = [...keyUpstream, ...odsUpstream];
+            upstreamNodes = prioritized.slice(0, nodeLimit);
+        }
+        if (!showAllDownstream) downstreamNodes = downstreamNodes.slice(0, nodeLimit);
+
+        const nodes = [];
+        if (centerNode) nodes.push(centerNode);
+        nodes.push(...upstreamNodes, ...downstreamNodes);
+        const allowed = new Set(nodes.map(n => n.id));
+        const links = (data.links || []).filter(l => allowed.has(l.source) && allowed.has(l.target));
+
+        return {
+            ...data,
+            nodes,
+            links,
+            upstream_count: showUpstream ? upstreamNodes.length : 0,
+            downstream_count: showDownstream ? downstreamNodes.length : 0
+        };
+    }
+
+    function updateMoreButtons(sourceData, viewData) {
+        const rawUpCount = sourceData.nodes.filter(n => n.type === 'upstream').length;
+        const rawDownCount = sourceData.nodes.filter(n => n.type === 'downstream').length;
+        const viewUpCount = viewData.nodes.filter(n => n.type === 'upstream').length;
+        const viewDownCount = viewData.nodes.filter(n => n.type === 'downstream').length;
+
+        const hiddenUp = Math.max(0, rawUpCount - viewUpCount);
+        const hiddenDown = Math.max(0, rawDownCount - viewDownCount);
+
+        expandUpstreamBtn.style.display = (!showAllUpstream && showUpstream && hiddenUp > 0) ? 'inline-block' : 'none';
+        expandDownstreamBtn.style.display = (!showAllDownstream && showDownstream && hiddenDown > 0) ? 'inline-block' : 'none';
+        goBackBtn.style.display = centerHistory.length > 0 ? 'inline-block' : 'none';
+        expandUpstreamBtn.textContent = `展开剩余上游 +${hiddenUp}`;
+        expandDownstreamBtn.textContent = `展开剩余下游 +${hiddenDown}`;
+        moreActions.style.display = (
+            goBackBtn.style.display === 'inline-block' ||
+            expandUpstreamBtn.style.display === 'inline-block' ||
+            expandDownstreamBtn.style.display === 'inline-block'
+        ) ? 'flex' : 'none';
+    }
+
+    function updateBackButton() {
+        goBackBtn.style.display = centerHistory.length > 0 ? 'inline-block' : 'none';
+        if (goBackBtn.style.display !== 'inline-block' &&
+            expandUpstreamBtn.style.display !== 'inline-block' &&
+            expandDownstreamBtn.style.display !== 'inline-block') {
+            moreActions.style.display = 'none';
         }
     }
 
@@ -629,7 +851,7 @@
         }
 
         emptyState.style.display = 'none';
-        statusBar.style.display = 'block';
+        nodeMap = new Map();
 
         // 获取中心节点
         const centerNode = data.nodes.find(n => n.type === 'center');
@@ -640,111 +862,94 @@
         const canvasWidth = graphCanvas.clientWidth;
         const canvasHeight = graphCanvas.clientHeight;
 
-        // 中心位置
-        const centerX = canvasWidth / 2;
-        const centerY = canvasHeight / 2;
-
-        // 创建中心节点
-        if (centerNode) {
-            createNode(centerNode, centerX, centerY);
-        }
-
-        // 优化布局：上游在左边，下游在右边
-        layoutNodes(upstreamNodes, downstreamNodes, centerX, centerY, canvasWidth, canvasHeight);
+        // 三列网格布局：左上游 / 中心 / 右下游
+        layoutNodes(centerNode, upstreamNodes, downstreamNodes, canvasWidth, canvasHeight);
 
         // 创建连线
+        syncLineLayerSize();
         createAllLines(centerNode, upstreamNodes, downstreamNodes);
+        applyFocusHighlight();
     }
 
-    function layoutNodes(upstreamNodes, downstreamNodes, centerX, centerY, canvasWidth, canvasHeight) {
-        // 左侧区域：上游表
-        const leftAreaWidth = canvasWidth * 0.35; // 左侧35%区域
-        const leftAreaHeight = canvasHeight * 0.8; // 使用80%的高度
-        const leftAreaTop = (canvasHeight - leftAreaHeight) / 2;
-        const leftAreaLeft = 50; // 左边距
+    function layoutNodes(centerNode, upstreamNodes, downstreamNodes, canvasWidth, canvasHeight) {
+        const marginX = 40;
+        const topPadding = 50;
+        const bottomPadding = 40;
+        const rowCount = Math.max(upstreamNodes.length, downstreamNodes.length, 1);
+        const availableHeight = Math.max(120, canvasHeight - topPadding - bottomPadding);
+        const rowGap = availableHeight / rowCount;
 
-        // 右侧区域：下游表
-        const rightAreaWidth = canvasWidth * 0.35;
-        const rightAreaHeight = canvasHeight * 0.8;
-        const rightAreaTop = (canvasHeight - rightAreaHeight) / 2;
-        const rightAreaLeft = canvasWidth - rightAreaWidth - 50; // 右边距
+        // 以画布中心为轴，左右完全对称
+        const centerAxisX = Math.floor(canvasWidth / 2);
+        const sideGap = 220; // 左右到中心轴距离一致（稍微拉长）
+        const leftAnchorX = centerAxisX - sideGap; // 上游右边缘锚点
+        const rightX = centerAxisX + sideGap;      // 下游左边缘锚点
 
-        // 布局上游节点（左侧）
-        if (upstreamNodes.length > 0) {
-            const gridRows = Math.ceil(Math.sqrt(upstreamNodes.length));
-            const gridCols = Math.ceil(upstreamNodes.length / gridRows);
+        // 将行中心映射到 y 轴，确保上下游按同一网格对齐
+        const rowY = (idx) => topPadding + rowGap * idx + rowGap / 2 - 21;
 
-            const cellWidth = Math.min(120, (leftAreaWidth - 40) / gridCols);
-            const cellHeight = Math.min(100, (leftAreaHeight - 40) / gridRows);
+        // 左列：上游
+        upstreamNodes.forEach((node, index) => {
+            createNode(node, leftAnchorX, rowY(index), 'right');
+        });
 
-            upstreamNodes.forEach((node, index) => {
-                const row = Math.floor(index / gridCols);
-                const col = index % gridCols;
-
-                // 计算位置，尽量分散
-                const x = leftAreaLeft + (col + 0.5) * cellWidth;
-                const y = leftAreaTop + (row + 0.5) * cellHeight;
-
-                createNode(node, x, y);
-            });
+        // 中列：当前表，放在中间行
+        if (centerNode) {
+            const centerRow = Math.floor((rowCount - 1) / 2);
+            createNode(centerNode, centerAxisX, rowY(centerRow), 'center');
         }
 
-        // 布局下游节点（右侧）
-        if (downstreamNodes.length > 0) {
-            const gridRows = Math.ceil(Math.sqrt(downstreamNodes.length));
-            const gridCols = Math.ceil(downstreamNodes.length / gridRows);
-
-            const cellWidth = Math.min(120, (rightAreaWidth - 40) / gridCols);
-            const cellHeight = Math.min(100, (rightAreaHeight - 40) / gridRows);
-
-            downstreamNodes.forEach((node, index) => {
-                const row = Math.floor(index / gridCols);
-                const col = index % gridCols;
-
-                // 计算位置，尽量分散
-                const x = rightAreaLeft + (col + 0.5) * cellWidth;
-                const y = rightAreaTop + (row + 0.5) * cellHeight;
-
-                createNode(node, x, y);
-            });
-        }
+        // 右列：下游
+        downstreamNodes.forEach((node, index) => {
+            createNode(node, rightX, rowY(index), 'left');
+        });
     }
 
-    function createNode(nodeData, x, y) {
+    function createNode(nodeData, x, y, alignMode) {
         const node = document.createElement('div');
         node.className = 'graph-node';
-        node.style.left = (x - 25) + 'px';
-        node.style.top = (y - 25) + 'px';
+        node.style.left = x + 'px';
+        node.style.top = y + 'px';
         node.dataset.id = nodeData.id;
         node.dataset.type = nodeData.type;
+        node.dataset.alignMode = alignMode || 'left';
+        node.dataset.anchorX = String(x);
 
-        // 保存位置
-        nodePositions.set(nodeData.id, { x, y });
-
-        // 设置颜色
-        let color = '#94a3b8';
-        if (nodeData.type === 'center') color = '#667eea';
-        if (nodeData.type === 'upstream') color = '#48bb78';
-        if (nodeData.type === 'downstream') color = '#ed8936';
-
-        // 获取层级标签
-        const layer = getTableLayer(nodeData.id);
-
-        node.innerHTML = `
-            <div class="node-circle" style="background: ${color};">
-                ${getInitials(nodeData.name)}
-            </div>
-            <div class="node-label">
-                ${nodeData.name}
-                <div class="layer-tag tag-${layer}">${layer}</div>
-            </div>
-        `;
+        // 框内直接展示完整表名
+        node.textContent = nodeData.id || nodeData.name;
+        if (nodeData.type === 'center') node.classList.add('node-center');
+        if (nodeData.type === 'upstream') node.classList.add('node-upstream');
+        if (nodeData.type === 'downstream') node.classList.add('node-downstream');
 
         // 设置拖拽事件
         setupDragEvents(node, nodeData);
 
         graphCanvas.appendChild(node);
+        if (node.dataset.alignMode === 'right') {
+            const anchorX = parseFloat(node.dataset.anchorX) || x;
+            node.style.left = (anchorX - node.offsetWidth) + 'px';
+        } else if (node.dataset.alignMode === 'center') {
+            const anchorX = parseFloat(node.dataset.anchorX) || x;
+            node.style.left = (anchorX - node.offsetWidth / 2) + 'px';
+        }
         nodes.push(node);
+        nodeMap.set(nodeData.id, node);
+        updateNodeCenterPosition(nodeData.id, node);
+    }
+
+    function updateNodeCenterPosition(nodeId, nodeElement) {
+        const left = parseFloat(nodeElement.style.left) || 0;
+        const top = parseFloat(nodeElement.style.top) || 0;
+        const width = nodeElement.offsetWidth || 160;
+        const height = nodeElement.offsetHeight || 42;
+        nodePositions.set(nodeId, {
+            x: left + width / 2,
+            y: top + height / 2,
+            left,
+            top,
+            width,
+            height
+        });
     }
 
     function setupDragEvents(node, nodeData) {
@@ -800,19 +1005,14 @@
                 // 限制在画布内
                 const canvasWidth = graphCanvas.clientWidth;
                 const canvasHeight = graphCanvas.clientHeight;
-                const boundedLeft = Math.max(0, Math.min(newLeft, canvasWidth - 50));
-                const boundedTop = Math.max(0, Math.min(newTop, canvasHeight - 50));
+                const boundedLeft = Math.max(0, Math.min(newLeft, canvasWidth - (node.offsetWidth || 160)));
+                const boundedTop = Math.max(0, Math.min(newTop, canvasHeight - (node.offsetHeight || 42)));
 
                 node.style.left = boundedLeft + 'px';
                 node.style.top = boundedTop + 'px';
 
-                // 更新位置缓存
-                const centerX = boundedLeft + 25;
-                const centerY = boundedTop + 25;
-                nodePositions.set(nodeData.id, { x: centerX, y: centerY });
-
-                // 更新连线
-                updateLinesForNode(nodeData.id);
+                updateNodeCenterPosition(nodeData.id, node);
+                redrawLines();
             }
         }
 
@@ -830,17 +1030,14 @@
 
                 const canvasWidth = graphCanvas.clientWidth;
                 const canvasHeight = graphCanvas.clientHeight;
-                const boundedLeft = Math.max(0, Math.min(newLeft, canvasWidth - 50));
-                const boundedTop = Math.max(0, Math.min(newTop, canvasHeight - 50));
+                const boundedLeft = Math.max(0, Math.min(newLeft, canvasWidth - (node.offsetWidth || 160)));
+                const boundedTop = Math.max(0, Math.min(newTop, canvasHeight - (node.offsetHeight || 42)));
 
                 node.style.left = boundedLeft + 'px';
                 node.style.top = boundedTop + 'px';
 
-                const centerX = boundedLeft + 25;
-                const centerY = boundedTop + 25;
-                nodePositions.set(nodeData.id, { x: centerX, y: centerY });
-
-                updateLinesForNode(nodeData.id);
+                updateNodeCenterPosition(nodeData.id, node);
+                redrawLines();
             }
         }
 
@@ -852,9 +1049,11 @@
             const distance = Math.sqrt(dx * dx + dy * dy);
 
             if (distance <= dragThreshold) {
-                // 点击事件
                 if (nodeData.id !== currentTable) {
                     loadLineage(nodeData.id);
+                } else {
+                    focusNodeId = (focusNodeId === nodeData.id) ? null : nodeData.id;
+                    applyFocusHighlight();
                 }
             }
 
@@ -870,9 +1069,11 @@
             const distance = Math.sqrt(dx * dx + dy * dy);
 
             if (distance <= dragThreshold) {
-                // 点击事件
                 if (nodeData.id !== currentTable) {
                     loadLineage(nodeData.id);
+                } else {
+                    focusNodeId = (focusNodeId === nodeData.id) ? null : nodeData.id;
+                    applyFocusHighlight();
                 }
             }
 
@@ -895,116 +1096,121 @@
 
         const centerPos = nodePositions.get(centerNode.id);
         if (!centerPos) return;
+        const centerLeftX = centerPos.left;
+        const centerRightX = centerPos.left + centerPos.width;
+        const centerY = centerPos.y;
+        const upstreamColor = getLineColor('upstream');
+        const downstreamColor = getLineColor('downstream');
 
-        // 上游连线（左侧绿色）
-        upstreamNodes.forEach(node => {
-            const nodePos = nodePositions.get(node.id);
-            if (nodePos) {
-                createLine(node.id, centerNode.id, nodePos.x, nodePos.y, centerPos.x, centerPos.y, 'upstream');
+        // 上游：单线直连中心（弧线）
+        if (upstreamNodes.length > 0) {
+            const upstreamPos = upstreamNodes.map(n => ({ id: n.id, pos: nodePositions.get(n.id) })).filter(x => !!x.pos);
+            if (upstreamPos.length > 0) {
+                upstreamPos.forEach(({ id, pos }) => {
+                    const nodeRight = pos.left + pos.width;
+                    drawCurve(nodeRight, pos.y, centerLeftX - 2, centerY, upstreamColor, id, centerNode.id, 'upstream', false, 0.32);
+                });
             }
-        });
-
-        // 下游连线（右侧橙色）
-        downstreamNodes.forEach(node => {
-            const nodePos = nodePositions.get(node.id);
-            if (nodePos) {
-                createLine(centerNode.id, node.id, centerPos.x, centerPos.y, nodePos.x, nodePos.y, 'downstream');
-            }
-        });
-    }
-
-    function createLine(sourceId, targetId, x1, y1, x2, y2, type) {
-        const dx = x2 - x1;
-        const dy = y2 - y1;
-        const length = Math.sqrt(dx * dx + dy * dy);
-        if (length === 0) return;
-
-        const angle = Math.atan2(dy, dx) * 180 / Math.PI;
-
-        // 计算起点偏移
-        const nodeRadius = 25;
-        const startX = x1 + (dx / length) * nodeRadius;
-        const startY = y1 + (dy / length) * nodeRadius;
-        const endX = x2 - (dx / length) * nodeRadius;
-        const endY = y2 - (dy / length) * nodeRadius;
-
-        const finalLength = Math.sqrt((endX - startX) * (endX - startX) + (endY - startY) * (endY - startY));
-
-        // 创建连线
-        const line = document.createElement('div');
-        line.className = 'graph-line';
-        line.style.width = finalLength + 'px';
-        line.style.height = '2px';
-        line.style.left = startX + 'px';
-        line.style.top = startY + 'px';
-        line.style.transform = `rotate(${angle}deg)`;
-        line.dataset.source = sourceId;
-        line.dataset.target = targetId;
-        line.dataset.type = type;
-
-        // 设置连线颜色
-        if (type === 'upstream') {
-            line.style.background = '#48bb78';
-        } else if (type === 'downstream') {
-            line.style.background = '#ed8936';
         }
 
-        // 创建箭头
-        const arrow = document.createElement('div');
-        arrow.className = 'line-arrow';
-        arrow.style.left = (finalLength - 8) + 'px';
-        arrow.style.top = '-3px';
-
-        if (type === 'upstream') {
-            arrow.style.borderTopColor = '#48bb78';
-        } else if (type === 'downstream') {
-            arrow.style.borderTopColor = '#ed8936';
-        }
-
-        line.appendChild(arrow);
-        graphCanvas.appendChild(line);
-        lines.push(line);
-    }
-
-    function updateLinesForNode(nodeId) {
-        lines.forEach(line => {
-            if (line.dataset.source === nodeId || line.dataset.target === nodeId) {
-                const sourceId = line.dataset.source;
-                const targetId = line.dataset.target;
-
-                const sourcePos = nodePositions.get(sourceId);
-                const targetPos = nodePositions.get(targetId);
-
-                if (sourcePos && targetPos) {
-                    updateLine(line, sourcePos.x, sourcePos.y, targetPos.x, targetPos.y);
-                }
+        // 下游：单线直连中心（弧线）
+        if (downstreamNodes.length > 0) {
+            const downstreamPos = downstreamNodes.map(n => ({ id: n.id, pos: nodePositions.get(n.id) })).filter(x => !!x.pos);
+            if (downstreamPos.length > 0) {
+                downstreamPos.forEach(({ id, pos }) => {
+                    const nodeLeft = pos.left;
+                    drawCurve(centerRightX + 2, centerY, nodeLeft, pos.y, downstreamColor, centerNode.id, id, 'downstream', false, 0.32);
+                });
             }
-        });
+        }
     }
 
-    function updateLine(line, x1, y1, x2, y2) {
+    function getLineColor(type) {
+        const mode = document.documentElement.getAttribute('data-theme') || 'light';
+        if (mode === 'dark') {
+            return type === 'upstream' ? '#34d399' : '#fb923c';
+        }
+        return '#111111';
+    }
+
+    function syncLineLayerSize() {
+        if (!lineLayer) return;
+        const w = graphCanvas.clientWidth || 100;
+        const h = graphCanvas.clientHeight || 100;
+        lineLayer.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    }
+
+    function drawPath(points, color, sourceId, targetId, type, withArrow) {
+        if (!lineLayer || !points || points.length < 2) return;
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('class', 'line-path');
+        path.setAttribute('stroke', color);
+        path.setAttribute('d', buildRoundedPath(points, 8));
+        // 极简模式：不显示箭头
+        path.dataset.source = sourceId;
+        path.dataset.target = targetId;
+        path.dataset.type = type;
+        lineLayer.appendChild(path);
+        lines.push(path);
+    }
+
+    function drawCurve(x1, y1, x2, y2, color, sourceId, targetId, type, withArrow, bendRatio) {
+        if (!lineLayer) return;
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('class', 'line-path');
+        path.setAttribute('stroke', color);
         const dx = x2 - x1;
-        const dy = y2 - y1;
-        const length = Math.sqrt(dx * dx + dy * dy);
-        if (length === 0) return;
+        const c1x = x1 + dx * (bendRatio || 0.35);
+        const c2x = x2 - dx * (bendRatio || 0.35);
+        path.setAttribute('d', `M ${x1} ${y1} C ${c1x} ${y1}, ${c2x} ${y2}, ${x2} ${y2}`);
+        // 极简模式：不显示箭头
+        path.dataset.source = sourceId;
+        path.dataset.target = targetId;
+        path.dataset.type = type;
+        lineLayer.appendChild(path);
+        lines.push(path);
+    }
 
-        const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+    function buildRoundedPath(points, radius) {
+        if (points.length === 2) {
+            return `M ${points[0].x} ${points[0].y} L ${points[1].x} ${points[1].y}`;
+        }
+        let d = `M ${points[0].x} ${points[0].y}`;
+        for (let i = 1; i < points.length - 1; i++) {
+            const p0 = points[i - 1];
+            const p1 = points[i];
+            const p2 = points[i + 1];
+            const v1x = p1.x - p0.x;
+            const v1y = p1.y - p0.y;
+            const v2x = p2.x - p1.x;
+            const v2y = p2.y - p1.y;
+            const len1 = Math.hypot(v1x, v1y);
+            const len2 = Math.hypot(v2x, v2y);
+            if (len1 < 1 || len2 < 1) {
+                d += ` L ${p1.x} ${p1.y}`;
+                continue;
+            }
+            const r = Math.min(radius, len1 / 2, len2 / 2);
+            const p1a = { x: p1.x - (v1x / len1) * r, y: p1.y - (v1y / len1) * r };
+            const p1b = { x: p1.x + (v2x / len2) * r, y: p1.y + (v2y / len2) * r };
+            d += ` L ${p1a.x} ${p1a.y} Q ${p1.x} ${p1.y} ${p1b.x} ${p1b.y}`;
+        }
+        const last = points[points.length - 1];
+        d += ` L ${last.x} ${last.y}`;
+        return d;
+    }
 
-        const nodeRadius = 25;
-        const startX = x1 + (dx / length) * nodeRadius;
-        const startY = y1 + (dy / length) * nodeRadius;
-        const endX = x2 - (dx / length) * nodeRadius;
-        const endY = y2 - (dy / length) * nodeRadius;
+    function ensureArrowDefs() {}
 
-        const finalLength = Math.sqrt((endX - startX) * (endX - startX) + (endY - startY) * (endY - startY));
-
-        line.style.width = finalLength + 'px';
-        line.style.left = startX + 'px';
-        line.style.top = startY + 'px';
-        line.style.transform = `rotate(${angle}deg)`;
-
-        const arrow = line.querySelector('.line-arrow');
-        arrow.style.left = (finalLength - 8) + 'px';
+    function redrawLines() {
+        lines.forEach(line => line.remove());
+        lines = [];
+        if (!currentData || !currentData.nodes || currentData.nodes.length === 0) return;
+        const centerNode = currentData.nodes.find(n => n.type === 'center');
+        const upstreamNodes = currentData.nodes.filter(n => n.type === 'upstream');
+        const downstreamNodes = currentData.nodes.filter(n => n.type === 'downstream');
+        createAllLines(centerNode, upstreamNodes, downstreamNodes);
+        applyFocusHighlight();
     }
 
     function clearGraph() {
@@ -1017,12 +1223,42 @@
             lines.forEach(line => line.remove());
             lines = [];
         }
+        if (lineLayer) {
+            lineLayer.querySelectorAll('.line-path').forEach(el => el.remove());
+        }
+        nodeMap = new Map();
+    }
+
+    function applyFocusHighlight() {
+        const nodeIds = new Set((currentData?.nodes || []).map(n => n.id));
+        nodeMap.forEach((el, id) => {
+            if (!nodeIds.has(id)) return;
+            el.classList.remove('muted', 'focused');
+        });
+        lines.forEach(line => line.classList.remove('muted'));
+
+        if (!focusNodeId || !nodeMap.has(focusNodeId)) return;
+        const related = new Set([focusNodeId]);
+        (currentData.links || []).forEach(l => {
+            if (l.source === focusNodeId) related.add(l.target);
+            if (l.target === focusNodeId) related.add(l.source);
+        });
+
+        nodeMap.forEach((el, id) => {
+            if (!related.has(id)) el.classList.add('muted');
+            if (id === focusNodeId) el.classList.add('focused');
+        });
+
+        lines.forEach(line => {
+            const sourceId = line.dataset.source;
+            const targetId = line.dataset.target;
+            const keep = sourceId === focusNodeId || targetId === focusNodeId;
+            if (!keep) line.classList.add('muted');
+        });
     }
 
     function updateStatusBar(data) {
-        currentTableSpan.textContent = data.center_table || currentTable;
-        upstreamCountSpan.textContent = data.upstream_count || 0;
-        downstreamCountSpan.textContent = data.downstream_count || 0;
+        // 已移除状态浮框，保留函数避免调用报错
     }
 
     function getTableLayer(tableName) {
@@ -1034,14 +1270,9 @@
         return 'OTHER';
     }
 
-    function getInitials(name) {
-        return name.substring(0, 2).toUpperCase();
-    }
-
     function showLoading() {
         loading.style.display = 'flex';
         emptyState.style.display = 'none';
-        statusBar.style.display = 'none';
     }
 
     function hideLoading() {
@@ -1054,7 +1285,6 @@
             <p style="color: #94a3b8;">请尝试搜索其他表名</p>
         `;
         emptyState.style.display = 'block';
-        statusBar.style.display = 'none';
     }
 
     // 窗口大小调整时重绘
@@ -1062,11 +1292,14 @@
     window.addEventListener('resize', () => {
         clearTimeout(resizeTimer);
         resizeTimer = setTimeout(() => {
+            syncLineLayerSize();
             if (currentData) {
                 renderGraphOptimized(currentData);
             }
         }, 250);
     });
+
+    ensureArrowDefs();
 </script>
 </body>
 </html>
