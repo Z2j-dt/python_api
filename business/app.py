@@ -331,6 +331,10 @@ MV_SALES_DAILY_LEADS_ACT_TABLE = os.environ.get("SALES_DAILY_LEADS_TABLE", "scrm
 MV_SALES_INFLOW_CONVERSION_MONTHLY_TABLE = os.environ.get(
     "SALES_INFLOW_CONVERSION_MONTHLY_TABLE", "mv_sales_inflow_conversion_monthly_complex"
 )
+# 月度转化率（投顾简易/投顾复杂）
+MV_SALES_INFLOW_CONVERSION_MONTHLY_ADVISOR_TABLE = os.environ.get(
+    "SALES_INFLOW_CONVERSION_MONTHLY_ADVISOR_TABLE", "mv_sales_inflow_conversion_monthly_complex_advisor"
+)
 
 
 def _norm_yyyymmdd(s: Optional[str]) -> Optional[str]:
@@ -1504,15 +1508,24 @@ async def sales_daily_leads_conversion_monthly(
     月度转化率（物化视图）：默认当前月；
     - mode=simple：简易列
     - mode=complex：全量列
+    - mode=advisor_simple：投顾简易列
+    - mode=advisor_complex：投顾全量列
     - mode=unopened：未开户（仅 销售/总加微数/订单数/转化率）
     """
     m = _parse_month_yyyy_mm(month)
     md = (mode or "simple").strip().lower()
-    if md not in ("simple", "complex", "unopened"):
-        raise HTTPException(status_code=400, detail="mode 须为 simple / complex / unopened")
-    tbl = MV_SALES_INFLOW_CONVERSION_MONTHLY_TABLE
+    if md not in ("simple", "complex", "advisor_simple", "advisor_complex", "unopened"):
+        raise HTTPException(
+            status_code=400,
+            detail="mode 须为 simple / complex / advisor_simple / advisor_complex / unopened",
+        )
+    tbl = (
+        MV_SALES_INFLOW_CONVERSION_MONTHLY_ADVISOR_TABLE
+        if md in ("advisor_simple", "advisor_complex")
+        else MV_SALES_INFLOW_CONVERSION_MONTHLY_TABLE
+    )
     try:
-        if md == "simple":
+        if md in ("simple", "advisor_simple"):
             with _db_cursor() as cur:
                 cur.execute(
                     f"""
@@ -1573,6 +1586,7 @@ async def sales_daily_leads_conversion_monthly(
                 )
                 for d in (dict(r) for r in rows)
             ]
+        # complex / advisor_complex 复用同一套复杂列逻辑，仅数据源表不同
         with _db_cursor() as cur:
             cur.execute(
                 f"""
@@ -1645,9 +1659,16 @@ async def sales_daily_leads_conversion_monthly_export_csv(mode: str = "simple"):
     月度转化率 CSV 全量导出（不按月份过滤，与列表筛选独立）。
     """
     md = (mode or "simple").strip().lower()
-    if md not in ("simple", "complex", "unopened"):
-        raise HTTPException(status_code=400, detail="mode 须为 simple / complex / unopened")
-    tbl = MV_SALES_INFLOW_CONVERSION_MONTHLY_TABLE
+    if md not in ("simple", "complex", "advisor_simple", "advisor_complex", "unopened"):
+        raise HTTPException(
+            status_code=400,
+            detail="mode 须为 simple / complex / advisor_simple / advisor_complex / unopened",
+        )
+    tbl = (
+        MV_SALES_INFLOW_CONVERSION_MONTHLY_ADVISOR_TABLE
+        if md in ("advisor_simple", "advisor_complex")
+        else MV_SALES_INFLOW_CONVERSION_MONTHLY_TABLE
+    )
     try:
         if md == "unopened":
             with _db_cursor() as cur:
@@ -1687,7 +1708,7 @@ async def sales_daily_leads_conversion_monthly_export_csv(mode: str = "simple"):
                 media_type="text/csv; charset=utf-8",
                 headers={"Content-Disposition": f"attachment; filename={filename}"},
             )
-        if md == "simple":
+        if md in ("simple", "advisor_simple"):
             with _db_cursor() as cur:
                 cur.execute(
                     f"""
@@ -1809,7 +1830,14 @@ async def sales_daily_leads_conversion_monthly_export_csv(mode: str = "simple"):
                     }
                 )
         data = output.getvalue().encode("utf-8-sig")
-        tag = "simple" if md == "simple" else "complex"
+        if md == "simple":
+            tag = "simple"
+        elif md == "advisor_simple":
+            tag = "advisor_simple"
+        elif md == "advisor_complex":
+            tag = "advisor_complex"
+        else:
+            tag = "complex"
         filename = quote(f"sales_inflow_conversion_monthly_{tag}_all.csv")
         return StreamingResponse(
             io.BytesIO(data),

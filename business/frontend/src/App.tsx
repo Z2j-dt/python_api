@@ -715,7 +715,9 @@ function App() {
   const [salesDailySummaryError, setSalesDailySummaryError] = useState<string | null>(null)
 
   const [salesConversionOpen, setSalesConversionOpen] = useState(false)
-  const [salesConversionMode, setSalesConversionMode] = useState<'simple' | 'complex' | 'unopened'>('simple')
+  const [salesConversionMode, setSalesConversionMode] = useState<
+    'simple' | 'complex' | 'advisor_simple' | 'advisor_complex' | 'unopened'
+  >('simple')
   const [salesConversionMonth, setSalesConversionMonth] = useState<string>(getCurrentYearMonthValue())
   const [salesConversionSimpleItems, setSalesConversionSimpleItems] = useState<SalesInflowConversionSimpleItem[]>([])
   const [salesConversionComplexItems, setSalesConversionComplexItems] = useState<SalesInflowConversionComplexItem[]>([])
@@ -925,7 +927,10 @@ function App() {
   }, [salesDailySummaryMonth])
 
   const loadSalesConversion = useCallback(
-    async (monthInput: string, mode: 'simple' | 'complex' | 'unopened') => {
+    async (
+      monthInput: string,
+      mode: 'simple' | 'complex' | 'advisor_simple' | 'advisor_complex' | 'unopened'
+    ) => {
       setSalesConversionLoading(true)
       setSalesConversionError(null)
       setSalesConversionMode(mode)
@@ -941,13 +946,13 @@ function App() {
         )
         if (!res.ok) throw new Error(await res.text())
         setSalesConversionMonth(m)
-        if (mode === 'simple') {
+        if (mode === 'simple' || mode === 'advisor_simple') {
           const list: SalesInflowConversionSimpleItem[] = await res.json()
           setSalesConversionSimpleItems(Array.isArray(list) ? list : [])
           setSalesConversionComplexItems([])
           setSalesConversionUnopenedItems([])
         } else {
-          if (mode === 'complex') {
+          if (mode === 'complex' || mode === 'advisor_complex') {
             const list: SalesInflowConversionComplexItem[] = await res.json()
             setSalesConversionComplexItems(Array.isArray(list) ? list : [])
             setSalesConversionSimpleItems([])
@@ -6246,6 +6251,28 @@ function App() {
               </button>
               <button
                 type="button"
+                onClick={() => void loadSalesConversion(salesConversionMonth, 'advisor_simple')}
+                className={`px-3 py-1.5 rounded-lg text-sm ${
+                  salesConversionMode === 'advisor_simple'
+                    ? 'bg-violet-600 text-white'
+                    : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                }`}
+              >
+                投顾简易
+              </button>
+              <button
+                type="button"
+                onClick={() => void loadSalesConversion(salesConversionMonth, 'advisor_complex')}
+                className={`px-3 py-1.5 rounded-lg text-sm ${
+                  salesConversionMode === 'advisor_complex'
+                    ? 'bg-violet-600 text-white'
+                    : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                }`}
+              >
+                投顾复杂
+              </button>
+              <button
+                type="button"
                 onClick={() => void loadSalesConversion(salesConversionMonth, 'unopened')}
                 className={`px-3 py-1.5 rounded-lg text-sm ${
                   salesConversionMode === 'unopened'
@@ -6293,7 +6320,7 @@ function App() {
             </div>
 
             <FloatingHorizontalScroll trackClassName="rounded-xl border border-slate-200" mirrorZIndex={60}>
-              {salesConversionMode === 'simple' ? (
+              {salesConversionMode === 'simple' || salesConversionMode === 'advisor_simple' ? (
                 <table className="w-full text-sm min-w-[640px]">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-100">
@@ -6343,7 +6370,7 @@ function App() {
                     )}
                   </tbody>
                 </table>
-              ) : salesConversionMode === 'complex' ? (
+              ) : salesConversionMode === 'complex' || salesConversionMode === 'advisor_complex' ? (
                 <table className="w-full text-sm min-w-[1200px]">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-100">
@@ -6459,7 +6486,7 @@ function App() {
               )}
             </FloatingHorizontalScroll>
             <p className="mt-2 text-xs text-slate-500">
-              列表按所选月份筛选；下载为物化视图全量（所有月份），格式与当前「简易 / 复杂 / 未开户」一致。
+              列表按所选月份筛选；下载为物化视图全量（所有月份），格式与当前模式一致。
             </p>
           </div>
         </div>
