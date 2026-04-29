@@ -351,12 +351,14 @@ interface OpportunityLeadItem {
 }
 
 interface CodeMappingItem {
+  platform?: string | null
   id: number
   code_value: string
   description?: string | null
   stat_cost?: number | null
   channel_name?: string | null
   created_time?: string | null
+  updated_time?: string | null
 }
 
 interface StockPositionItem {
@@ -681,9 +683,11 @@ function App() {
   const [selectedTable, setSelectedTable] = useState<string>('')
   const [data, setData] = useState<Record<string, unknown>[]>([])
   // 实时加微：默认按“直播投流”标签过滤，但支持切换筛选
-  const [tagNameFilter, setTagNameFilter] = useState<string>(DEFAULT_TAG)
+  const [tagNameFilters, setTagNameFilters] = useState<string[]>([DEFAULT_TAG])
   const [tagOptions, setTagOptions] = useState<string[]>([])
   const [tagOptionsLoading, setTagOptionsLoading] = useState(false)
+  const [tagFilterOpen, setTagFilterOpen] = useState(false)
+  const tagFilterRef = useRef<HTMLDivElement | null>(null)
   const [refreshCooldownSec, setRefreshCooldownSec] = useState<number>(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -1026,8 +1030,9 @@ function App() {
       try {
         const params = new URLSearchParams({ limit: String(limit) })
         // 实时加微监测：按标签过滤
-        if (!isDailyStatsMode && tagNameFilter && tagNameFilter.trim()) {
-          params.set('tag_name', tagNameFilter.trim())
+        if (!isDailyStatsMode && tagNameFilters.length > 0) {
+          const tags = tagNameFilters.map((t) => String(t || '').trim()).filter(Boolean)
+          if (tags.length > 0) params.set('tag_names', tags.join(','))
         }
         // 自营渠道页：日期筛选。不传或空 = 今天+昨天；选某天 = 该天；全部 = dt_all
         if (isDailyStatsMode) {
@@ -1067,7 +1072,7 @@ function App() {
         if (!silent) setLoading(false)
       }
     },
-    [selectedTable, isDailyStatsMode, tagNameFilter, dailyStatsDate, dailyStatsShowAll]
+    [selectedTable, isDailyStatsMode, tagNameFilters, dailyStatsDate, dailyStatsShowAll]
   )
 
   useEffect(() => {
@@ -1078,6 +1083,19 @@ function App() {
       setSelectedTable(DAILY_STATS_TABLE)
     }
   }, [view, fetchTables, fetchRefreshStatus])
+
+  useEffect(() => {
+    if (!tagFilterOpen) return
+    const onDocMouseDown = (e: MouseEvent) => {
+      const el = tagFilterRef.current
+      const target = e.target as Node | null
+      if (el && target && !el.contains(target)) {
+        setTagFilterOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDocMouseDown)
+    return () => document.removeEventListener('mousedown', onDocMouseDown)
+  }, [tagFilterOpen])
 
   useEffect(() => {
     if (!selectedTable) return
@@ -1310,23 +1328,41 @@ function App() {
 
   // code_mapping（新增在业务配置下方）
   const [codeMappingItems, setCodeMappingItems] = useState<CodeMappingItem[]>([])
+  const [codeMappingPlatformFilter, setCodeMappingPlatformFilter] = useState<string>('抖音')
   const [codeMappingLoading, setCodeMappingLoading] = useState(false)
   const [codeMappingError, setCodeMappingError] = useState<string | null>(null)
   const [editingCodeMapping, setEditingCodeMapping] = useState<CodeMappingItem | null>(null)
   const [codeMappingModal, setCodeMappingModal] = useState<'add' | 'edit' | null>(null)
   const [codeMappingForm, setCodeMappingForm] = useState<{
+    platform: string
     id: string
     code_value: string
     description: string
     stat_cost: string
     channel_name: string
   }>({
+    platform: '',
     id: '',
     code_value: '',
     description: '',
     stat_cost: '',
     channel_name: '',
   })
+
+  const codeMappingPlatformOptions = useMemo(() => {
+    const uniq = new Set<string>()
+    for (const it of codeMappingItems) {
+      const p = String(it.platform ?? '').trim()
+      if (p) uniq.add(p)
+    }
+    return Array.from(uniq).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'))
+  }, [codeMappingItems])
+
+  const codeMappingFilteredItems = useMemo(() => {
+    const f = String(codeMappingPlatformFilter ?? '').trim()
+    if (!f) return codeMappingItems
+    return codeMappingItems.filter((it) => String(it.platform ?? '') === f)
+  }, [codeMappingItems, codeMappingPlatformFilter])
 
   // 股票仓位/买卖配置
   const STOCK_POSITION_PAGE_SIZE = 30
@@ -1965,15 +2001,10 @@ function App() {
     void loadStockPosition()
   }, [isConfigMode, configTab, stockPositionFilter, stockPositionPage, loadStockPosition])
 
-  const openAddCodeMapping = () => {
-    setEditingCodeMapping(null)
-    setCodeMappingForm({ id: '', code_value: '', description: '', stat_cost: '', channel_name: '' })
-    setCodeMappingModal('add')
-  }
-
   const openEditCodeMapping = (item: CodeMappingItem) => {
     setEditingCodeMapping(item)
     setCodeMappingForm({
+      platform: String(item.platform ?? ''),
       id: String(item.id),
       code_value: item.code_value ?? '',
       description: String(item.description ?? ''),
@@ -1990,6 +2021,12 @@ function App() {
     }
     setCodeMappingError(null)
     const isEdit = codeMappingModal === 'edit' && !!editingCodeMapping
+
+    // 平台为必填项（用于筛选）
+    if (!codeMappingForm.platform.trim()) {
+      setCodeMappingError('平台为必填项')
+      return
+    }
 
     // 新增时：校验广告主体 id
     let idNum: number | undefined
@@ -2008,12 +2045,8 @@ function App() {
     }
 
     const payload: Record<string, unknown> = {
-      code_value: codeMappingForm.code_value.trim()
-        ? codeMappingForm.code_value.trim()
-        : null,
-      description: codeMappingForm.description.trim()
-        ? codeMappingForm.description.trim()
-        : null,
+      code_value: codeMappingForm.code_value.trim() ? codeMappingForm.code_value.trim() : '',
+      description: codeMappingForm.description.trim() ? codeMappingForm.description.trim() : null,
       channel_name: codeMappingForm.channel_name.trim(),
     }
     if (codeMappingForm.stat_cost.trim()) {
@@ -2026,9 +2059,13 @@ function App() {
     } else {
       payload.stat_cost = null
     }
+    // 新增时 platform 作为主键的一部分需要写入；编辑时 platform 禁止变更（作为组合主键）
+    if (!isEdit) {
+      payload.platform = codeMappingForm.platform.trim()
+    }
     try {
       const url = isEdit
-        ? `${API_BASE}/api/config/code-mapping/${editingCodeMapping!.id}`
+        ? `${API_BASE}/api/config/code-mapping/${encodeURIComponent(String(editingCodeMapping!.platform || ''))}/${editingCodeMapping!.id}`
         : `${API_BASE}/api/config/code-mapping`
       const method = isEdit ? 'PUT' : 'POST'
       const body = isEdit ? payload : { id: idNum!, ...payload }
@@ -2043,22 +2080,6 @@ function App() {
       await loadCodeMapping()
     } catch (e) {
       const msg = e instanceof Error ? e.message : '保存失败'
-      setCodeMappingError(msg)
-    }
-  }
-
-  const deleteCodeMapping = async (item: CodeMappingItem) => {
-    if (isConfigReadOnly) {
-      setCodeMappingError('只读账号不可修改')
-      return
-    }
-    if (!window.confirm(`确定删除 code_mapping: ${item.id} 吗？`)) return
-    try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/config/code-mapping/${item.id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error(await res.text())
-      await loadCodeMapping()
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : '删除失败'
       setCodeMappingError(msg)
     }
   }
@@ -2645,7 +2666,7 @@ function App() {
       return 'StarRocks 业务应用'
     }
     // 配置视图下按 tab 区分
-    if (configTab === 'code_mapping') return '抖音投流账号配置'
+    if (configTab === 'code_mapping') return '平台投流账号配置'
     if (configTab === 'open_channel_tag') return '渠道字典配置'
     if (configTab === 'activity_channel_tag') return '活动渠道字典配置'
     if (configTab === 'channel_staff') return '承接人员配置'
@@ -2822,36 +2843,59 @@ function App() {
                   {!isDailyStatsMode ? (
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm text-slate-500 whitespace-nowrap">标签筛选:</span>
-                      <select
-                        value={tagNameFilter}
-                        onChange={(e) => setTagNameFilter(e.target.value)}
-                        className="px-3 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm bg-white max-w-[22rem]"
-                        title="选择标签后会自动按标签过滤"
-                      >
-                        <option value="">全部（不筛选）</option>
-                        {tagOptions.map((t) => (
-                          <option key={t} value={t}>
-                            {t}
-                          </option>
-                        ))}
-                      </select>
+                      <div ref={tagFilterRef} className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setTagFilterOpen((p) => !p)}
+                          className="px-3 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm bg-white min-w-[16rem] text-left flex items-center justify-between gap-3"
+                          title="点击选择多个标签"
+                        >
+                          <span className="truncate">
+                            {tagNameFilters.length > 0 ? `已选 ${tagNameFilters.length} 个标签` : '未选择标签'}
+                          </span>
+                          <span className="text-slate-400">{tagFilterOpen ? '▲' : '▼'}</span>
+                        </button>
+                        {tagFilterOpen && (
+                          <div className="absolute z-50 mt-1 w-[20rem] max-h-64 overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg p-2">
+                            {tagOptions.map((t) => {
+                              const checked = tagNameFilters.includes(t)
+                              return (
+                                <label key={t} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-50 cursor-pointer text-sm text-slate-700">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={(e) => {
+                                      setTagNameFilters((prev) => {
+                                        if (e.target.checked) return Array.from(new Set([...prev, t]))
+                                        return prev.filter((x) => x !== t)
+                                      })
+                                    }}
+                                  />
+                                  <span className="truncate" title={t}>{t}</span>
+                                </label>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                      <span className="text-xs text-slate-500 whitespace-nowrap">已选 {tagNameFilters.length} 个</span>
                       {tagOptionsLoading ? (
                         <span className="text-xs text-slate-400 whitespace-nowrap">加载标签中...</span>
                       ) : null}
-                      {tagNameFilter ? (
+                      {tagNameFilters.length > 0 ? (
                         <button
                           type="button"
-                          onClick={() => setTagNameFilter('')}
+                          onClick={() => setTagNameFilters([])}
                           className="text-sm py-1 px-2 rounded text-slate-600 hover:text-sky-600"
                           title="清空标签筛选"
                         >
                           清空
                         </button>
                       ) : null}
-                      {tagNameFilter && tagNameFilter !== DEFAULT_TAG ? (
+                      {(tagNameFilters.length !== 1 || tagNameFilters[0] !== DEFAULT_TAG) ? (
                         <button
                           type="button"
-                          onClick={() => setTagNameFilter(DEFAULT_TAG)}
+                          onClick={() => setTagNameFilters([DEFAULT_TAG])}
                           className="text-sm py-1 px-2 rounded text-slate-600 hover:text-sky-600"
                           title="恢复默认标签"
                         >
@@ -2920,9 +2964,9 @@ function App() {
                       onClick={downloadExcel}
                       disabled={data.length === 0}
                       className="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed text-slate-800 font-medium transition-colors"
-                      title="导出全部数据"
+                      title="导出当前筛选数据"
                     >
-                      导出 Excel（全部）
+                      导出 Excel（当前筛选）
                     </button>
                   </div>
                 </div>
@@ -5350,20 +5394,27 @@ function App() {
 
             {configTab === 'code_mapping' && (
             <div className="mt-4">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 {/* <div>
                   <div className="text-base font-semibold text-slate-800">[市场中心] 抖音投流账号</div>
                   <div className="text-sm text-slate-500">渠道映射 / 消耗配置（来自 StarRocks 物化视图）</div>
                 </div> */}
-                <div className="flex items-center gap-3">
-                  {!isConfigReadOnly && (
-                    <button
-                      onClick={openAddCodeMapping}
-                      className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-medium transition-colors"
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-slate-600 whitespace-nowrap">平台</span>
+                    <select
+                      value={codeMappingPlatformFilter}
+                      onChange={(e) => setCodeMappingPlatformFilter(e.target.value)}
+                      className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-800"
                     >
-                      新增
-                    </button>
-                  )}
+                      {codeMappingPlatformOptions.map((p) => (
+                        <option key={p} value={p}>
+                          {p}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
                   <button
                     onClick={() => void loadCodeMapping()}
                     disabled={codeMappingLoading}
@@ -5380,37 +5431,49 @@ function App() {
                 </div>
               )}
 
+              {!codeMappingLoading || codeMappingItems.length > 0 ? (
+                <div className="mb-3 mt-2 flex items-center justify-end text-sm text-slate-600">
+                  共 {codeMappingFilteredItems.length} 条
+                </div>
+              ) : null}
+
               <div className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">
                 <FloatingHorizontalScroll>
                   {codeMappingLoading && codeMappingItems.length === 0 ? (
                     <div className="py-10 text-center text-slate-500">加载中...</div>
                   ) : codeMappingItems.length === 0 ? (
                     <div className="py-10 text-center text-slate-500">暂无配置数据</div>
+                  ) : codeMappingFilteredItems.length === 0 ? (
+                    <div className="py-10 text-center text-slate-500">暂无该平台数据</div>
                   ) : (
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-100">
+                          <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">平台</th>
                           <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">广告主体id</th>
                           <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">代码值</th>
                           <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">描述</th>
                           <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">消耗</th>
                           <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">渠道</th>
                           <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">创建时间</th>
+                          <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">更新时间</th>
                           <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">操作</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {codeMappingItems.map((item) => (
+                        {codeMappingFilteredItems.map((item) => (
                           <tr
                             key={item.id}
                             className="border-b border-slate-200 hover:bg-slate-100/80 transition-colors"
                           >
+                            <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{item.platform ?? '-'}</td>
                             <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{item.id}</td>
                             <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{item.code_value}</td>
                             <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{item.description ?? '-'}</td>
                             <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{item.stat_cost ?? '-'}</td>
                             <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{item.channel_name ?? '-'}</td>
                             <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{item.created_time ?? '-'}</td>
+                            <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{item.updated_time ?? '-'}</td>
                             <td className="px-4 py-3 text-slate-700 whitespace-nowrap">
                               {!isConfigReadOnly ? (
                                 <>
@@ -5419,12 +5482,6 @@ function App() {
                                     className="mr-2 px-3 py-1 text-sky-600 hover:text-sky-700 text-xs font-medium"
                                   >
                                     修改
-                                  </button>
-                                  <button
-                                    onClick={() => void deleteCodeMapping(item)}
-                                    className="px-3 py-1 text-red-600 hover:text-red-700 text-xs font-medium"
-                                  >
-                                    删除
                                   </button>
                                 </>
                               ) : (
@@ -5471,6 +5528,16 @@ function App() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <div className="text-sm text-slate-600 mb-1">平台（必填）</div>
+                      <input
+                        value={codeMappingForm.platform}
+                        onChange={(e) => setCodeMappingForm((p) => ({ ...p, platform: e.target.value }))}
+                        disabled={codeMappingModal === 'edit'}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 text-slate-800 text-sm disabled:bg-slate-100"
+                        placeholder="例如：信息流/团购/同城等"
+                      />
+                    </div>
                     <div>
                       <div className="text-sm text-slate-600 mb-1">广告主体id（必填）</div>
                       <input

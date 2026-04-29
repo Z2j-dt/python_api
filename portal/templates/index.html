@@ -75,7 +75,7 @@
                         {% endif %}
                         {% if (resource_access is not none and 'sr_api:config_code_mapping' in resource_access) or (resource_access is none and 'sr_api' in allowed_modules) %}
                         <a class="nav-item nav-item-child" data-module="sr_api" data-view="config_code_mapping" href="#sr_api_config_code_mapping">
-                            <span>抖音投流账号配置</span>
+                            <span>平台投流账号配置</span>
                         </a>
                         {% endif %}
                     </div>
@@ -410,7 +410,7 @@
                     if (view === "realtime") {
                         title = "市场中心-实时加微名单";
                     } else if (view === "config_code_mapping") {
-                        title = "市场中心-抖音投流账号配置";
+                        title = "市场中心-平台投流账号配置";
                     } else if (view === "open_channel_daily") {
                         title = "直销中心-自营渠道加微统计";
                     } else if (view === "config_open") {

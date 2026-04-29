@@ -33,7 +33,7 @@
 | 大类 | 菜单名称 | `data-module` | `data-view` | **resource_id** | 地址 hash |
 |------|----------|---------------|-------------|-----------------|-----------|
 | 市场中心 | 实时加微名单 | sr_api | realtime | `sr_api:realtime` | `#sr_api_realtime` |
-| 市场中心 | 抖音投流账号配置 | sr_api | config_code_mapping | `sr_api:config_code_mapping` | `#sr_api_config_code_mapping` |
+| 市场中心 | 平台投流账号配置 | sr_api | config_code_mapping | `sr_api:config_code_mapping` | `#sr_api_config_code_mapping` |
 
 ---
 

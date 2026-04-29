@@ -241,6 +241,7 @@ def _query_mv_data(
     table_name: str,
     limit: int = 1000,
     tag_name: Optional[str] = None,
+    tag_names: Optional[List[str]] = None,
     dt_from: Optional[str] = None,
     dt_to: Optional[str] = None,
     dt_all: bool = False,
@@ -250,7 +251,12 @@ def _query_mv_data(
     with _db_cursor() as cur:
         conditions = []
         args: List[Any] = []
-        if tag_name:
+        tag_names_clean = [str(x or "").strip() for x in (tag_names or []) if str(x or "").strip()]
+        if tag_names_clean:
+            placeholders = ", ".join(["%s"] * len(tag_names_clean))
+            conditions.append(f"tag_name IN ({placeholders})")
+            args.extend(tag_names_clean)
+        elif tag_name:
             conditions.append("tag_name = %s")
             args.append(tag_name)
         # 自营渠道每日表：按 dt 筛选；未传且非“全部”时默认今天和昨天
@@ -294,12 +300,30 @@ def _get_table_columns(table_name: str) -> List[Dict]:
 CONFIG_OPEN_CHANNEL_TABLE = "config_open_channel_tag"
 CONFIG_ACTIVITY_CHANNEL_TABLE = "config_activity_channel_tag"
 CONFIG_CHANNEL_STAFF_TABLE = "config_channel_staff"
-CONFIG_CODE_MAPPING_TABLE = "code_mapping"
+CONFIG_CODE_MAPPING_TABLE = "code_mapping_adid_platform"
 CONFIG_STOCK_POSITION_TABLE = "config_stock_position"
 CONFIG_OPPORTUNITY_LEAD_TABLE = "config_opportunity_lead"
 CONFIG_MORNING_HOT_STOCK_TRACK_TABLE = "config_morning_hot_stock_track"
 CONFIG_SALES_ORDER_TABLE = "branch_customer_ext_config"
 CONFIG_SIGN_CUSTOMER_GROUP_TABLE = "config_sign_customer_group"
+
+_CODE_MAPPING_HAS_UPDATED_TIME: Optional[bool] = None
+
+
+def _code_mapping_has_updated_time() -> bool:
+    """兼容旧表：如果没有 updated_time 列则返回 False。"""
+    global _CODE_MAPPING_HAS_UPDATED_TIME
+    # 如果已经确认存在，则永久返回 True；
+    # 如果之前确认“不存在”（例如服务启动后才执行 ALTER），这里每次仍会重新探测，避免缓存导致后续写入无效。
+    if _CODE_MAPPING_HAS_UPDATED_TIME is True:
+        return True
+    try:
+        cols = _get_table_columns(CONFIG_CODE_MAPPING_TABLE)
+        col_names = {str(c.get("Field") or c.get("field") or c.get("name") or '').strip().lower() for c in cols}
+        _CODE_MAPPING_HAS_UPDATED_TIME = "updated_time" in col_names
+    except Exception:
+        _CODE_MAPPING_HAS_UPDATED_TIME = False
+    return _CODE_MAPPING_HAS_UPDATED_TIME
 
 # -------------------- 销售每日进线（活动渠道）：历史事实表（原 mv_scrm_tagged_customers_act） --------------------
 MV_SALES_DAILY_LEADS_ACT_TABLE = os.environ.get("SALES_DAILY_LEADS_TABLE", "scrm_tagged_customers_act_hist")
@@ -561,6 +585,8 @@ def _row_code_mapping_fix(row: Dict[str, Any]) -> Dict[str, Any]:
     row = dict(row)
     if "created_time" in row:
         row["created_time"] = _fmt_dt(row.get("created_time"))
+    if "updated_time" in row:
+        row["updated_time"] = _fmt_dt(row.get("updated_time"))
     # DECIMAL 可能返回 Decimal，这里转成 float（前端只做展示/编辑）
     if "stat_cost" in row and row.get("stat_cost") is not None:
         try:
@@ -571,6 +597,7 @@ def _row_code_mapping_fix(row: Dict[str, Any]) -> Dict[str, Any]:
 
 
 class CodeMappingBase(BaseModel):
+    platform: str
     code_value: str
     description: Optional[str] = None
     stat_cost: Optional[float] = None
@@ -582,6 +609,7 @@ class CodeMappingCreate(CodeMappingBase):
 
 
 class CodeMappingUpdate(BaseModel):
+    platform: Optional[str] = None
     code_value: Optional[str] = None
     description: Optional[str] = None
     stat_cost: Optional[float] = None
@@ -591,6 +619,7 @@ class CodeMappingUpdate(BaseModel):
 class CodeMappingOut(CodeMappingBase):
     id: int
     created_time: Optional[str] = None
+    updated_time: Optional[str] = None
 
 
 # -------------------- 配置表：股票仓位/买卖 --------------------
@@ -742,6 +771,7 @@ async def get_table_data(
     table_name: str,
     limit: int = 1000,
     tag_name: Optional[str] = None,
+    tag_names: Optional[str] = None,  # 逗号分隔，多选标签
     dt_from: Optional[str] = None,
     dt_to: Optional[str] = None,
     dt_all: Optional[bool] = None,
@@ -749,10 +779,14 @@ async def get_table_data(
     if table_name not in _mv_list():
         raise HTTPException(status_code=404, detail=f"表 {table_name} 未配置或不存在")
     try:
+        names: List[str] = []
+        if tag_names and tag_names.strip():
+            names = [x.strip() for x in tag_names.split(",") if x and x.strip()]
         data = _query_mv_data(
             table_name,
             limit=limit,
             tag_name=tag_name or None,
+            tag_names=names,
             dt_from=dt_from,
             dt_to=dt_to,
             dt_all=bool(dt_all) if dt_all is not None else False,
@@ -3111,10 +3145,17 @@ async def delete_morning_hot_stock_track(item_id: int, request: Request) -> Dict
 @app.get("/api/config/code-mapping", response_model=List[CodeMappingOut])
 async def list_code_mapping() -> List[CodeMappingOut]:
     try:
+        has_ut = _code_mapping_has_updated_time()
         with _db_cursor() as cur:
+            ut_sql = ", updated_time" if has_ut else ""
+            order_sql = (
+                "ORDER BY (updated_time IS NULL) ASC, updated_time DESC, created_time DESC, id ASC"
+                if has_ut
+                else "ORDER BY created_time DESC, id ASC"
+            )
             cur.execute(
-                f"SELECT id, code_value, description, stat_cost, channel_name, created_time "
-                f"FROM `{CONFIG_CODE_MAPPING_TABLE}` ORDER BY id ASC"
+                f"SELECT platform, id, code_value, description, stat_cost, channel_name, created_time{ut_sql} "
+                f"FROM `{CONFIG_CODE_MAPPING_TABLE}` {order_sql}"
             )
             rows = cur.fetchall()
         return [CodeMappingOut(**_row_code_mapping_fix(row)) for row in rows]
@@ -3127,27 +3168,44 @@ async def create_code_mapping(body: CodeMappingCreate, request: Request) -> Code
     _reject_if_readonly(request, _RES_CONFIG_CODE_MAPPING)
     try:
         now_str = datetime.now().strftime(_DT_FMT)
+        has_ut = _code_mapping_has_updated_time()
         with _db_cursor() as cur:
-            cur.execute(f"SELECT 1 FROM `{CONFIG_CODE_MAPPING_TABLE}` WHERE id = %s LIMIT 1", (body.id,))
+            cur.execute(
+                f"SELECT 1 FROM `{CONFIG_CODE_MAPPING_TABLE}` WHERE platform = %s AND id = %s LIMIT 1",
+                (body.platform, body.id),
+            )
             if cur.fetchone():
                 raise HTTPException(status_code=400, detail="ID 已存在")
+            if has_ut:
+                insert_sql = (
+                    f"INSERT INTO `{CONFIG_CODE_MAPPING_TABLE}` "
+                    f"(platform, id, code_value, description, stat_cost, channel_name, created_time, updated_time) "
+                    f"VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
+                )
+            else:
+                insert_sql = (
+                    f"INSERT INTO `{CONFIG_CODE_MAPPING_TABLE}` "
+                    f"(platform, id, code_value, description, stat_cost, channel_name, created_time) "
+                    f"VALUES (%s, %s, %s, %s, %s, %s, %s)"
+                )
             cur.execute(
-                f"INSERT INTO `{CONFIG_CODE_MAPPING_TABLE}` "
-                f"(id, code_value, description, stat_cost, channel_name, created_time) "
-                f"VALUES (%s, %s, %s, %s, %s, %s)",
+                insert_sql,
                 (
+                    body.platform,
                     int(body.id),
                     body.code_value,
                     body.description,
                     body.stat_cost,
                     body.channel_name,
                     now_str,
-                ),
+                    now_str if has_ut else None,
+                )[: (8 if has_ut else 7)],
             )
             cur.execute(
-                f"SELECT id, code_value, description, stat_cost, channel_name, created_time "
-                f"FROM `{CONFIG_CODE_MAPPING_TABLE}` WHERE id = %s",
-                (int(body.id),),
+                f"SELECT platform, id, code_value, description, stat_cost, channel_name, created_time "
+                f"{', updated_time' if has_ut else ''} "
+                f"FROM `{CONFIG_CODE_MAPPING_TABLE}` WHERE platform = %s AND id = %s",
+                (body.platform, int(body.id)),
             )
             row = cur.fetchone()
         if not row:
@@ -3159,12 +3217,14 @@ async def create_code_mapping(body: CodeMappingCreate, request: Request) -> Code
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.put("/api/config/code-mapping/{item_id}", response_model=CodeMappingOut)
-async def update_code_mapping(item_id: int, body: CodeMappingUpdate, request: Request) -> CodeMappingOut:
+@app.put("/api/config/code-mapping/{platform}/{item_id}", response_model=CodeMappingOut)
+async def update_code_mapping(platform: str, item_id: int, body: CodeMappingUpdate, request: Request) -> CodeMappingOut:
     _reject_if_readonly(request, _RES_CONFIG_CODE_MAPPING)
     if body.code_value is None and body.description is None and body.stat_cost is None and body.channel_name is None:
         raise HTTPException(status_code=400, detail="至少提供一个需要更新的字段")
     try:
+        now_str = datetime.now().strftime(_DT_FMT)
+        has_ut = _code_mapping_has_updated_time()
         fields = []
         params: List[Any] = []
         if body.code_value is not None:
@@ -3179,17 +3239,22 @@ async def update_code_mapping(item_id: int, body: CodeMappingUpdate, request: Re
         if body.channel_name is not None:
             fields.append("channel_name = %s")
             params.append(body.channel_name)
+        if has_ut:
+            fields.append("updated_time = %s")
+            params.append(now_str)
 
         with _db_cursor() as cur:
-            sql = f"UPDATE `{CONFIG_CODE_MAPPING_TABLE}` SET {', '.join(fields)} WHERE id = %s"
+            sql = f"UPDATE `{CONFIG_CODE_MAPPING_TABLE}` SET {', '.join(fields)} WHERE platform = %s AND id = %s"
+            params.append(platform)
             params.append(int(item_id))
             cur.execute(sql, tuple(params))
             if cur.rowcount == 0:
                 raise HTTPException(status_code=404, detail="记录不存在")
+            ut_sql = ", updated_time" if has_ut else ""
             cur.execute(
-                f"SELECT id, code_value, description, stat_cost, channel_name, created_time "
-                f"FROM `{CONFIG_CODE_MAPPING_TABLE}` WHERE id = %s",
-                (int(item_id),),
+                f"SELECT platform, id, code_value, description, stat_cost, channel_name, created_time{ut_sql} "
+                f"FROM `{CONFIG_CODE_MAPPING_TABLE}` WHERE platform = %s AND id = %s",
+                (platform, int(item_id)),
             )
             row = cur.fetchone()
         if not row:
@@ -3201,14 +3266,14 @@ async def update_code_mapping(item_id: int, body: CodeMappingUpdate, request: Re
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.delete("/api/config/code-mapping/{item_id}")
-async def delete_code_mapping(item_id: int, request: Request) -> Dict[str, Any]:
+@app.delete("/api/config/code-mapping/{platform}/{item_id}")
+async def delete_code_mapping(platform: str, item_id: int, request: Request) -> Dict[str, Any]:
     _reject_if_readonly(request, _RES_CONFIG_CODE_MAPPING)
     try:
         with _db_cursor() as cur:
             cur.execute(
-                f"DELETE FROM `{CONFIG_CODE_MAPPING_TABLE}` WHERE id = %s",
-                (int(item_id),),
+                f"DELETE FROM `{CONFIG_CODE_MAPPING_TABLE}` WHERE platform = %s AND id = %s",
+                (platform, int(item_id)),
             )
             if cur.rowcount == 0:
                 raise HTTPException(status_code=404, detail="记录不存在")

@@ -115,7 +115,7 @@ ADMIN_RESOURCE_GROUPS: List[Tuple[str, List[Tuple[str, str]]]] = [
         "市场中心",
         [
             ("sr_api:realtime", "实时加微名单"),
-            ("sr_api:config_code_mapping", "抖音投流账号配置"),
+            ("sr_api:config_code_mapping", "平台投流账号配置"),
         ],
     ),
     (
