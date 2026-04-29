@@ -439,6 +439,7 @@ class OpportunityLeadBase(BaseModel):
     biz_category_small: Optional[str] = None # 业务小类
     clue_name: Optional[str] = None          # 线索名称
     is_important: Optional[bool] = None      # 是否重要
+    is_enabled: Optional[bool] = None        # 是否启用
     remark: Optional[str] = None             # 备注
     table_name: Optional[str] = None         # 表名
 
@@ -472,6 +473,17 @@ def _row_opportunity_lead_fix(row: Dict[str, Any]) -> Dict[str, Any]:
                 row["is_important"] = bool(int(v))
             except Exception:
                 row["is_important"] = bool(v)
+    if "is_enabled" in row:
+        v = row.get("is_enabled")
+        if v is None:
+            row["is_enabled"] = None
+        elif isinstance(v, bool):
+            row["is_enabled"] = v
+        else:
+            try:
+                row["is_enabled"] = bool(int(v))
+            except Exception:
+                row["is_enabled"] = bool(v)
     return row
 
 
@@ -2700,7 +2712,7 @@ async def list_opportunity_leads() -> List[OpportunityLeadOut]:
     try:
         with _db_cursor() as cur:
             cur.execute(
-                f"SELECT id, biz_category_big, biz_category_small, clue_name, is_important, remark, table_name, created_at, updated_at "
+                f"SELECT id, biz_category_big, biz_category_small, clue_name, is_important, is_enabled, remark, table_name, created_at, updated_at "
                 f"FROM `{CONFIG_OPPORTUNITY_LEAD_TABLE}` ORDER BY id ASC"
             )
             rows = cur.fetchall()
@@ -2717,13 +2729,14 @@ async def create_opportunity_lead(body: OpportunityLeadCreate, request: Request)
         with _db_cursor() as cur:
             cur.execute(
                 f"INSERT INTO `{CONFIG_OPPORTUNITY_LEAD_TABLE}` "
-                f"(biz_category_big, biz_category_small, clue_name, is_important, remark, table_name, created_at, updated_at) "
-                f"VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                f"(biz_category_big, biz_category_small, clue_name, is_important, is_enabled, remark, table_name, created_at, updated_at) "
+                f"VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
                 (
                     (body.biz_category_big or "").strip() or None,
                     (body.biz_category_small or "").strip() or None,
                     (body.clue_name or "").strip() or None,
                     (1 if body.is_important else 0) if body.is_important is not None else None,
+                    (1 if body.is_enabled else 0) if body.is_enabled is not None else None,
                     (body.remark or "").strip() or None,
                     (body.table_name or "").strip() or None,
                     now_str,
@@ -2732,7 +2745,7 @@ async def create_opportunity_lead(body: OpportunityLeadCreate, request: Request)
             )
             # StarRocks 对 lastrowid 支持有限，这里用倒序取最新一条作为简单方案
             cur.execute(
-                f"SELECT id, biz_category_big, biz_category_small, clue_name, is_important, remark, table_name, created_at, updated_at "
+                f"SELECT id, biz_category_big, biz_category_small, clue_name, is_important, is_enabled, remark, table_name, created_at, updated_at "
                 f"FROM `{CONFIG_OPPORTUNITY_LEAD_TABLE}` ORDER BY id DESC LIMIT 1"
             )
             row = cur.fetchone()
@@ -2753,6 +2766,7 @@ async def update_opportunity_lead(item_id: int, body: OpportunityLeadUpdate, req
         and body.biz_category_small is None
         and body.clue_name is None
         and body.is_important is None
+        and body.is_enabled is None
         and body.remark is None
         and body.table_name is None
     ):
@@ -2761,7 +2775,7 @@ async def update_opportunity_lead(item_id: int, body: OpportunityLeadUpdate, req
         now_str = datetime.now().strftime(_DT_FMT)
         with _db_cursor() as cur:
             cur.execute(
-                f"SELECT id, biz_category_big, biz_category_small, clue_name, is_important, remark, table_name, created_at, updated_at "
+                f"SELECT id, biz_category_big, biz_category_small, clue_name, is_important, is_enabled, remark, table_name, created_at, updated_at "
                 f"FROM `{CONFIG_OPPORTUNITY_LEAD_TABLE}` WHERE id = %s",
                 (item_id,),
             )
@@ -2780,6 +2794,10 @@ async def update_opportunity_lead(item_id: int, body: OpportunityLeadUpdate, req
                 "is_important",
                 (1 if body.is_important else 0) if body.is_important is not None else None,
             )
+            new_enabled = _pick(
+                "is_enabled",
+                (1 if body.is_enabled else 0) if body.is_enabled is not None else None,
+            )
             new_remark = (str(_pick("remark", body.remark) or "").strip() or None)
             new_table = (str(_pick("table_name", body.table_name) or "").strip() or None)
 
@@ -2787,12 +2805,12 @@ async def update_opportunity_lead(item_id: int, body: OpportunityLeadUpdate, req
             cur.execute(f"DELETE FROM `{CONFIG_OPPORTUNITY_LEAD_TABLE}` WHERE id = %s", (item_id,))
             cur.execute(
                 f"INSERT INTO `{CONFIG_OPPORTUNITY_LEAD_TABLE}` "
-                f"(id, biz_category_big, biz_category_small, clue_name, is_important, remark, table_name, created_at, updated_at) "
-                f"VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                (item_id, new_big, new_small, new_clue, new_imp, new_remark, new_table, created_at, now_str),
+                f"(id, biz_category_big, biz_category_small, clue_name, is_important, is_enabled, remark, table_name, created_at, updated_at) "
+                f"VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (item_id, new_big, new_small, new_clue, new_imp, new_enabled, new_remark, new_table, created_at, now_str),
             )
             cur.execute(
-                f"SELECT id, biz_category_big, biz_category_small, clue_name, is_important, remark, table_name, created_at, updated_at "
+                f"SELECT id, biz_category_big, biz_category_small, clue_name, is_important, is_enabled, remark, table_name, created_at, updated_at "
                 f"FROM `{CONFIG_OPPORTUNITY_LEAD_TABLE}` WHERE id = %s",
                 (item_id,),
             )

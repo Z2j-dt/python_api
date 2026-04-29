@@ -343,6 +343,7 @@ interface OpportunityLeadItem {
   biz_category_small?: string | null
   clue_name?: string | null
   is_important?: boolean | null
+  is_enabled?: boolean | null
   remark?: string | null
   table_name?: string | null
   created_at?: string | null
@@ -1254,6 +1255,7 @@ function App() {
     biz_category_small: string
     clue_name: string
     is_important: '1' | '0'
+    is_enabled: '1' | '0'
     remark: string
     table_name: string
   }>({
@@ -1261,6 +1263,7 @@ function App() {
     biz_category_small: '',
     clue_name: '',
     is_important: '0',
+    is_enabled: '1',
     remark: '',
     table_name: '',
   })
@@ -2504,6 +2507,7 @@ function App() {
       biz_category_small: String(item.biz_category_small ?? ''),
       clue_name: String(item.clue_name ?? ''),
       is_important: item.is_important ? '1' : '0',
+      is_enabled: item.is_enabled ? '1' : '0',
       remark: String(item.remark ?? ''),
       table_name: String(item.table_name ?? ''),
     })
@@ -2524,6 +2528,7 @@ function App() {
         biz_category_small: opportunityLeadForm.biz_category_small.trim() || null,
         clue_name: opportunityLeadForm.clue_name.trim() || null,
         is_important: opportunityLeadForm.is_important === '1',
+        is_enabled: opportunityLeadForm.is_enabled === '1',
         remark: opportunityLeadForm.remark.trim() || null,
         table_name: opportunityLeadForm.table_name.trim() || null,
       }
@@ -3021,6 +3026,7 @@ function App() {
                           biz_category_small: '',
                           clue_name: '',
                           is_important: '0',
+                          is_enabled: '1',
                           remark: '',
                           table_name: '',
                         })
@@ -3242,6 +3248,7 @@ function App() {
                             <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">业务小类</th>
                             <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">线索名称</th>
                             <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">是否重要</th>
+                            <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">是否启用</th>
                             <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">备注</th>
                             <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">表名</th>
                             <th className="px-4 py-3 text-left font-medium text-slate-700 whitespace-nowrap">创建时间</th>
@@ -3260,6 +3267,7 @@ function App() {
                               <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{item.biz_category_small ?? '-'}</td>
                               <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{item.clue_name ?? '-'}</td>
                               <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{item.is_important ? '是' : '否'}</td>
+                              <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{item.is_enabled ? '是' : '否'}</td>
                               <td className="px-4 py-3 text-slate-700 whitespace-nowrap max-w-xs truncate" title={String(item.remark ?? '')}>
                                 {item.remark ?? '-'}
                               </td>
@@ -5708,6 +5716,7 @@ function App() {
                     biz_category_small: '',
                     clue_name: '',
                     is_important: '0',
+                    is_enabled: '1',
                     remark: '',
                     table_name: '',
                   })
@@ -5752,6 +5761,17 @@ function App() {
                         className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
                         value={opportunityLeadForm.is_important}
                         onChange={(e) => setOpportunityLeadForm((p) => ({ ...p, is_important: e.target.value as '1' | '0' }))}
+                      >
+                        <option value="0">否</option>
+                        <option value="1">是</option>
+                      </select>
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[11px] text-slate-500">是否启用</span>
+                      <select
+                        className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        value={opportunityLeadForm.is_enabled}
+                        onChange={(e) => setOpportunityLeadForm((p) => ({ ...p, is_enabled: e.target.value as '1' | '0' }))}
                       >
                         <option value="0">否</option>
                         <option value="1">是</option>
