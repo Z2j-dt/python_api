@@ -2084,6 +2084,12 @@ body.fm-modal-open { overflow: hidden; }
 }
 [data-theme="dark"] .fm-pre { background: rgba(255,255,255,0.06); }
 .fm-pre-muted { opacity: 0.92; }
+.fm-pre-wrap {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    max-height: none;
+}
 .fm-detail-btn, .fm-inline-detail-btn {
     border: 1px solid var(--dm-border);
     background: rgba(255,255,255,0.9);

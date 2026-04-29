@@ -4,6 +4,9 @@
 business 下仅 app.py，frontend、sql 为资产目录。
 """
 import os
+import json
+import threading
+import time
 import io
 import csv
 import re as _re
@@ -761,6 +764,93 @@ async def get_table_schema(table_name: str) -> Dict[str, Any]:
         raise HTTPException(status_code=404, detail=f"表 {table_name} 未配置或不存在")
     try:
         return {"table": table_name, "columns": _get_table_columns(table_name)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# -------------------- API：刷新物化视图（实时加微） --------------------
+_REALTIME_MV_NAME = "mv_scrm_tagged_customers"
+_REALTIME_MV_COOLDOWN_SEC = 30
+_REFRESH_STATE_FILE = _BUSINESS / ".mv_refresh_state.json"
+_refresh_state_lock = threading.Lock()
+
+
+def _load_refresh_state() -> Dict[str, Any]:
+    try:
+        if not _REFRESH_STATE_FILE.exists():
+            return {}
+        raw = _REFRESH_STATE_FILE.read_text(encoding="utf-8")
+        obj = json.loads(raw) if raw.strip() else {}
+        return obj if isinstance(obj, dict) else {}
+    except Exception:
+        return {}
+
+
+def _save_refresh_state(state: Dict[str, Any]) -> None:
+    try:
+        _REFRESH_STATE_FILE.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        # 状态文件写失败时，不影响核心刷新功能
+        pass
+
+
+def _cooldown_remaining_sec(now_ts: Optional[float] = None) -> int:
+    now = float(now_ts if now_ts is not None else time.time())
+    with _refresh_state_lock:
+        st = _load_refresh_state()
+        last = float(st.get("last_refresh_ts") or 0)
+    remain = int(_REALTIME_MV_COOLDOWN_SEC - (now - last))
+    return remain if remain > 0 else 0
+
+
+@app.get("/api/mv/refresh-status")
+async def get_mv_refresh_status(view_name: str = _REALTIME_MV_NAME) -> Dict[str, Any]:
+    v = (view_name or "").strip()
+    if v != _REALTIME_MV_NAME:
+        raise HTTPException(status_code=400, detail="不支持查询该物化视图")
+    remain = _cooldown_remaining_sec()
+    return {
+        "view": f"{_settings.starrocks_database}.{_REALTIME_MV_NAME}",
+        "cooldown_sec": _REALTIME_MV_COOLDOWN_SEC,
+        "remaining_sec": remain,
+    }
+
+
+@app.post("/api/mv/refresh")
+async def refresh_materialized_view(request: Request, view_name: str = _REALTIME_MV_NAME) -> Dict[str, Any]:
+    """
+    手动触发 StarRocks MV 刷新。
+    出于安全考虑，仅允许刷新固定白名单 MV（避免任意 SQL / 任意对象操作）。
+    """
+    _reject_if_readonly(request)
+    v = (view_name or "").strip()
+    if v != _REALTIME_MV_NAME:
+        raise HTTPException(status_code=400, detail="不支持刷新该物化视图")
+    remain = _cooldown_remaining_sec()
+    if remain > 0:
+        raise HTTPException(status_code=429, detail=f"刷新过于频繁，请 {remain} 秒后再试")
+    try:
+        started = datetime.now()
+        with _db_cursor() as cur:
+            # 同步刷新：等待刷新完成后再返回，保证前端随后的查询能拿到最新数据
+            cur.execute(
+                f"REFRESH MATERIALIZED VIEW `{_settings.starrocks_database}`.`{_REALTIME_MV_NAME}` WITH SYNC MODE"
+            )
+        cost_ms = int((datetime.now() - started).total_seconds() * 1000)
+        now = time.time()
+        with _refresh_state_lock:
+            st = _load_refresh_state()
+            st["last_refresh_ts"] = now
+            st["last_refresh_user"] = _get_request_user(request)
+            st["last_refresh_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            _save_refresh_state(st)
+        return {
+            "status": "ok",
+            "view": f"{_settings.starrocks_database}.{_REALTIME_MV_NAME}",
+            "cost_ms": cost_ms,
+            "cooldown_sec": _REALTIME_MV_COOLDOWN_SEC,
+            "remaining_sec": _REALTIME_MV_COOLDOWN_SEC,
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

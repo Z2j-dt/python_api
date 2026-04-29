@@ -306,7 +306,7 @@ interface TableDataResponse {
   data: Record<string, unknown>[]
 }
 
-const DEFAULT_TAG = '官方直播开户-加企微'
+const DEFAULT_TAG = '直播投流'
 
 /** 投流渠道承接员工：允许的营业部（仅支持这五个，请改为实际名称） */
 const CHANNEL_STAFF_ALLOWED_BRANCHES = [
@@ -679,7 +679,11 @@ function App() {
   // -------------------- 物化视图数据查看 --------------------
   const [selectedTable, setSelectedTable] = useState<string>('')
   const [data, setData] = useState<Record<string, unknown>[]>([])
-  const tagNameFilter = DEFAULT_TAG
+  // 实时加微：默认按“直播投流”标签过滤，但支持切换筛选
+  const [tagNameFilter, setTagNameFilter] = useState<string>(DEFAULT_TAG)
+  const [tagOptions, setTagOptions] = useState<string[]>([])
+  const [tagOptionsLoading, setTagOptionsLoading] = useState(false)
+  const [refreshCooldownSec, setRefreshCooldownSec] = useState<number>(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
@@ -976,6 +980,39 @@ function App() {
     }
   }, [])
 
+  const fetchTags = useCallback(
+    async (tableName: string) => {
+      if (!tableName) return
+      setTagOptionsLoading(true)
+      try {
+        const res = await fetchWithTimeout(`${API_BASE}/api/tags/${encodeURIComponent(tableName)}`)
+        if (!res.ok) throw new Error(await res.text())
+        const list: string[] = await res.json()
+        const tags = (Array.isArray(list) ? list : []).map((x) => String(x || '').trim()).filter(Boolean)
+        const merged = Array.from(new Set([DEFAULT_TAG, ...tags]))
+        setTagOptions(merged)
+      } catch {
+        // 拉取失败时仍允许手动输入/保持默认标签
+        setTagOptions([DEFAULT_TAG])
+      } finally {
+        setTagOptionsLoading(false)
+      }
+    },
+    [API_BASE]
+  )
+
+  const fetchRefreshStatus = useCallback(async () => {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/mv/refresh-status`)
+      if (!res.ok) return
+      const json = (await res.json()) as { remaining_sec?: number }
+      const remain = Math.max(0, Number(json?.remaining_sec ?? 0) || 0)
+      if (Number.isFinite(remain)) setRefreshCooldownSec(remain)
+    } catch {
+      // ignore
+    }
+  }, [API_BASE])
+
   const fetchData = useCallback(
     async (opts?: { limit?: number; silent?: boolean }) => {
       if (!selectedTable) return
@@ -1035,10 +1072,19 @@ function App() {
   useEffect(() => {
     if (view === 'realtime') {
       fetchTables()
+      void fetchRefreshStatus()
     } else if (view === 'open_channel_daily') {
       setSelectedTable(DAILY_STATS_TABLE)
     }
-  }, [view, fetchTables])
+  }, [view, fetchTables, fetchRefreshStatus])
+
+  useEffect(() => {
+    if (!selectedTable) return
+    if (isDailyStatsMode) return
+    if (isConfigMode) return
+    if (isSalesDailyLeadsMode) return
+    void fetchTags(selectedTable)
+  }, [selectedTable, isDailyStatsMode, isConfigMode, isSalesDailyLeadsMode, fetchTags])
 
   useEffect(() => {
     if (!selectedTable) return
@@ -1061,6 +1107,14 @@ function App() {
     }, 5 * 60 * 1000)
     return () => clearInterval(timer)
   }, [selectedTable, isConfigMode, isDailyStatsMode, fetchData])
+
+  useEffect(() => {
+    if (refreshCooldownSec <= 0) return
+    const t = window.setInterval(() => {
+      setRefreshCooldownSec((s) => (s > 0 ? s - 1 : 0))
+    }, 1000)
+    return () => window.clearInterval(t)
+  }, [refreshCooldownSec])
 
   useEffect(() => {
     if (!isSalesDailyLeadsMode) return
@@ -2761,11 +2815,44 @@ function App() {
               <>
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                   {!isDailyStatsMode ? (
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-slate-500 whitespace-nowrap">当前标签:</span>
-                      <span className="px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-300 text-slate-700 text-sm">
-                        {DEFAULT_TAG}
-                      </span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm text-slate-500 whitespace-nowrap">标签筛选:</span>
+                      <select
+                        value={tagNameFilter}
+                        onChange={(e) => setTagNameFilter(e.target.value)}
+                        className="px-3 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm bg-white max-w-[22rem]"
+                        title="选择标签后会自动按标签过滤"
+                      >
+                        <option value="">全部（不筛选）</option>
+                        {tagOptions.map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                      </select>
+                      {tagOptionsLoading ? (
+                        <span className="text-xs text-slate-400 whitespace-nowrap">加载标签中...</span>
+                      ) : null}
+                      {tagNameFilter ? (
+                        <button
+                          type="button"
+                          onClick={() => setTagNameFilter('')}
+                          className="text-sm py-1 px-2 rounded text-slate-600 hover:text-sky-600"
+                          title="清空标签筛选"
+                        >
+                          清空
+                        </button>
+                      ) : null}
+                      {tagNameFilter && tagNameFilter !== DEFAULT_TAG ? (
+                        <button
+                          type="button"
+                          onClick={() => setTagNameFilter(DEFAULT_TAG)}
+                          className="text-sm py-1 px-2 rounded text-slate-600 hover:text-sky-600"
+                          title="恢复默认标签"
+                        >
+                          恢复默认
+                        </button>
+                      ) : null}
                     </div>
                   ) : (
                     <div className="flex items-center gap-3 flex-wrap items-center">
@@ -2793,11 +2880,36 @@ function App() {
                   )}
                   <div className="flex items-center gap-3">
                     <button
-                      onClick={() => void fetchData({ limit: 5000 })}
-                      disabled={loading}
+                      onClick={() => {
+                        ;(async () => {
+                          if (loading) return
+                          if (refreshCooldownSec > 0) return
+                          // 实时加微：刷新时先触发一次 MV 刷新，再拉取最新数据
+                          if (!isDailyStatsMode) {
+                            try {
+                              const res = await fetchWithTimeout(`${API_BASE}/api/mv/refresh`, { method: 'POST' }, 120000)
+                              if (!res.ok) {
+                                // 429：全局冷却中，取服务端剩余秒数
+                                if (res.status === 429) {
+                                  await fetchRefreshStatus()
+                                  return
+                                }
+                                throw new Error(await res.text())
+                              }
+                              // 成功：按服务端冷却初始化（会被 fetchRefreshStatus 覆盖也没问题）
+                              setRefreshCooldownSec(30)
+                            } catch (e) {
+                              const msg = e instanceof Error ? e.message : '刷新物化视图失败'
+                              setError(msg === 'The operation was aborted.' ? '请求超时，请检查网络或稍后重试' : msg)
+                            }
+                          }
+                          await fetchData({ limit: 5000 })
+                        })()
+                      }}
+                      disabled={loading || refreshCooldownSec > 0}
                       className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium transition-colors"
                     >
-                      {loading ? '加载中...' : '刷新'}
+                      {loading ? '加载中...' : refreshCooldownSec > 0 ? `刷新（${refreshCooldownSec}s）` : '刷新'}
                     </button>
                     <button
                       onClick={downloadExcel}
